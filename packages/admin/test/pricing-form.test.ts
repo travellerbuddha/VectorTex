@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { pricingPolicyDocumentSchema, type PricingPolicyDocument } from '@texholiday/pricing';
-import { basisPointsToPercent, documentFromForm, percentToBasisPoints, rowsFromDocument } from '../src/index';
+import { basisPointsToPercent, documentFromForm, parseAmount, percentToBasisPoints, rowsFromDocument } from '../src/index';
 
 const base: PricingPolicyDocument = {
   rounding: 'HALF_EVEN',
@@ -33,7 +33,8 @@ describe('pricing policy editor (G06)', () => {
   it('rows show the stored rules; empty slots stay empty (no default margin)', () => {
     const rows = rowsFromDocument(base);
     expect(rows['m.HOTEL.PROVIDER_MANAGED']).toMatchObject({ on: true, application: 'PROVIDER_API', kind: 'PERCENT_OF_NET', percent: '12,5' });
-    expect(rows['m.TRANSFER.OWN_GATEWAY']).toMatchObject({ on: true, kind: 'FIXED', amount: '5.00', currency: 'EUR' });
+    expect(rows['m.TRANSFER.OWN_GATEWAY']).toMatchObject({ on: true, kind: 'FIXED', amount: '5,00', currency: 'EUR' });
+    expect(rowsFromDocument(base, '.')['m.TRANSFER.OWN_GATEWAY']).toMatchObject({ amount: '5.00' });
     expect(rows['m.FLIGHT.PROVIDER_MANAGED']).toMatchObject({ on: false, percent: '' });
     expect(Object.values(rowsFromDocument(null)).every((r) => !r.on)).toBe(true);
   });
@@ -98,5 +99,30 @@ describe('pricing policy editor (G06)', () => {
       { field: 'fx.source', code: 'FX_SOURCE' },
       { field: 'fx.maxAgeMinutes', code: 'FX_AGE' },
     ]);
+  });
+
+  it('amounts are read in the panel language without guessing thousands vs decimals', () => {
+    expect(parseAmount('1.500', ',')).toBe('1500');
+    expect(parseAmount('1.500,25', ',')).toBe('1500.25');
+    expect(parseAmount('12,50', ',')).toBe('12.50');
+    expect(parseAmount(' 2 500 ', ',')).toBe('2500');
+    expect(parseAmount('1,500.25', '.')).toBe('1500.25');
+    expect(parseAmount('12.50', '.')).toBe('12.50');
+    // Ambiguous or malformed: rejected, never read as another amount.
+    for (const [text, sep] of [['12.50', ','], ['1.50', ','], ['12,50', '.'], ['1.5000', ','], ['-5', ','], ['1e3', ','], ['', ','], ['1,2,3', ',']] as const) {
+      expect(parseAmount(text, sep)).toBeNull();
+    }
+    const { issues } = documentFromForm(
+      formOf({ 'm.TRANSFER.OWN_GATEWAY.on': '1', 'm.TRANSFER.OWN_GATEWAY.app': 'LOCAL', 'm.TRANSFER.OWN_GATEWAY.kind': 'FIXED', 'm.TRANSFER.OWN_GATEWAY.amount': '12.50', 'm.TRANSFER.OWN_GATEWAY.currency': 'EUR' }),
+      null,
+      ',',
+    );
+    expect(issues).toEqual([{ field: 'm.TRANSFER.OWN_GATEWAY', code: 'AMOUNT' }]);
+    const en = documentFromForm(
+      formOf({ 'm.TRANSFER.OWN_GATEWAY.on': '1', 'm.TRANSFER.OWN_GATEWAY.app': 'LOCAL', 'm.TRANSFER.OWN_GATEWAY.kind': 'FIXED', 'm.TRANSFER.OWN_GATEWAY.amount': '1,500.25', 'm.TRANSFER.OWN_GATEWAY.currency': 'EUR' }),
+      null,
+      '.',
+    );
+    expect(en.document.rules).toEqual([{ productType: 'TRANSFER', paymentMode: 'OWN_GATEWAY', application: 'LOCAL', kind: 'FIXED', amount: { currency: 'EUR', minor: '150025' } }]);
   });
 });

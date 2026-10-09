@@ -1,11 +1,12 @@
 'use client';
 
-import { useActionState, useRef } from 'react';
+import { startTransition, useActionState, useEffect, useRef } from 'react';
 import type { FormState } from '../../server/admin-forms';
 
 /**
  * A form posting to a server action and showing its result (success, error, or a one-time link to hand over).
- * `confirmText` asks before destructive actions.
+ * `confirmText` asks before destructive actions. The action is dispatched by hand so that a rejected submission keeps
+ * what the person typed (React resets a form after every `action` submission); the form is cleared only on success.
  */
 export function ActionForm({
   action,
@@ -26,12 +27,20 @@ export function ActionForm({
 }) {
   const [state, formAction, pending] = useActionState(action, null);
   const linkRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (state && !state.error) formRef.current?.reset();
+  }, [state]);
   return (
     <form
+      ref={formRef}
       action={formAction}
       className={className}
       onSubmit={(e) => {
-        if (confirmText && !window.confirm(confirmText)) e.preventDefault();
+        e.preventDefault();
+        if (confirmText && !window.confirm(confirmText)) return;
+        const data = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
+        startTransition(() => formAction(data));
       }}
     >
       {children}

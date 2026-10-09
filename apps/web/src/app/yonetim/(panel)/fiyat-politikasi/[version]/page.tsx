@@ -26,8 +26,8 @@ export default async function PolicyVersion({ params }: { params: Promise<{ vers
   const editable = row.status === 'DRAFT' && can(staff, 'pricing_policy.edit');
   const own = row.createdBy === staff.id || row.updatedBy === staff.id;
   const mayApprove = row.status === 'DRAFT' && (own ? can(staff, 'pricing_policy.approve_own') : can(staff, 'pricing_policy.approve'));
-  const rows = rowsFromDocument(doc);
   const sep = locale === 'tr' ? ',' : '.';
+  const rows = rowsFromDocument(doc, sep);
 
   return (
     <div>
@@ -90,7 +90,7 @@ export default async function PolicyVersion({ params }: { params: Promise<{ vers
                       )}
                       <div className="field">
                         <label htmlFor={`${id}-pct`}>{t.pricing.percent}</label>
-                        <input id={`${id}-pct`} name={`${k}.pct`} inputMode="decimal" defaultValue={r.percent.replace('.', sep)} placeholder={`${locale === 'tr' ? 'örn.' : 'e.g.'} 12${sep}5`} />
+                        <input id={`${id}-pct`} name={`${k}.pct`} inputMode="decimal" defaultValue={r.percent} placeholder={`${locale === 'tr' ? 'örn.' : 'e.g.'} 12${sep}5`} />
                       </div>
                       {slot.applications.includes('LOCAL') && (
                         <>

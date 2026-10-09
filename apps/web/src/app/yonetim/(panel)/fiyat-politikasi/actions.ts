@@ -43,7 +43,7 @@ export async function saveDraftAction(_: FormState, form: FormData): Promise<For
   try {
     const base = await documentOf(version);
     if (!base) return { error: t.errors.notFound };
-    const { document, issues } = documentFromForm((n) => (form.has(n) ? String(form.get(n)) : null), base);
+    const { document, issues } = documentFromForm((n) => (form.has(n) ? String(form.get(n)) : null), base, locale === 'tr' ? ',' : '.');
     if (issues.length > 0) {
       const label = (field: string) => {
         const [, product, mode] = field.split('.');

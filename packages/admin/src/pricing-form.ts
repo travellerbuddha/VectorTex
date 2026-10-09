@@ -55,7 +55,24 @@ export function basisPointsToPercent(bp: number, decimalSeparator: ',' | '.' = '
   return frac ? `${whole}${decimalSeparator}${frac}` : String(whole);
 }
 
-export function rowsFromDocument(doc: PricingPolicyDocument | null): Record<string, MarginRow> {
+/**
+ * Parses an amount typed in the panel's locale without guessing: with a decimal comma (TR) dots may only group
+ * thousands ("1.500,25"); with a decimal point (EN) commas may only group thousands ("1,500.25"). Anything else, e.g.
+ * "12.50" in Turkish, is rejected rather than read as 1250 or 12.5. Returns a plain "1500.25" string or null.
+ */
+export function parseAmount(text: string, decimalSeparator: ',' | '.' = ','): string | null {
+  const t = text.replace(/[\s\u00a0\u202f]/g, '');
+  const group = decimalSeparator === ',' ? '\\.' : ',';
+  const dec = decimalSeparator === ',' ? ',' : '\\.';
+  const plain = new RegExp(`^\\d+(?:${dec}\\d+)?$`);
+  const grouped = new RegExp(`^\\d{1,3}(?:${group}\\d{3})+(?:${dec}\\d+)?$`);
+  if (!plain.test(t) && !grouped.test(t)) return null;
+  const [whole, frac] = t.split(decimalSeparator);
+  const digits = whole!.replace(/[.,]/g, '');
+  return frac === undefined ? digits : `${digits}.${frac}`;
+}
+
+export function rowsFromDocument(doc: PricingPolicyDocument | null, decimalSeparator: ',' | '.' = ','): Record<string, MarginRow> {
   const rows: Record<string, MarginRow> = {};
   for (const slot of MARGIN_SLOTS) {
     const rule = doc?.rules.find((r) => r.productType === slot.productType && r.paymentMode === slot.paymentMode);
@@ -63,8 +80,8 @@ export function rowsFromDocument(doc: PricingPolicyDocument | null): Record<stri
       on: !!rule,
       application: rule?.application ?? slot.applications[0]!,
       kind: rule?.kind ?? 'PERCENT_OF_NET',
-      percent: rule?.kind === 'PERCENT_OF_NET' ? basisPointsToPercent(rule.basisPoints) : '',
-      amount: rule?.kind === 'FIXED' ? toMajor(money(rule.amount.currency, rule.amount.minor)) : '',
+      percent: rule?.kind === 'PERCENT_OF_NET' ? basisPointsToPercent(rule.basisPoints, decimalSeparator) : '',
+      amount: rule?.kind === 'FIXED' ? toMajor(money(rule.amount.currency, rule.amount.minor)).replace('.', decimalSeparator) : '',
       currency: rule?.kind === 'FIXED' ? rule.amount.currency : 'EUR',
     };
   }
@@ -81,7 +98,11 @@ export interface FormIssue {
  * anything else are kept from `base` unchanged (nothing is dropped silently). The result still goes through the
  * policy schema on save.
  */
-export function documentFromForm(get: (name: string) => string | null, base: PricingPolicyDocument | null): { document: PricingPolicyDocument; issues: FormIssue[] } {
+export function documentFromForm(
+  get: (name: string) => string | null,
+  base: PricingPolicyDocument | null,
+  decimalSeparator: ',' | '.' = ',',
+): { document: PricingPolicyDocument; issues: FormIssue[] } {
   const issues: FormIssue[] = [];
   const editable = new Set(MARGIN_SLOTS.map(slotKey));
   const rules: MarginRule[] = (base?.rules ?? []).filter((r) => !editable.has(slotKey(r)));
@@ -107,7 +128,9 @@ export function documentFromForm(get: (name: string) => string | null, base: Pri
         continue;
       }
       try {
-        const m = fromMajor((get(`${k}.amount`) ?? '').trim().replace(',', '.'), code);
+        const plain = parseAmount(get(`${k}.amount`) ?? '', decimalSeparator);
+        if (plain === null) throw new Error('format');
+        const m = fromMajor(plain, code);
         if (m.minor < 0n) throw new Error('negative');
         rules.push({ productType: slot.productType, paymentMode: slot.paymentMode, application: 'LOCAL', kind: 'FIXED', amount: { currency: m.currency, minor: m.minor.toString() } });
       } catch {

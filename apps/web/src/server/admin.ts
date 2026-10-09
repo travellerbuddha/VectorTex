@@ -36,6 +36,8 @@ export function admin(): Admin {
 
 /** The business policy set this deployment sells with (same as the booking application). */
 export const pricingPolicyId = () => process.env.POLICY_ID ?? 'b2c';
+/** Booking reads the pricing and the risk policy under the same id (POLICY_ID). */
+export const riskPolicyId = pricingPolicyId;
 
 export const STAFF_COOKIE = 'th_staff';
 export const ADMIN_LANG_COOKIE = 'th_admin_lang';

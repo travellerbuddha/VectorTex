@@ -348,9 +348,26 @@ th {
 }
 dl.facts {
   display: grid;
-  grid-template-columns: max-content 1fr;
+  grid-template-columns: fit-content(45%) 1fr;
   gap: 0.35rem 1rem;
   margin: 0;
+}
+@media (max-width: 480px) {
+  dl.facts {
+    grid-template-columns: 1fr;
+  }
+  dl.facts dd {
+    margin-bottom: 0.4rem;
+  }
+}
+ul.plain,
+ol.plain-ol {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+ul.plain {
+  list-style: none;
+  padding-left: 0;
 }
 dl.facts dt {
   font-weight: 600;
