@@ -43,7 +43,7 @@ export async function cancelOrderAction(_: FormState, form: FormData): Promise<F
   const id = orderIdOf(form);
   if (!id) return { error: t.errors.notFound };
   try {
-    const r = await (await booking()).app.staff.cancel(actorOf(staff), id, String(form.get('reason') ?? ''));
+    const r = await (await booking()).app.staff.cancel(actorOf(staff), id, String(form.get('reason') ?? ''), { customerAcceptedFee: form.get('acceptFee') === '1' });
     revalidatePath(`/yonetim/siparisler/${id}`);
     const fmt = (m: Money | null) => (m ? formatMoney(toJson(m), locale) : c.notReported);
     if (r.outcome === 'CANCELLED') return { ok: r.providerRefund && r.providerRefund.minor === 0n ? c.cancelledNoRefund(fmt(r.penalty)) : c.cancelled(fmt(r.penalty), fmt(r.providerRefund)) };

@@ -499,7 +499,7 @@ export class ProviderManagedOrchestrator {
    * Cancels a confirmed booking at the provider (staff command, `orders.cancel` checked by the caller). The intent is
    * stored before the call; a lost answer is resolved by reading the booking, never by sending the cancel again.
    */
-  async cancel(orderId: string, actor: string, reason: string): Promise<StaffCancelResult> {
+  async cancel(orderId: string, actor: string, reason: string, context: { expectedPenalty: Money | null; customerAcceptedFee: boolean } = { expectedPenalty: null, customerAcceptedFee: false }): Promise<StaffCancelResult> {
     const agg = await this.deps.store.load(orderId);
     const it = single(agg);
     const now = this.deps.clock();
@@ -513,7 +513,12 @@ export class ProviderManagedOrchestrator {
     // A new request (an earlier one may have been REJECTED, which is final for that request).
     it.booking.cancellation = 'REQUESTED';
     it.booking.intent = { op: 'CANCEL', ...this.lease(now) };
-    audit(agg, 'provider_managed.cancel_requested', actor, now, { itemId: it.id, reason });
+    audit(agg, 'provider_managed.cancel_requested', actor, now, {
+      itemId: it.id,
+      reason,
+      expectedPenalty: context.expectedPenalty ? { currency: context.expectedPenalty.currency, minor: context.expectedPenalty.minor.toString() } : null,
+      customerAcceptedFee: context.customerAcceptedFee,
+    });
     await this.deps.store.save(agg);
 
     const outcome = await this.deps.port.cancel(agg, it, ref);

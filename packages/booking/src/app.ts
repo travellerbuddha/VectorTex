@@ -130,7 +130,7 @@ export class BookingApp {
         maxAutomaticLookups: s.maxAutomaticLookups,
       },
     });
-    this.staff = new StaffOrderCommands(deps.db, this.store, this.orchestrator, s.environment);
+    this.staff = new StaffOrderCommands(deps.db, this.store, this.orchestrator, s.environment, this.clock);
   }
 
   // ------------------------------------------------------------------ routing & pricing

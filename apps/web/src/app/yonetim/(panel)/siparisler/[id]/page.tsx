@@ -6,6 +6,7 @@ import { adminDict, adminLocale } from '../../../../../i18n/admin';
 import { formatDate, formatMoney } from '../../../../../i18n/format';
 import { admin, can, requireStaff } from '../../../../../server/admin';
 import { actorOf, formatAdminInstant } from '../../../../../server/admin-forms';
+import { booking } from '../../../../../server/booking';
 import { cancelOrderAction, checkStatusAction, recordRefundAction } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -41,6 +42,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const mayCheck = pm && order.status !== 'CANCELLED' && can(staff, 'tasks.manage');
   const mayCancel =
     pm && order.status === 'CONFIRMED' && (first?.booking?.status === 'CONFIRMED' || first?.booking?.status === 'ISSUED') && can(staff, 'orders.cancel');
+  // Spec §16: the current cost is shown before a cancellation is confirmed.
+  const preview = mayCancel ? await (await booking()).app.staff.cancellationPreview(actorOf(staff), order.id) : null;
   const mayRecordRefund =
     pm && order.status === 'CANCELLED' && ['CAPTURED', 'REFUND_PENDING', 'PARTIALLY_REFUNDED'].includes(order.payment?.status ?? '') && can(staff, 'orders.record_refund');
   const describe = (action: string, detail: unknown) => {
@@ -147,10 +150,23 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               <ActionForm action={cancelOrderAction} submit={c.cancel} variant="danger" confirmText={c.cancelConfirm} className="stack top-gap">
                 <input type="hidden" name="orderId" value={order.id} />
                 <p className="muted">{c.cancelHint}</p>
+                {preview && (
+                  <p data-testid="cancel-preview" className={preview.expectedPenalty.minor > 0n ? 'notice' : undefined}>
+                    {c.expectedFee}: <strong>{formatMoney({ currency: preview.expectedPenalty.currency, minor: preview.expectedPenalty.minor.toString() }, locale)}</strong>{' '}
+                    <small className="muted">
+                      ({preview.basis === 'NON_REFUNDABLE' ? c.basisNonRefundable : preview.basis === 'FREE' && preview.freeUntil ? c.basisFreeUntil(formatAdminInstant(preview.freeUntil, locale)) : c.basisPolicy})
+                    </small>
+                  </p>
+                )}
                 <div className="field">
                   <label htmlFor="cancel-reason">{c.cancelReason}</label>
                   <textarea id="cancel-reason" name="reason" required minLength={5} maxLength={500} />
                 </div>
+                {preview && preview.expectedPenalty.minor > 0n && (
+                  <label className="check">
+                    <input type="checkbox" name="acceptFee" value="1" required /> {c.acceptFee}
+                  </label>
+                )}
               </ActionForm>
             )}
             {mayRecordRefund && order.payment && (

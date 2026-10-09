@@ -7,6 +7,7 @@ import { MockHotelConnector } from '@texholiday/connectors';
 import { PermissionRepository, PolicyRepository, type CoreDatabase } from '@texholiday/db';
 import { BookingApp, orderAccessToken, type BookingSettings } from '../src/index';
 import { freshDatabase } from '../../db/test/support/db';
+import { fromJson, money } from '@texholiday/pricing';
 
 /** End-to-end application flow against PostgreSQL with the MOCK hotel connector (no provider involved). */
 const root = join(__dirname, '..', '..', '..');
@@ -196,5 +197,35 @@ describe('hotel booking application flow (provider-managed payment, ADR-0008)', 
     // MOCK Suite: 200.00 EUR net/night x 3 + 10% = 660.00 EUR sold; suggested 200.00 x 3 x 1.9 = 1140.00 EUR.
     expect(rows.rows[0]!.parity).toEqual({ suggestedSellingPrice: { currency: 'EUR', minor: '114000' }, belowSuggestedPrice: true });
     expect(quote.total).toEqual({ currency: 'EUR', minor: '66000' });
+  });
+
+  it('staff commands: permissions from grants, the expected fee shown, a fee needs the customer’s acceptance', async () => {
+    const r = await app.searchHotels(searchInput());
+    const offer = r.hotels.find((h) => h.hotelId === 'MOCK-H1')!.offers.find((o) => !o.cancellation.refundable)!;
+    const quote = await app.selectOffer(r.sessionId, offer.key);
+    const { orderId, accessToken } = await app.createCheckout(checkoutBody(quote.quoteVersionId, 'idem-staff-cancel-01'));
+    const session = await app.paymentSession(orderId, accessToken);
+    if (session.state !== 'READY') throw new Error('no payment session');
+    hotels.markPaid(session.secretKey.replace('MOCK_secret_', ''));
+    expect((await app.finalize(orderId, accessToken)).stage).toBe('CONFIRMED');
+
+    const ops: StaffActor = { kind: 'STAFF', id: 'ops' };
+    await new PermissionRepository(core.db).grantRole(ops.id, 'OPERATIONS', owner);
+    await expect(app.staff.cancellationPreview(finance, orderId)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    // Non-refundable: the whole amount paid is the expected fee.
+    expect(await app.staff.cancellationPreview(ops, orderId)).toEqual({ expectedPenalty: fromJson(quote.total), basis: 'NON_REFUNDABLE', freeUntil: null });
+    await expect(app.staff.cancel(ops, orderId, 'Misafir telefonla istedi', { customerAcceptedFee: false })).rejects.toMatchObject({
+      code: 'VALIDATION_FAILED',
+      message: 'Confirm that the customer accepted the cancellation fee',
+    });
+    await expect(app.staff.cancel(ops, orderId, 'kısa', { customerAcceptedFee: true })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    expect((await app.staff.cancel(ops, orderId, 'Misafir telefonla istedi', { customerAcceptedFee: true })).outcome).toBe('CANCELLED');
+    const audit = await core.db.execute<{ detail: Record<string, unknown> }>(
+      sql`SELECT detail FROM core.audit_logs WHERE entity_type = 'order' AND entity_id = ${orderId} AND action = 'provider_managed.cancel_requested'`,
+    );
+    expect(audit.rows[0]!.detail).toMatchObject({ reason: 'Misafir telefonla istedi', customerAcceptedFee: true, expectedPenalty: quote.total });
+    expect((await app.order(orderId, accessToken)).stage).toBe('CANCELLED');
+    // Recording the provider's refund is a finance permission.
+    await expect(app.staff.recordProviderRefund(ops, orderId, money('EUR', 100n), 'Nuitee panel')).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });

@@ -33,7 +33,9 @@ test('staff checks, cancels and records the provider refund; the customer sees t
   await commands.getByRole('button', { name: 'Durumu kontrol et' }).click();
   await expect(statusIn(page)).toHaveText('Kontrol edildi: değişiklik yok (Onaylandı).');
 
-  // Cancel with a reason.
+  // Cancel with a reason; the expected fee is shown first (free cancellation for this offer).
+  await expect(commands.getByTestId('cancel-preview')).toContainText('Şimdi iptal edilirse beklenen iptal ücreti: €0,00');
+  await expect(commands.getByLabel('Müşteri bu iptal ücretini kabul etti')).toHaveCount(0);
   await commands.getByLabel('İptal gerekçesi').fill('Misafir telefonla iptal istedi.');
   await commands.getByRole('button', { name: 'Rezervasyonu iptal et' }).click();
   await expect(page.getByRole('heading', { level: 1 })).toContainText('İptal');
