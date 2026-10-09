@@ -72,6 +72,7 @@ export function makeOrder(opts: { items?: ItemSpec[]; payment?: PaymentStatus; s
     })),
     payment: {
       id: 'pa-1',
+      createdAt: '2026-10-09T09:50:00.000Z',
       gatewayId: 'mock-gateway',
       status: opts.payment ?? 'AUTHORIZED',
       amount: money('EUR', total),

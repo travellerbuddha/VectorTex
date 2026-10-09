@@ -103,6 +103,7 @@ export class FakeGateway implements OwnedPaymentGateway {
       currencies: ['EUR', 'TRY'],
       idempotency: { createSession: 'NONE', capture: 'NONE', void: 'NONE', refund: 'NONE' },
       requiredBuyerFields: [],
+      authorizationValiditySeconds: 7 * 86_400,
     };
   }
   async createSession() {

@@ -629,7 +629,7 @@
       "fetchedAt": "2026-10-09T09:20:00.000Z",
       "integrity": "sha512-zbhgt3I3DYzjeliaVGz9hV3/fyJxSeRKd7w+1pPRXSWfXkSaRSxFklbHYFYGUUhrtHi8yIJdPcvQETrqOuigEw==",
       "shasum": "94885b028eef344eb2338e5487f14aee4b1d337b",
-      "usedFor": "Official iyzico Node client: endpoint paths, IYZWSv2 auth header, response-signature field orders (samples/IyzipaySamples.js). Secondary evidence; the docs.iyzico.com guides remain the primary contract and are UNREACHABLE. Not a runtime dependency."
+      "usedFor": "Official iyzico Node client: endpoint paths and IYZWSv2 auth header. Secondary evidence; the pinned docs.iyzico.com pages (iyzico-*) are the primary contract. Not a runtime dependency."
     },
     {
       "id": "ref-npm-liteapi-node-sdk",

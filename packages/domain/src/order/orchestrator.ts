@@ -114,6 +114,22 @@ export class PackageOrchestrator {
     }
   }
 
+  /**
+   * Server-side payment reconciliation, triggered by a browser return, a verified webhook or a sweeper.
+   * The trigger itself proves nothing (T13): only the gateway's retrieve result changes the payment state.
+   */
+  async reconcilePayment(orderId: string): Promise<boolean> {
+    const agg = await this.deps.store.load(orderId);
+    if (!agg.payment || agg.payment.intent) return false;
+    this.continueNow = false;
+    try {
+      return await this.retrievePayment(agg, this.deps.clock());
+    } catch (err) {
+      if (err instanceof VersionConflictError) return false;
+      throw err;
+    }
+  }
+
   /** Runs steps until the order waits or is done (bounded). Used by the worker and tests. */
   async drive(orderId: string, maxSteps = 50): Promise<StepResult[]> {
     const results: StepResult[] = [];
@@ -277,6 +293,12 @@ export class PackageOrchestrator {
       return;
     }
     setPaymentStatus(agg, mapped, 'RECONCILIATION', ACTOR, now);
+    if ((mapped === 'AUTHORIZED' || mapped === 'FRAUD_REVIEW') && !p.authorizationExpiresAt) {
+      const validity = this.deps.gateway(p.gatewayId).capabilities().authorizationValiditySeconds;
+      // Conservative: counted from attempt creation, the earliest moment the authorization could exist.
+      if (validity !== null) p.authorizationExpiresAt = new Date(new Date(p.createdAt).getTime() + validity * 1000).toISOString();
+      else raiseTask(agg, 'AUTHORIZATION_EXPIRING', null, 'Gateway does not document an authorization lifetime; monitor manually', ACTOR, now);
+    }
   }
 
   private async retrievePayment(agg: OrderAggregate, now: Date): Promise<boolean> {

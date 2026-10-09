@@ -22,6 +22,11 @@ export interface GatewayAdapterCapabilities {
   idempotency: Readonly<Record<'createSession' | 'capture' | 'void' | 'refund', 'NONE' | 'DOCUMENTED_KEY'>>;
   /** Fields of buyer identity the adapter requires; used to block checkout before payment starts. */
   requiredBuyerFields: readonly (keyof BuyerIdentity)[];
+  /**
+   * Documented maximum lifetime of an authorization (pre-auth) before it must be captured; null if unknown.
+   * The orchestrator measures it from attempt creation (earliest possible authorization time).
+   */
+  authorizationValiditySeconds: number | null;
 }
 
 export interface BuyerIdentity {

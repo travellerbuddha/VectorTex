@@ -21,8 +21,22 @@ import {
   type VoidInput,
 } from '@texholiday/contracts';
 import { fromMajor, sum, type Money } from '@texholiday/pricing';
-import { ADAPTER_CURRENCIES, FRAUD_STATUS, IYZICO_GATEWAY_ID, PATHS, PHASE, REFUND_REASON, RESPONSE_SIGNATURE_FIELDS, WEBHOOK_V3 } from './contract';
-import { authorizationHeader, formatPrice, randomKey, verifyResponseSignature } from './signing';
+import {
+  ADAPTER_CURRENCIES,
+  FRAUD_STATUS,
+  IYZICO_GATEWAY_ID,
+  PATHS,
+  PENDING_STATUSES,
+  PHASE,
+  PRE_AUTH_VALIDITY_SECONDS,
+  PRICE_FIELDS,
+  REFUND_REASON,
+  RESPONSE_SIGNATURE_FIELDS,
+  THREEDS_STATUSES,
+  WEBHOOK_V3,
+} from './contract';
+import { authorizationHeader, formatPrice, randomKey, verifyResponseSignature, webhookV3Signature } from './signing';
+import { timingSafeEqual } from 'node:crypto';
 
 export interface IyzicoAdapterConfig {
   apiKey: string;
@@ -67,11 +81,13 @@ export class IyzicoGateway implements OwnedPaymentGateway {
       gatewayId: IYZICO_GATEWAY_ID,
       environment: this.cfg.environment,
       isMock: false,
-      operations: new Set(['AUTHORIZE', 'CAPTURE', 'RETRIEVE', 'VOID', 'REFUND_FULL', 'REFUND_PARTIAL', ...(WEBHOOK_V3.fieldOrder ? (['VERIFIED_NOTIFICATION'] as const) : [])]),
+      operations: new Set(['AUTHORIZE', 'CAPTURE', 'RETRIEVE', 'VOID', 'REFUND_FULL', 'REFUND_PARTIAL', 'VERIFIED_NOTIFICATION']),
       currencies: ADAPTER_CURRENCIES,
-      // conversationId is a correlation id, not a documented idempotency guarantee (§12).
+      // conversationId is a correlation id; the docs define no idempotency guarantee (§12).
       idempotency: { createSession: 'NONE', capture: 'NONE', void: 'NONE', refund: 'NONE' },
-      requiredBuyerFields: ['firstName', 'lastName', 'email', 'city', 'countryCode', 'address', 'ip'],
+      // buyer.gsmNumber is required by the CF pre-auth contract (DOCS iyzico-cf-preauth).
+      requiredBuyerFields: ['firstName', 'lastName', 'email', 'phone', 'city', 'countryCode', 'address', 'ip'],
+      authorizationValiditySeconds: PRE_AUTH_VALIDITY_SECONDS,
     };
   }
 
@@ -120,7 +136,7 @@ export class IyzicoGateway implements OwnedPaymentGateway {
     }
     if (json.status !== 'success') return { ok: false, outcome: { kind: 'UNKNOWN', reason: 'MALFORMED_RESPONSE', evidence: ev } };
     const fields = RESPONSE_SIGNATURE_FIELDS[operation];
-    if (fields && !verifyResponseSignature(json, fields, this.cfg.secretKey)) {
+    if (fields && !verifyResponseSignature(json, fields, this.cfg.secretKey, (f) => exactDecimal(parsed, json, f), PRICE_FIELDS)) {
       return { ok: false, outcome: { kind: 'UNKNOWN', reason: 'SIGNATURE_MISMATCH', evidence: ev } };
     }
     return { ok: true, body: json, parsed, evidence: ev };
@@ -138,14 +154,14 @@ export class IyzicoGateway implements OwnedPaymentGateway {
 
   private buyer(b: BuyerIdentity): Record<string, unknown> | null {
     const identityNumber = b.nationalId ?? (this.cfg.foreignIdentityPolicy === 'SEND_FOREIGN_ID' ? b.foreignIdentityNumber : null);
-    if (!identityNumber) return null;
+    if (!identityNumber || !b.phone) return null;
     return {
       id: b.customerId,
       name: b.firstName,
       surname: b.lastName,
       identityNumber,
       email: b.email,
-      ...(b.phone ? { gsmNumber: b.phone } : {}),
+      gsmNumber: b.phone,
       registrationAddress: b.address,
       city: b.city,
       country: b.countryCode,
@@ -166,7 +182,7 @@ export class IyzicoGateway implements OwnedPaymentGateway {
     if (itemsTotal.minor !== input.amount.minor) throw new Error('Basket items must sum exactly to the payment amount');
     if (input.items.some((i) => i.amount.minor <= 0n)) return notAvailable('ZERO_PRICE_ITEM', 'iyzico basket items must have a positive price');
     const buyer = this.buyer(input.buyer);
-    if (!buyer) return notAvailable('BUYER_IDENTITY', 'No national id and the foreign-identity policy is not verified for this merchant');
+    if (!buyer) return notAvailable('BUYER_IDENTITY', 'Phone and a national id (or a merchant-approved foreign id) are required before payment');
 
     const address = { contactName: `${input.buyer.firstName} ${input.buyer.lastName}`, city: input.buyer.city, country: input.buyer.countryCode, address: input.buyer.address };
     const op = input.intent === 'AUTHORIZE_ONLY' ? 'checkoutFormInitializePreAuth' : 'checkoutFormInitializeAuth';
@@ -252,7 +268,8 @@ export class IyzicoGateway implements OwnedPaymentGateway {
   private mapStatus(b: Record<string, unknown>): GatewayPaymentStatus | null {
     const paymentStatus = b.paymentStatus;
     if (paymentStatus === 'FAILURE') return 'DECLINED';
-    if (paymentStatus === 'INIT_THREEDS' || paymentStatus === 'CALLBACK_THREEDS') return 'REQUIRES_ACTION';
+    if (typeof paymentStatus === 'string' && THREEDS_STATUSES.has(paymentStatus)) return 'REQUIRES_ACTION';
+    if (typeof paymentStatus === 'string' && PENDING_STATUSES.has(paymentStatus)) return 'PENDING';
     if (paymentStatus !== undefined && paymentStatus !== 'SUCCESS') return null;
     switch (b.phase) {
       case PHASE.PRE_AUTH:
@@ -313,8 +330,31 @@ export class IyzicoGateway implements OwnedPaymentGateway {
     };
   }
 
-  verifyNotification(): NotificationVerification {
-    // Fail-closed until the V3 field order is pinned from the official documentation (G05).
-    return { verified: false, reason: 'IYZICO_WEBHOOK_V3_CONTRACT_NOT_PINNED' };
+  /**
+   * Verifies an HPP (CheckoutForm) webhook with X-IYZ-SIGNATURE-V3. A verified notification is only a hint to
+   * call retrieve(); it never changes payment state by itself.
+   */
+  verifyNotification(headers: Readonly<Record<string, string | undefined>>, rawBody: string): NotificationVerification {
+    const header = Object.entries(headers).find(([k]) => k.toLowerCase() === WEBHOOK_V3.header)?.[1];
+    if (!header || !/^[0-9a-f]{64}$/i.test(header)) return { verified: false, reason: 'MISSING_OR_MALFORMED_SIGNATURE' };
+    const parsed = parseJsonPreservingNumbers(rawBody);
+    const body = parsed?.value as Record<string, unknown> | undefined;
+    if (!parsed || !body || typeof body !== 'object') return { verified: false, reason: 'MALFORMED_BODY' };
+    if (typeof body.token !== 'string') return { verified: false, reason: 'UNSUPPORTED_WEBHOOK_FORMAT' };
+    const values: string[] = [];
+    for (const f of WEBHOOK_V3.hppFieldOrder) {
+      const v = body[f];
+      const text = typeof v === 'string' ? v : typeof v === 'number' ? exactDecimal(parsed, body, f) : null;
+      if (text === null) return { verified: false, reason: `MISSING_FIELD_${f}` };
+      values.push(text);
+    }
+    const expected = webhookV3Signature(this.cfg.secretKey, values);
+    if (!timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(header.toLowerCase(), 'hex'))) return { verified: false, reason: 'SIGNATURE_MISMATCH' };
+    const [eventType, paymentId, token, , status] = values as [string, string, string, string, string];
+    const reference = typeof body.iyziReferenceCode === 'string' ? body.iyziReferenceCode : null;
+    return {
+      verified: true,
+      hint: { sessionRef: token, gatewayPaymentId: paymentId, eventType, dedupeKey: reference ?? `${paymentId}:${eventType}:${status}` },
+    };
   }
 }

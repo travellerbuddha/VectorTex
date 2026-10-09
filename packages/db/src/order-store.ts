@@ -79,6 +79,7 @@ export class DrizzleOrderStore implements OrderStore {
     const payment: PaymentState | null = attempt
       ? {
           id: attempt.id,
+          createdAt: new Date(attempt.createdAt).toISOString(),
           gatewayId: attempt.gatewayId,
           status: attempt.status,
           amount: money(attempt.currency, attempt.amountMinor),

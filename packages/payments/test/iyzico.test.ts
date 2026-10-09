@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseSourceLock, type CreateSessionInput, type HttpRequest, type HttpResult, type HttpTransport } from '@texholiday/contracts';
 import { money } from '@texholiday/pricing';
 import { GatewayRegistry, IYZICO_REQUIRED_SOURCES, IyzicoGateway, authorizationHeader, formatPrice, responseSignature } from '../src/index';
+import { stripTrailingZeros, webhookV3Signature } from '../src/iyzico/signing';
 
 const SECRET = 'sandbox-secret-key-for-tests';
 
@@ -18,7 +19,15 @@ class ScriptedTransport implements HttpTransport {
 }
 
 const json = (body: unknown, status = 200): HttpResult => ({ kind: 'RESPONSE', response: { status, headers: {}, body: typeof body === 'string' ? body : JSON.stringify(body) }, durationMs: 5 });
-const signed = (body: Record<string, unknown>, fields: string[]) => ({ ...body, signature: responseSignature(fields.map((f) => body[f]), SECRET) });
+const PRICE = new Set(['price', 'paidPrice']);
+/** Signs like iyzico: values as text, price fields without trailing zeros. */
+const signed = (body: Record<string, unknown>, fields: string[]) => ({
+  ...body,
+  signature: responseSignature(
+    fields.map((f) => (PRICE.has(f) ? stripTrailingZeros(String(body[f])) : String(body[f]))),
+    SECRET,
+  ),
+});
 
 function gateway(responses: ConstructorParameters<typeof ScriptedTransport>[0], policy: 'REFUSE' | 'SEND_FOREIGN_ID' = 'REFUSE') {
   const transport = new ScriptedTransport(responses);
@@ -44,7 +53,7 @@ const session = (over: Partial<CreateSessionInput> = {}): CreateSessionInput => 
     firstName: 'Ada',
     lastName: 'Yilmaz',
     email: 'ada@example.test',
-    phone: null,
+    phone: '+905551112233',
     nationalId: '74300864791',
     foreignIdentityNumber: null,
     countryCode: 'TR',
@@ -59,7 +68,7 @@ const session = (over: Partial<CreateSessionInput> = {}): CreateSessionInput => 
 
 describe('iyzico signing (provenance: official client 2.0.70)', () => {
   it('response signature matches an independent HMAC (openssl) vector', () => {
-    expect(responseSignature(['SUCCESS', '12345', 'TRY', 'ord-1', 'pa-1', 1.2, 1.2, 'tok-1'], SECRET)).toBe('9feeaf77f6e7cb134f59d29b51ab2434a232c62bdbfacc9ca53ad9e954e0417b');
+    expect(responseSignature(['SUCCESS', '12345', 'TRY', 'ord-1', 'pa-1', '1.2', '1.2', 'tok-1'], SECRET)).toBe('9feeaf77f6e7cb134f59d29b51ab2434a232c62bdbfacc9ca53ad9e954e0417b');
   });
 
   it('IYZWSv2 header signs randomKey + path + body', () => {
@@ -220,7 +229,8 @@ describe('capture / void / refund', () => {
   });
 
   it('void uses cancel; refund goes per item transaction (one line per call)', async () => {
-    const { gw, transport } = gateway([json({ status: 'success', paymentId: '12345' }), json({ status: 'success', paymentTransactionId: '900', price: 0.5, currency: 'TRY' })]);
+    const refundBody = signed({ status: 'success', paymentId: '12345', paymentTransactionId: '900', price: 0.5, currency: 'TRY', conversationId: 'rf-1' }, ['paymentId', 'price', 'currency', 'conversationId']);
+    const { gw, transport } = gateway([json({ status: 'success', paymentId: '12345' }), json(refundBody)]);
     expect((await gw.void({ ref, paymentAttemptId: 'pa-1', ip: '10.0.0.1', reason: 'OTHER' })).kind).toBe('SUCCEEDED');
     const refund = await gw.refund({ ref, refundId: 'rf-1', lines: [{ gatewayItemTransactionId: '900', amount: money('TRY', 50n) }], ip: '10.0.0.1' });
     expect(refund.kind).toBe('SUCCEEDED');
@@ -230,10 +240,37 @@ describe('capture / void / refund', () => {
     expect(multi.kind).toBe('CAPABILITY_NOT_AVAILABLE');
   });
 
-  it('webhooks are not trusted until the V3 contract is pinned (T15 fail-closed)', () => {
+  it('T15: verifies HPP webhooks with X-IYZ-SIGNATURE-V3 and refuses anything else', () => {
     const { gw } = gateway([]);
-    expect(gw.verifyNotification().verified).toBe(false);
-    expect(gw.capabilities().operations.has('VERIFIED_NOTIFICATION')).toBe(false);
+    expect(gw.capabilities().operations.has('VERIFIED_NOTIFICATION')).toBe(true);
+    const body = { paymentConversationId: 'pa-1', merchantId: '1', token: 'tok-1', status: 'SUCCESS', iyziReferenceCode: 'ref-1', iyziEventType: 'CHECKOUT_FORM_AUTH', iyziEventTime: 1760000000000, iyziPaymentId: 25152948 };
+    const raw = JSON.stringify(body);
+    const sig = webhookV3Signature(SECRET, ['CHECKOUT_FORM_AUTH', '25152948', 'tok-1', 'pa-1', 'SUCCESS']);
+    expect(gw.verifyNotification({ 'X-IYZ-SIGNATURE-V3': sig }, raw)).toEqual({
+      verified: true,
+      hint: { sessionRef: 'tok-1', gatewayPaymentId: '25152948', eventType: 'CHECKOUT_FORM_AUTH', dedupeKey: 'ref-1' },
+    });
+    expect(gw.verifyNotification({ 'x-iyz-signature-v3': sig }, raw.replace('SUCCESS', 'FAILURE')).verified).toBe(false);
+    expect(gw.verifyNotification({}, raw).verified).toBe(false);
+    const direct = JSON.stringify({ ...body, token: undefined, paymentId: 25152948 });
+    expect(gw.verifyNotification({ 'x-iyz-signature-v3': sig }, direct)).toEqual({ verified: false, reason: 'UNSUPPORTED_WEBHOOK_FORMAT' });
+  });
+
+  it('signature check removes trailing zeros from prices as the docs require', async () => {
+    const fields = ['paymentId', 'currency', 'basketId', 'conversationId', 'paidPrice', 'price'];
+    const body = { status: 'success', paymentId: '12345', currency: 'TRY', basketId: 'ord-1', conversationId: 'pa-1', paidPrice: '1.20', price: '1.20' };
+    const signature = responseSignature(['12345', 'TRY', 'ord-1', 'pa-1', '1.2', '1.2'], SECRET);
+    const { gw } = gateway([json({ ...body, signature })]);
+    const out = await gw.capture({ ref, amount: money('TRY', 120n), paymentAttemptId: 'pa-1', ip: '10.0.0.1' });
+    expect(out.kind).toBe('SUCCEEDED');
+    expect(fields).toHaveLength(6);
+  });
+
+  it('refund responses are signature-checked (paymentId, price, currency, conversationId)', async () => {
+    const good = signed({ status: 'success', paymentId: '12345', paymentTransactionId: '900', price: 0.5, currency: 'TRY', conversationId: 'rf-1' }, ['paymentId', 'price', 'currency', 'conversationId']);
+    const { gw } = gateway([json({ ...good, signature: 'b'.repeat(64) })]);
+    const out = await gw.refund({ ref, refundId: 'rf-1', lines: [{ gatewayItemTransactionId: '900', amount: money('TRY', 50n) }], ip: '10.0.0.1' });
+    expect(out).toMatchObject({ kind: 'UNKNOWN', reason: 'SIGNATURE_MISMATCH' });
   });
 });
 

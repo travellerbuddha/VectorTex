@@ -73,6 +73,7 @@ const iyzicoAdapter = (overrides: Partial<GatewayAdapterCapabilities> = {}): Gat
   currencies: ['TRY', 'EUR', 'USD', 'GBP'],
   idempotency: { createSession: 'NONE', capture: 'NONE', void: 'NONE', refund: 'NONE' },
   requiredBuyerFields: [],
+  authorizationValiditySeconds: 25 * 86_400,
   ...overrides,
 });
 

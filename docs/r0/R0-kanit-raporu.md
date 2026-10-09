@@ -82,3 +82,31 @@ Marj/servis bedeli/vergi; kur kaynağı ve yuvarlama modu; risk politikası (pro
 - R0 dış kapıları açık değil: G01–G09 hepsi NOT_PASSED; G03 Nuitee'nin yeni ödeme yolunu belgelemesine bağlı.
 - Bağımsız geliştirme P02'den itibaren yapıldı (bkz. `docs/plan/is-paketleri.md`, `docs/plan/test-matrisi.md`).
 - Bir sonraki adım için gereken erişimler: yukarıdaki dört alan adına ağ izni; Nuitee sandbox anahtarı; iyzico sandbox API/secret; Welcome staging anahtarı; işletmeden G06 değerleri.
+
+---
+
+## 9. Güncelleme (9 Ekim 2026, doküman erişimi açıldıktan sonra)
+
+Ağ izni verildikten sonra 45 kaynak SHA-256 ile sabitlendi (`contracts/sources/`, `pnpm contracts:check`). Rehberler resmî Markdown sürümleriyle alındı. Sağlayıcı **API** host'ları (`api.liteapi.travel`, `book.liteapi.travel`, `sandbox-api.iyzipay.com`, `api.stgazure.welcomd.com`) hâlâ ağ politikasıyla kapalı; bu yüzden sandbox testi henüz koşulamadı. Nuitee sandbox anahtarı alındı (repo dışında tutuluyor).
+
+### Dokümanla kesinleşenler
+
+| Konu | Bulgu (kaynak) | Koda etkisi |
+|---|---|---|
+| Nuitee otel — hesap kartı | `ACC_CREDIT_CARD`; her sandbox anahtarında gizli test kartı var, gerçek kart yalnız production anahtarında (account-credit-card) | Sandbox'ta güvenle denenebilir |
+| Nuitee otel — CREDIT | Sandbox'ta çalışmaz; **CREDIT ile yapılan her rezervasyon gerçektir** (credit-line) | Sandbox'ta asla kullanılmaz; matris `NOT_SUPPORTED` |
+| Nuitee otel — book | `holder.phone` zorunlu; `clientReference` tekrarında 4005 = rezervasyon zaten var; book 2 dakikaya kadar sürebilir, timeout = durum bilinmiyor, yeniden book yok (booking OpenAPI, hotel-integration) | Lease 600 sn yeterli; 4005 → lookup |
+| Nuitee otel — iptal politikası | `cancelPolicyInfos[].cancelTime` her zaman GMT; `refundableTag` RFN/NRFN | Deadline dönüşümü UTC |
+| Nuitee otel — marj | `margin` (yüzde) hesap varsayılanını ezer; kendi ödemede net fiyat (`margin: 0`) önerilir; SSP altı fiyat herkese açık gösterilemez (revenue guide) | Mevcut tek-marj ve SSP kuralları doğrulandı |
+| Nuitee uçak | `usePaymentSdk:false` yalnız "payment bypass" + etkin kredi hattı veya WL/CMI ile; booking enum'unda `ACC_CREDIT_CARD` var, sandbox'ta ücret çekmeden simüle ediyor; `THIRD_PARTY` yalnız WL/CMI imzalı JWT | Bağımsız funding için Nuitee'den yazılı teyit hâlâ gerekli |
+| **Nuitee Experiences (G03)** | Phase 1: `usePaymentSdk:true` zorunlu (false → 400/4002); book `payment.method` yalnız `TRANSACTION_ID`; CREDIT/ACC_CREDIT_CARD/WALLET yok; "Phase 2" yok | **G03 dokümana göre geçemez.** Experiences içeren paket ve TRY/kendi gateway rotası kapalı kalır (K09) |
+| iyzico | fraudStatus 1/0/-1 doğrulandı; imza alan sıraları + fiyatlarda sondaki sıfırların atılması; refund imzası; webhook V3 HPP formülü; CF için `gsmNumber` zorunlu; ön provizyon 25 gün içinde kapatılmalı (bankaya göre değişebilir) | Adapter güncellendi: telefon zorunlu, imza normalizasyonu, refund imzası, HPP webhook doğrulaması, 25 günlük provizyon süresinden muhafazakâr deadline |
+| Welcome | Kimlik: `Authorization: Bearer`; istek gövdeleri düz JSON, yanıtlar JSON:API; `payment_method: "credit"`; tahmini fiyatla rezervasyon reddediliyor; müsaitlik yokluğu HTTP 200 + `errors[]`; webhook kimliği isteğe bağlı Bearer token; production anahtarı audit sonrası | Connector staging anahtarı gelince yazılacak |
+
+### Hâlâ açık (sandbox veya sağlayıcıdan yazılı teyit gerekir)
+
+1. iyzico `phase` değerleri (dokümanda sıralanmıyor) ve ödenmemiş bir ön provizyonun nasıl serbest bırakılacağı: cancel "aynı gün, kısmi değil" diye tanımlı, ön provizyon iptali anlatılmıyor. Yanlış yorum paket compensation'ını etkiler (G05).
+2. iyzico GBP capture: post-auth yanıt para birimi listesinde GBP yok.
+3. Nuitee uçak: `ACC_CREDIT_CARD` için payment bypass gerekip gerekmediği.
+4. Welcome: `booking_reference` tekilliği ve listeleme filtresinin birebir eşleşme semantiği (kayıp create yanıtının çözümü buna dayanıyor); `quote-requests`/`quote_requests` yol farkı.
+5. Nuitee Experiences için bağımsız funding: Nuitee'ye resmî talep (G03).

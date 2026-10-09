@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "asOf": "2026-10-09",
-  "verificationBoundary": "Derived from docs/spec/SAGLAYICI_ODEME_YETENEK_MATRISI.json (planning baseline, public documentation reviewed 2026-10-08/09 by the business). No account action, sandbox or production test has been run from this repository. Provider documentation hosts were unreachable from the build environment on 2026-10-09 (see docs/r0/R0-kanit-raporu.md).",
+  "verificationBoundary": "Documentation evidence is pinned by SHA-256 in contracts/sources.lock.json (2026-10-09). No account action, sandbox or production test has been run from this repository yet: provider API hosts are not reachable from the build environment and only a Nuitee sandbox key exists.",
   "supplierCapabilities": [
     {
       "id": "nuitee.hotel.provider_managed",
@@ -35,11 +35,18 @@
       "forbiddenWorkarounds": [],
       "evidence": [
         {
-          "source": "https://docs.liteapi.travel/docs/user-payment",
-          "verifiedAt": "2026-10-08",
+          "source": "sources.lock.json#nuitee-guide-user-payment",
+          "verifiedAt": "2026-10-09",
           "environment": "documentation",
-          "reference": "baseline-matrix-v1.0",
-          "summary": "Business research: usePaymentSdk prebook returns secretKey + transactionId for the payment SDK."
+          "reference": "sha256:99feefb97b06fa7c985dee1509e38272ce480e1f3063bf2e6b9fb79dfd7af5fa",
+          "summary": "Prebook with usePaymentSdk:true returns secretKey + transactionId; book with payment.method TRANSACTION_ID; Nuitee is merchant of record (revenue guide)."
+        },
+        {
+          "source": "sources.lock.json#nuitee-openapi-search",
+          "verifiedAt": "2026-10-09",
+          "environment": "documentation",
+          "reference": "sha256:1766558ac0c2f2414c8331fe38d5bbaf546652f6ea673ca21362487d42afa879",
+          "summary": "POST /hotels/rates accepts 'margin' (percent, overrides account default) -> supportsApiMargin."
         }
       ]
     },
@@ -77,11 +84,18 @@
       "forbiddenWorkarounds": [],
       "evidence": [
         {
-          "source": "https://docs.liteapi.travel/docs/account-credit-card",
+          "source": "sources.lock.json#nuitee-guide-account-credit-card",
           "verifiedAt": "2026-10-09",
           "environment": "documentation",
-          "reference": "baseline-matrix-v1.0",
-          "summary": "Business research: book with ACC_CREDIT_CARD; enterprise credit line not required."
+          "reference": "sha256:432523fa721d613b5b301a2882fbee2738958109b7efef1fe7d5fafc2f152c0e",
+          "summary": "Book with payment.method ACC_CREDIT_CARD; each sandbox key has a hidden testing card (no real charge); the real card is attached only to the production key."
+        },
+        {
+          "source": "sources.lock.json#nuitee-openapi-booking",
+          "verifiedAt": "2026-10-09",
+          "environment": "documentation",
+          "reference": "sha256:2fc71cf2f305b2d1f6cab369549dc44a90c516e31f6c77fd10ca508eba04eb1b",
+          "summary": "/rates/book payment.method enum includes ACC_CREDIT_CARD, CREDIT, TRANSACTION_ID, WALLET, CREDIT_CARD, CREDIT_CARD_SCHEDULED; clientReference duplicate -> 4005."
         }
       ]
     },
@@ -120,11 +134,11 @@
       ],
       "evidence": [
         {
-          "source": "https://docs.liteapi.travel/docs/credit-line",
+          "source": "sources.lock.json#nuitee-guide-credit-line",
           "verifiedAt": "2026-10-09",
           "environment": "documentation",
-          "reference": "baseline-matrix-v1.0",
-          "summary": "Business research: CREDIT method not supported in sandbox."
+          "reference": "sha256:abb08897d41a31a693f0c7f6c05a8ca15ce8292536a5ec80cfde545b4e5eda55",
+          "summary": "CREDIT does not work in sandbox; all CREDIT bookings are real bookings; fails if no credit line is configured."
         }
       ]
     },
@@ -158,11 +172,11 @@
       "forbiddenWorkarounds": [],
       "evidence": [
         {
-          "source": "https://docs.liteapi.travel/openapi/openapiflights.json",
+          "source": "sources.lock.json#nuitee-openapi-flights",
           "verifiedAt": "2026-10-09",
           "environment": "documentation",
-          "reference": "baseline-matrix-v1.0",
-          "summary": "Business research: flights prebook/bookings with provider payment."
+          "reference": "sha256:58f41981cfdb9477dcd42dd7f211f0b1c85787b03a4dfd3a22bdfc64ab2824c1",
+          "summary": "Prebook usePaymentSdk defaults to true; book with TRANSACTION_ID; status CREATED/PENDING_CONFIRMATION/CONFIRMED (TICKETED->CONFIRMED)/CANCELLED/CANCELLED_WITH_CHARGES."
         }
       ]
     },
@@ -200,11 +214,18 @@
       ],
       "evidence": [
         {
-          "source": "https://docs.liteapi.travel/reference/post_flights-prebooks",
+          "source": "sources.lock.json#nuitee-openapi-flights",
           "verifiedAt": "2026-10-09",
           "environment": "documentation",
-          "reference": "baseline-matrix-v1.0",
-          "summary": "Business research: booking enums list several methods; prebook guide sets bypass/credit conditions. Funding method not yet proven."
+          "reference": "sha256:58f41981cfdb9477dcd42dd7f211f0b1c85787b03a4dfd3a22bdfc64ab2824c1",
+          "summary": "Booking payment.method enum: TRANSACTION_ID, CREDIT, THIRD_PARTY, CREDIT_CARD, ACC_CREDIT_CARD. usePaymentSdk:false only with payment bypass AND an enabled credit line or a whitelabel/CMI checkout. THIRD_PARTY = signed JWT from the whitelabel/CMI gateway (not a generic external gateway). Whether ACC_CREDIT_CARD works with usePaymentSdk:true is not stated -> account confirmation required."
+        },
+        {
+          "source": "sources.lock.json#nuitee-guide-flights-support-billing",
+          "verifiedAt": "2026-10-09",
+          "environment": "documentation",
+          "reference": "sha256:ecdb1f936b73a280b14b9ea490fe41ffa2d0474da8e20481bce74503ab40f2c7",
+          "summary": "Servicing (First Line or B2B-Relayed) settles against the credit line; USD 25 flat fee per voluntary case."
         }
       ]
     },
@@ -241,11 +262,11 @@
       "forbiddenWorkarounds": [],
       "evidence": [
         {
-          "source": "https://docs.liteapi.travel/openapi/api-experiences.json",
+          "source": "sources.lock.json#nuitee-openapi-experiences",
           "verifiedAt": "2026-10-09",
           "environment": "documentation",
-          "reference": "baseline-matrix-v1.0",
-          "summary": "Business research: Phase 1 requires usePaymentSdk true and TRANSACTION_ID."
+          "reference": "sha256:e7b099f5c4064ab78aa2ef40ede6f038ddf880f1f8d3e73e6981a5ab4692da6b",
+          "summary": "Phase 1: prebook requires usePaymentSdk:true (false -> 400 4002); book payment.method enum is only TRANSACTION_ID; async PENDING_CONFIRMATION with webhooks; reservationExpiresAt ~10 minutes; no margin field documented."
         }
       ]
     },
@@ -277,7 +298,15 @@
         "Second customer charge",
         "Alternative experience supplier without new user decision"
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "source": "sources.lock.json#nuitee-openapi-experiences",
+          "verifiedAt": "2026-10-09",
+          "environment": "documentation",
+          "reference": "sha256:e7b099f5c4064ab78aa2ef40ede6f038ddf880f1f8d3e73e6981a5ab4692da6b",
+          "summary": "Re-checked: no non-SDK funding, no CREDIT/ACC_CREDIT_CARD/WALLET method and no successor to 'Phase 1' in the pinned contract. G03 cannot pass on documentation."
+        }
+      ]
     },
     {
       "id": "welcome.transfer.own_gateway.credit_account",
@@ -313,11 +342,25 @@
       "forbiddenWorkarounds": [],
       "evidence": [
         {
-          "source": "https://welcomepickups.gitbook.io/api-docs",
+          "source": "sources.lock.json#welcome-create-transfer",
           "verifiedAt": "2026-10-09",
           "environment": "documentation",
-          "reference": "baseline-matrix-v1.0",
-          "summary": "Business research: credit-account partner API with staging and production audit."
+          "reference": "sha256:25f3ce7aa27a64c0993255a098b0510d1a7f4ed0076e1a457180c8d3ba60be05",
+          "summary": "POST /v1/external/transfers requires quote_id, passenger{name,mobile,email,notify} and payment_method (only 'credit'); booking an estimated price fails; 401 'Welcome credit card is not active'."
+        },
+        {
+          "source": "sources.lock.json#welcome-launch-production",
+          "verifiedAt": "2026-10-09",
+          "environment": "documentation",
+          "reference": "sha256:3c56b0ce752afaa91572f486b995a84b8c62f14477873659c9ba79a27e264ce2",
+          "summary": "Production key only after the audit form and audit approval."
+        },
+        {
+          "source": "sources.lock.json#welcome-webhooks",
+          "verifiedAt": "2026-10-09",
+          "environment": "documentation",
+          "reference": "sha256:d2d54b6905eccaa7f9c84e1e6ed4bc457f8a1594e8b444d87d3b6598f1b612c2",
+          "summary": "Webhook auth is an optional predefined Bearer token; events TRANSFER_BOOKED, TRANSFER_CANCELED, DRIVER_* etc."
         }
       ]
     },
@@ -403,11 +446,46 @@
       ],
       "evidence": [
         {
-          "source": "https://registry.npmjs.org/iyzipay/-/iyzipay-2.0.70.tgz",
+          "source": "sources.lock.json#iyzico-cf-preauth",
           "verifiedAt": "2026-10-09",
           "environment": "documentation",
-          "reference": "sha512-zbhgt3I3DYzjeliaVGz9hV3/fyJxSeRKd7w+1pPRXSWfXkSaRSxFklbHYFYGUUhrtHi8yIJdPcvQETrqOuigEw==",
-          "summary": "Official client 2.0.70: CF preauth initialize, CF retrieve, postauth, cancel, refund and response-signature field orders. The webhook V3 signature field order is not in the client and docs.iyzico.com was unreachable, so the adapter declares VERIFIED_NOTIFICATION unsupported (fail-closed) until iyzico-webhook is pinned."
+          "reference": "sha256:211f8507e5dae4cbcfd0039cf5587c6a6afd77276ba56ef839f5fcc51160ce66",
+          "summary": "CF pre-auth initialize; buyer.gsmNumber and identityNumber required; currencies TRY/USD/EUR/GBP/NOK/CHF."
+        },
+        {
+          "source": "sources.lock.json#iyzico-capture",
+          "verifiedAt": "2026-10-09",
+          "environment": "documentation",
+          "reference": "sha256:fc9a281279e1bd59b23dd2c605bf7dc81d70e1adbb0fc5c69608e01c1d79e97b",
+          "summary": "POST /payment/postauth (full or partial); pre-auth must be closed within 25 days (BKM), period may vary by bank; post-auth response currency enum lists TRY/USD/EUR only."
+        },
+        {
+          "source": "sources.lock.json#iyzico-cf-retrieve",
+          "verifiedAt": "2026-10-09",
+          "environment": "documentation",
+          "reference": "sha256:a85c03f6f7ee1796d5d829a50ad3f1c120c881ba3c44474aed0476de8a622048",
+          "summary": "fraudStatus 1 approved / 0 review / -1 rejected; paymentTransactionId per item must be stored; phase values not enumerated."
+        },
+        {
+          "source": "sources.lock.json#iyzico-response-signature",
+          "verifiedAt": "2026-10-09",
+          "environment": "documentation",
+          "reference": "sha256:880766ad4a76e1c8340cfdda86d1ba2cda5084461258bb7ffb563170003d705e",
+          "summary": "Per-endpoint field orders joined with ':' and HMAC-SHA256 hex; price fields without trailing zeros."
+        },
+        {
+          "source": "sources.lock.json#iyzico-cancel-refund",
+          "verifiedAt": "2026-10-09",
+          "environment": "documentation",
+          "reference": "sha256:223c1eb528271330b2abaf86e5700e0b05e4e09e51976f06467be6ad402bedc0",
+          "summary": "Cancel: same day, no partial amounts, no response signature. Refund v1 per paymentTransactionId (partial, repeatable) and v2 per paymentId; refund signature paymentId:price:currency:conversationId. Cancelling an uncaptured pre-auth is not described."
+        },
+        {
+          "source": "sources.lock.json#iyzico-webhook",
+          "verifiedAt": "2026-10-09",
+          "environment": "documentation",
+          "reference": "sha256:9e84417037a180f328980c200766732bc15f162871590795fee885f7dbf3d0da",
+          "summary": "X-IYZ-SIGNATURE-V3; HPP key = secretKey+iyziEventType+iyziPaymentId+token+paymentConversationId+status; requires activation via iyzico; retried every 15 min x3 until 2xx."
         }
       ]
     }

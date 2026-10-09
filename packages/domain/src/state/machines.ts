@@ -154,7 +154,8 @@ export const orderMachine = defineMachine<OrderStatus>({
   terminal: ['CANCELLED'],
   transitions: {
     DRAFT: ['PROCESSING', 'CANCELLED'],
-    PROCESSING: ['CONFIRMED', 'ACTION_REQUIRED', 'COMPENSATING'],
+    // PROCESSING -> CANCELLED only when payment failed before any booking started (see decideNextAction).
+    PROCESSING: ['CONFIRMED', 'ACTION_REQUIRED', 'COMPENSATING', 'CANCELLED'],
     CONFIRMED: ['ACTION_REQUIRED', 'COMPENSATING', 'CANCELLED'],
     ACTION_REQUIRED: ['PROCESSING', 'CONFIRMED', 'COMPENSATING', 'CANCELLED'],
     COMPENSATING: ['CANCELLED', 'ACTION_REQUIRED'],

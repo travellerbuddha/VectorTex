@@ -73,6 +73,8 @@ export interface OrderItemState {
 
 export interface PaymentState {
   id: string;
+  /** When the attempt was created; no authorization can be older than this. */
+  createdAt: string;
   gatewayId: string;
   status: PaymentStatus;
   amount: Money;

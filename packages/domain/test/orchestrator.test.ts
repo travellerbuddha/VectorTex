@@ -328,3 +328,28 @@ describe('T18 out-of-order information never regresses state', () => {
     expect(next.type).toBe('MARK_ORDER_CONFIRMED');
   });
 });
+
+describe('T13 payment proof comes only from the gateway', () => {
+  it('a return/webhook trigger reconciles via retrieve and sets a conservative authorization deadline', async () => {
+    const order = makeOrder({ payment: 'PENDING', authorizationExpiresAt: null });
+    const h = harness(order);
+    h.gateway.retrieveScript.push(ok(snapshot('AUTHORIZED', order.payment!.amount)));
+    await h.orchestrator.reconcilePayment('ord-1');
+    const p = status(h.store).payment!;
+    expect(p.status).toBe('AUTHORIZED');
+    // createdAt 09:50 + 7 days (fake gateway's documented validity)
+    expect(p.authorizationExpiresAt).toBe('2026-10-16T09:50:00.000Z');
+  });
+
+  it('a retrieve that still says PENDING changes nothing; a decline cancels the untouched order', async () => {
+    const order = makeOrder({ payment: 'PENDING', authorizationExpiresAt: null });
+    const h = harness(order);
+    h.gateway.retrieveScript.push(ok(snapshot('PENDING', order.payment!.amount)), ok(snapshot('DECLINED', order.payment!.amount)));
+    await h.orchestrator.reconcilePayment('ord-1');
+    expect(status(h.store).payment!.status).toBe('PENDING');
+    await h.orchestrator.reconcilePayment('ord-1');
+    await h.orchestrator.drive('ord-1');
+    expect(status(h.store).status).toBe('CANCELLED');
+    expect(Object.values(h.ports).every((p) => p.calls.length === 0)).toBe(true);
+  });
+});

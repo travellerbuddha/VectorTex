@@ -28,18 +28,44 @@ export function formatPrice(m: Money): string {
   return `${int}.${trimmed === '' ? '0' : trimmed}`;
 }
 
-/** Response signature: hex(HMAC-SHA256(secretKey, values.join(':'))), values stringified like the SDK. */
-export function responseSignature(values: readonly unknown[], secretKey: string): string {
-  return createHmac('sha256', secretKey).update(values.map((v) => String(v)).join(':')).digest('hex');
+/** Removes trailing zeros from a decimal string ("10.50" -> "10.5", "10.0" -> "10"), as iyzico signs prices. */
+export function stripTrailingZeros(value: string): string {
+  if (!/^-?\d+\.\d+$/.test(value)) return value;
+  return value.replace(/0+$/, '').replace(/\.$/, '');
 }
 
-export function verifyResponseSignature(body: Record<string, unknown>, fields: readonly string[], secretKey: string): boolean {
+/** Response signature: hex(HMAC-SHA256(secretKey, values.join(':'))). */
+export function responseSignature(values: readonly string[], secretKey: string): string {
+  return createHmac('sha256', secretKey).update(values.join(':')).digest('hex');
+}
+
+/**
+ * Verifies a response signature. `exact(field)` returns the exact source text of numeric fields (never a
+ * float rendering); price fields are compared without trailing zeros.
+ */
+export function verifyResponseSignature(
+  body: Record<string, unknown>,
+  fields: readonly string[],
+  secretKey: string,
+  exact: (field: string) => string | null,
+  priceFields: ReadonlySet<string>,
+): boolean {
   const provided = body.signature;
   if (typeof provided !== 'string' || !/^[0-9a-f]{64}$/i.test(provided)) return false;
-  if (fields.some((f) => body[f] === undefined || body[f] === null)) return false;
-  const expected = responseSignature(
-    fields.map((f) => body[f]),
-    secretKey,
-  );
+  const values: string[] = [];
+  for (const f of fields) {
+    const raw = body[f];
+    if (raw === undefined || raw === null) return false;
+    let text = typeof raw === 'number' ? exact(f) : typeof raw === 'string' ? raw : null;
+    if (text === null) return false;
+    if (priceFields.has(f)) text = stripTrailingZeros(text);
+    values.push(text);
+  }
+  const expected = responseSignature(values, secretKey);
   return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(provided.toLowerCase(), 'hex'));
+}
+
+/** Webhook V3 HPP signature: hex(HMAC-SHA256(secretKey, secretKey + v1 + v2 + ...)). */
+export function webhookV3Signature(secretKey: string, values: readonly string[]): string {
+  return createHmac('sha256', secretKey).update(secretKey + values.join('')).digest('hex');
 }
