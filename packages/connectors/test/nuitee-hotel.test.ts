@@ -99,6 +99,16 @@ describe('Nuitee hotel prebook (pinned booking OpenAPI example)', () => {
     expect(JSON.parse(t.requests[0]!.body!)).toEqual({ offerId: 'offer-1', usePaymentSdk: false });
     const sdk = await c.prebook({ offerRef: opaque('offer-1'), usePaymentSdk: true, clientReference: 'pb-2' });
     expect(sdk.kind === 'SUCCEEDED' && sdk.value.providerManagedTransaction?.transactionId).toBe('tr_ct_NjePtG_-HHUDCeQ_LrTOS');
+    // The payment SDK secret comes only with usePaymentSdk:true (user-payment guide).
+    expect(own.value.paymentClientSecret).toBeNull();
+    expect(sdk.kind === 'SUCCEEDED' && sdk.value.paymentClientSecret).toBe((ex as { data: { secretKey: string } }).data.secretKey);
+  });
+
+  it('a payment-SDK prebook without a secretKey cannot be paid: never treated as ready', async () => {
+    const ex = first(examples(booking, '/rates/prebook', 'post', '200')) as { data: Record<string, unknown> };
+    const { secretKey: _drop, ...data } = ex.data;
+    const { c } = connector([res(200, { ...ex, data })]);
+    expect((await c.prebook({ offerRef: opaque('offer-1'), usePaymentSdk: true, clientReference: 'pb-3' })).kind).toBe('UNKNOWN');
   });
 
   it('documented prebook errors and silence stop the item (rate not validated)', async () => {
@@ -142,13 +152,22 @@ describe('Nuitee hotel book: every documented error is classified (T19/T22)', ()
       verdicts[name] = (await book(c)).kind;
     }
     expect(verdicts['duplicate booking attempt with existing client reference']).toBe('UNKNOWN');
-    expect(verdicts['payment not completed']).toBe('UNKNOWN'); // 2014 booking incomplete
+    // 2014 "payment not completed": the customer has not paid in the SDK yet -> retry later with the same reference.
+    expect(verdicts['payment not completed']).toBe('REJECTED');
+    expect(verdicts['payment retrieval failed']).toBe('UNKNOWN'); // other 2014 answers stay open
+    expect(verdicts['booking incomplete, booking data was not updated']).toBe('UNKNOWN');
     expect(verdicts['booking failed, provider booking response is invalid']).toBe('UNKNOWN'); // 2013
     expect(verdicts['booking initial save failed, please try again']).toBe('UNKNOWN'); // 5000
     expect(verdicts['Invalid prebookId, rate not found']).toBe('REJECTED'); // 4002
     expect(verdicts['missing or not supported payment method']).toBe('REJECTED'); // 4000
     expect(verdicts['booking not confirmed']).toBe('REJECTED'); // 410 / 4012
     expect(Object.values(verdicts).every((v) => v === 'REJECTED' || v === 'UNKNOWN')).toBe(true);
+  });
+
+  it('"payment not completed" has its own code so only provider-managed checkouts wait for the customer', async () => {
+    const e = examples(booking, '/rates/book', 'post', '400')['payment not completed']!;
+    const { c } = connector([res(400, e.value)]);
+    expect(await book(c)).toMatchObject({ kind: 'REJECTED', code: 'NUITEE_PAYMENT_NOT_COMPLETED' });
   });
 
   it('a timeout is UNKNOWN, never FAILED (hotel-integration guide)', async () => {

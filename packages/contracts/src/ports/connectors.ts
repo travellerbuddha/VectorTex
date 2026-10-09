@@ -117,6 +117,8 @@ export interface HotelConnector {
       prebookRef: OpaqueRef;
       offer: QuotedOffer;
       providerManagedTransaction: ProviderManagedTransactionRef | null;
+      /** usePaymentSdk only: short-lived secret for the provider payment component (never our API key). */
+      paymentClientSecret: string | null;
       /** Provider-reported changes since search; any true flag needs a new customer acceptance. */
       changeFlags: { price: boolean; cancellation: boolean; board: boolean };
     }>

@@ -105,6 +105,10 @@ export class DrizzleOrderStore implements OrderStore {
           intent: attempt.intent as PaymentState['intent'],
           unknownOperation: attempt.unknownOperation as PaymentState['unknownOperation'],
           itemTransactions: itemTx.map((t) => ({ itemId: t.orderItemId, gatewayItemTransactionId: t.gatewayItemTransactionId, amount: money(t.currency, t.amountMinor) })),
+          providerTransaction:
+            attempt.providerPrebookRef && attempt.providerTransactionId ? { prebookRef: opaque(attempt.providerPrebookRef), transactionId: opaque(attempt.providerTransactionId) } : null,
+          providerClientSecret: attempt.providerClientSecret,
+          payBy: attempt.payBy ? new Date(attempt.payBy).toISOString() : null,
         }
       : null;
 
@@ -178,6 +182,10 @@ export class DrizzleOrderStore implements OrderStore {
             captureRejected: p.captureRejected,
             intent: p.intent,
             unknownOperation: p.unknownOperation,
+            providerPrebookRef: p.providerTransaction?.prebookRef ?? null,
+            providerTransactionId: p.providerTransaction?.transactionId ?? null,
+            providerClientSecret: p.providerClientSecret,
+            payBy: p.payBy,
             updatedAt: new Date().toISOString(),
           })
           .where(eq(paymentAttempts.id, p.id));

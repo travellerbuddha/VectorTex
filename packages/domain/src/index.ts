@@ -6,3 +6,4 @@ export { zonedLocalToInstant, instantToZonedLocal, localTimeExists, InvalidLocal
 export * from './order/aggregate';
 export * from './order/decide';
 export * from './order/orchestrator';
+export * from './order/provider-managed';

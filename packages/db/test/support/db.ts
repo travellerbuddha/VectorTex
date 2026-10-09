@@ -49,7 +49,14 @@ export const SEED_PACKAGE: SeedItem[] = [
 ];
 
 /** Seeds a customer, accepted quote versions and a submitted own-gateway order (mock environment). */
-export async function seedOrder(core: CoreDatabase, items: SeedItem[] = SEED_PACKAGE, environment: 'mock' | 'sandbox' | 'production' = 'mock') {
+export interface SeedOptions {
+  /** PROVIDER_MANAGED seeds a single-item checkout paid through the provider's payment component (ADR-0008). */
+  mode?: 'OWN_GATEWAY' | 'PROVIDER_MANAGED';
+  payBy?: string;
+}
+
+export async function seedOrder(core: CoreDatabase, items: SeedItem[] = SEED_PACKAGE, environment: 'mock' | 'sandbox' | 'production' = 'mock', opts: SeedOptions = {}) {
+  const pm = opts.mode === 'PROVIDER_MANAGED';
   const [customer] = await core.db.insert(schema.customers).values({ kind: 'GUEST', email: 'guest@example.test', locale: 'tr' }).returning({ id: schema.customers.id });
   const quotesRepo = new QuoteRepository(core.db);
   const submitItems: SubmitItem[] = [];
@@ -82,7 +89,7 @@ export async function seedOrder(core: CoreDatabase, items: SeedItem[] = SEED_PAC
       connectorId: `mock-${it.productType.toLowerCase()}`,
       chargeAllocation: money('EUR', it.charge),
       supplierCost: money('EUR', (it.charge * 9n) / 10n),
-      funding: { method: 'ACCOUNT_CARD', capabilityId: `cap-${it.productType}` },
+      funding: pm ? { method: 'PROVIDER_MANAGED', capabilityId: `nuitee.${it.productType.toLowerCase()}.provider_managed` } : { method: 'ACCOUNT_CARD', capabilityId: `cap-${it.productType}` },
       connector: {
         holdSemantics: it.needsPrebook ? 'PREBOOK_VALIDATION' : 'NONE',
         reversibilityRank: it.rank,
@@ -96,11 +103,15 @@ export async function seedOrder(core: CoreDatabase, items: SeedItem[] = SEED_PAC
   const ids = await checkout.submitOrder({
     customerId: customer!.id,
     environment,
-    route: { mode: 'OWN_GATEWAY', gatewayId: 'mock-gateway', currency: 'EUR', settlementPlanId: 'plan-test', policyVersion: 'pp-test@1' },
+    route: pm
+      ? { mode: 'PROVIDER_MANAGED', providerId: items[0]!.providerId, productType: items[0]!.productType, currency: 'EUR', policyVersion: 'pp-test@1' }
+      : { mode: 'OWN_GATEWAY', gatewayId: 'mock-gateway', currency: 'EUR', settlementPlanId: 'plan-test', policyVersion: 'pp-test@1' },
     chargeTotal: money('EUR', total),
     items: submitItems,
     checkoutExpiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
-    payment: { gatewayId: 'mock-gateway', mode: 'OWN_GATEWAY', idempotencyKey: `idem-${Math.random().toString(36).slice(2)}` },
+    payment: pm
+      ? { gatewayId: items[0]!.providerId, mode: 'PROVIDER_MANAGED', idempotencyKey: `idem-${Math.random().toString(36).slice(2)}`, payBy: opts.payBy ?? new Date(Date.now() + 30 * 60_000).toISOString() }
+      : { gatewayId: 'mock-gateway', mode: 'OWN_GATEWAY', idempotencyKey: `idem-${Math.random().toString(36).slice(2)}` },
   });
   return { ...ids, customerId: customer!.id, total };
 }

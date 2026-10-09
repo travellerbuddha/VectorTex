@@ -93,6 +93,15 @@ export interface PaymentState {
   intent: Intent<PaymentOperation> | null;
   unknownOperation: PaymentOperation | 'AUTHORIZE' | null;
   itemTransactions: ReadonlyArray<{ itemId: string; gatewayItemTransactionId: string; amount: Money }>;
+  /**
+   * PROVIDER_MANAGED only: the provider transaction created with our prebook (never taken from a browser URL) and
+   * the short-lived client secret for the provider's payment component (given only to the checkout owner, never
+   * audited, cleared once the payment is settled).
+   */
+  providerTransaction: { prebookRef: OpaqueRef; transactionId: OpaqueRef } | null;
+  providerClientSecret: string | null;
+  /** PROVIDER_MANAGED only: after this instant an unpaid checkout is abandoned. */
+  payBy: string | null;
 }
 
 export interface TaskState {

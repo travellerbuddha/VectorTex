@@ -307,10 +307,22 @@ export const paymentAttempts = core.table(
     captureRejected: boolean('capture_rejected').notNull().default(false),
     intent: jsonb('intent'),
     unknownOperation: text('unknown_operation'),
+    /** PROVIDER_MANAGED (ADR-0008): transaction created with our prebook; never taken from a browser URL. */
+    providerPrebookRef: text('provider_prebook_ref'),
+    providerTransactionId: text('provider_transaction_id'),
+    /** Short-lived client secret for the provider payment component; cleared once the payment is settled. */
+    providerClientSecret: text('provider_client_secret'),
+    /** PROVIDER_MANAGED: an unpaid checkout is abandoned after this instant. */
+    payBy: ts('pay_by'),
     createdAt: ts('created_at').notNull().defaultNow(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
   (t) => [
+    check(
+      'payment_attempts_provider_fields',
+      sql`(provider_prebook_ref IS NULL) = (provider_transaction_id IS NULL) AND (mode = 'PROVIDER_MANAGED' OR (provider_prebook_ref IS NULL AND provider_client_secret IS NULL AND pay_by IS NULL))`,
+    ),
+    uniqueIndex('payment_attempts_provider_tx_uq').on(t.environment, t.providerTransactionId),
     uniqueIndex('payment_attempts_idem_uq').on(t.localIdempotencyKey),
     uniqueIndex('payment_attempts_gateway_payment_uq').on(t.environment, t.gatewayId, t.gatewayPaymentId),
     // Rule 6 / T21: at most one live attempt per checkout. A declined/voided one may be followed by a new one.

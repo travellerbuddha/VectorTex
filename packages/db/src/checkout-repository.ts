@@ -96,7 +96,8 @@ export interface SubmitOrderInput {
   chargeTotal: Money;
   items: readonly SubmitItem[];
   checkoutExpiresAt: string;
-  payment: { gatewayId: string; mode: PaymentMode; idempotencyKey: string };
+  /** payBy: PROVIDER_MANAGED only, the instant after which an unpaid checkout is abandoned. */
+  payment: { gatewayId: string; mode: PaymentMode; idempotencyKey: string; payBy?: string | null };
 }
 
 export class CheckoutRepository {
@@ -182,13 +183,13 @@ export class CheckoutRepository {
   }
 
   /** A new attempt (e.g. after a decline or a gateway change) is refused while another one is live (T21). */
-  async startPaymentAttempt(input: { orderId: string; checkoutSessionId: string; environment: ProviderEnvironment; amount: Money; gatewayId: string; mode: PaymentMode; idempotencyKey: string }): Promise<string> {
+  async startPaymentAttempt(input: { orderId: string; checkoutSessionId: string; environment: ProviderEnvironment; amount: Money; gatewayId: string; mode: PaymentMode; idempotencyKey: string; payBy?: string | null }): Promise<string> {
     return this.insertAttempt(this.db, input);
   }
 
   private async insertAttempt(
     db: CoreDb,
-    input: { orderId: string; checkoutSessionId: string; environment: ProviderEnvironment; amount: Money; gatewayId: string; mode: PaymentMode; idempotencyKey: string },
+    input: { orderId: string; checkoutSessionId: string; environment: ProviderEnvironment; amount: Money; gatewayId: string; mode: PaymentMode; idempotencyKey: string; payBy?: string | null },
   ): Promise<string> {
     try {
       const [row] = await db
@@ -203,6 +204,7 @@ export class CheckoutRepository {
           amountMinor: input.amount.minor,
           currency: input.amount.currency,
           localIdempotencyKey: input.idempotencyKey,
+          payBy: input.mode === 'PROVIDER_MANAGED' ? (input.payBy ?? null) : null,
         })
         .returning({ id: paymentAttempts.id });
       return row!.id;

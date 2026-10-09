@@ -176,6 +176,8 @@ export type OperationTaskReason =
   | 'FRAUD_REVIEW'
   | 'VOUCHER_DELAYED'
   | 'TICKETING_DELAYED'
-  | 'SUPPLIER_LOSS_RECORDED';
+  | 'SUPPLIER_LOSS_RECORDED'
+  /** Provider-managed payment: the customer may hold a provider payment authorization without a booking. */
+  | 'PROVIDER_PAYMENT_HOLD';
 
 export type DocumentStatus = 'PENDING' | 'READY';

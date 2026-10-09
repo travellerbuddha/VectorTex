@@ -286,7 +286,13 @@ export class NuiteeHotelConnector implements HotelConnector {
   }
 
   async prebook(input: { offerRef: OpaqueRef; usePaymentSdk: boolean; clientReference: string }): Promise<
-    ExternalOutcome<{ prebookRef: OpaqueRef; offer: QuotedOffer; providerManagedTransaction: ProviderManagedTransactionRef | null; changeFlags: { price: boolean; cancellation: boolean; board: boolean } }>
+    ExternalOutcome<{
+      prebookRef: OpaqueRef;
+      offer: QuotedOffer;
+      providerManagedTransaction: ProviderManagedTransactionRef | null;
+      paymentClientSecret: string | null;
+      changeFlags: { price: boolean; cancellation: boolean; board: boolean };
+    }>
   > {
     const http = await this.send(
       'prebook',
@@ -296,7 +302,13 @@ export class NuiteeHotelConnector implements HotelConnector {
       this.cfg.bookTimeoutSeconds,
       true,
     );
-    type Result = { prebookRef: OpaqueRef; offer: QuotedOffer; providerManagedTransaction: ProviderManagedTransactionRef | null; changeFlags: { price: boolean; cancellation: boolean; board: boolean } };
+    type Result = {
+      prebookRef: OpaqueRef;
+      offer: QuotedOffer;
+      providerManagedTransaction: ProviderManagedTransactionRef | null;
+      paymentClientSecret: string | null;
+      changeFlags: { price: boolean; cancellation: boolean; board: boolean };
+    };
     if (!http.ok) {
       // A prebook is a session, not a reservation (usePaymentSdk:false holds no money). Without an answer the
       // rate is not validated and must not be booked ("you should not continue as though the selected rate was
@@ -319,8 +331,11 @@ export class NuiteeHotelConnector implements HotelConnector {
     const commission = exactDecimal(http.parsed, data, 'commission');
     if (!cancellation) return this.unknown(http.evidence, 'MALFORMED_RESPONSE');
     let pmt: ProviderManagedTransactionRef | null = null;
+    let paymentClientSecret: string | null = null;
     if (input.usePaymentSdk) {
-      if (typeof data.transactionId !== 'string') return this.unknown(http.evidence, 'MALFORMED_RESPONSE');
+      // The payment SDK needs the secretKey of this prebook; without it the customer cannot pay (user-payment guide).
+      if (typeof data.transactionId !== 'string' || typeof data.secretKey !== 'string' || data.secretKey.length === 0) return this.unknown(http.evidence, 'MALFORMED_RESPONSE');
+      paymentClientSecret = data.secretKey;
       pmt = {
         __brand: 'ProviderManagedTransactionRef',
         providerId: 'nuitee',
@@ -343,6 +358,7 @@ export class NuiteeHotelConnector implements HotelConnector {
         expiresAt: null,
       },
       providerManagedTransaction: pmt,
+      paymentClientSecret,
       changeFlags: {
         // "This should be 0": any difference needs a new acceptance (booking OpenAPI).
         price: Number(data.priceDifferencePercent ?? 0) !== 0,
@@ -403,6 +419,11 @@ export class NuiteeHotelConnector implements HotelConnector {
     if (err || http.status >= 400) {
       const code = err?.code ?? null;
       if (code !== null && BOOK_DEFINITIVE_CODES.has(code)) return { kind: 'REJECTED', code: `NUITEE_${code}`, message: err?.message ?? 'refused', evidence };
+      // TRANSACTION_ID bookings: the customer has not paid in the payment SDK yet (documented 2014 example). The
+      // caller retries with the SAME clientReference, so anything created meanwhile surfaces as a 4005 duplicate.
+      if (code === 2014 && err?.message === 'payment not completed') {
+        return { kind: 'REJECTED', code: 'NUITEE_PAYMENT_NOT_COMPLETED', message: 'payment not completed', evidence };
+      }
       return this.unknown(evidence);
     }
     const data = (http.json as Json | null)?.data as Json | undefined;
