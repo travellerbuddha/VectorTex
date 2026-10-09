@@ -17,8 +17,9 @@ We are integrating Nuitee Connect (hotels, flights, experiences) into our own bo
 2. **Account credit card in production:** please confirm a production card can be attached to our account for `ACC_CREDIT_CARD` bookings, and any limits that apply.
 3. **Credit line:** what is required to contract a credit line (`CREDIT`), and is there any way to test it before production?
 4. **Flights:** can we book flights with `usePaymentSdk: false` and `ACC_CREDIT_CARD` (or `CREDIT`)? The prebook description requires "payment bypass" plus a credit line or whitelabel checkout. Please tell us how payment bypass is enabled for our account.
-5. **Experiences (most important for our launch):** the current Experiences contract accepts only `usePaymentSdk: true` and `TRANSACTION_ID` (Phase 1). We need to sell experiences inside packages paid once through our own payment gateway, with the supplier cost funded by account card or credit line. Is an independent funding option (e.g. `ACC_CREDIT_CARD` or `CREDIT`) planned, and when could it be enabled for our account?
-6. **Experiences webhooks:** how are webhook calls authenticated (signature/header), and what is the retry policy?
+5. **Experiences access:** our key gets HTTP 403 / code 40301 ("Experiences API access is not enabled for this account") on `GET /experiences/tours`. Please enable Experiences for our account in sandbox and production.
+6. **Experiences independent funding (most important for our launch):** the current Experiences contract accepts only `usePaymentSdk: true` and `TRANSACTION_ID` (Phase 1). We need to sell experiences inside packages paid once through our own payment gateway, with the supplier cost funded by account card or credit line. Is an independent funding option (e.g. `ACC_CREDIT_CARD` or `CREDIT`) planned, and when could it be enabled for our account?
+7. **Experiences webhooks:** how are webhook calls authenticated (signature/header), and what is the retry policy?
 
 Thank you,
 TexHoliday

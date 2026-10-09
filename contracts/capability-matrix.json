@@ -205,6 +205,13 @@
           "environment": "documentation",
           "reference": "sha256:58f41981cfdb9477dcd42dd7f211f0b1c85787b03a4dfd3a22bdfc64ab2824c1",
           "summary": "Prebook usePaymentSdk defaults to true; book with TRANSACTION_ID; status CREATED/PENDING_CONFIRMATION/CONFIRMED (TICKETED->CONFIRMED)/CANCELLED/CANCELLED_WITH_CHARGES."
+        },
+        {
+          "source": "scratchpad probe (sandbox key, POST /flights/rates)",
+          "verifiedAt": "2026-10-09",
+          "environment": "sandbox",
+          "reference": "flights-rates:200",
+          "summary": "Flight rate search answered HTTP 200 with offers in sandbox (IST-AYT, 1 adult, EUR). Only search was exercised; prebook, payment SDK and ticketing are not verified, so accountStatus stays UNVERIFIED."
         }
       ]
     },
@@ -266,7 +273,7 @@
         "PROVIDER_MANAGED"
       ],
       "documentationStatus": "DOCUMENTED",
-      "accountStatus": "UNVERIFIED",
+      "accountStatus": "DISABLED",
       "sandboxStatus": "NOT_RUN",
       "productionStatus": "NOT_RUN",
       "enabledForProduction": false,
@@ -295,6 +302,13 @@
           "environment": "documentation",
           "reference": "sha256:e7b099f5c4064ab78aa2ef40ede6f038ddf880f1f8d3e73e6981a5ab4692da6b",
           "summary": "Phase 1: prebook requires usePaymentSdk:true (false -> 400 4002); book payment.method enum is only TRANSACTION_ID; async PENDING_CONFIRMATION with webhooks; reservationExpiresAt ~10 minutes; no margin field documented."
+        },
+        {
+          "source": "scratchpad probe (sandbox key, GET /experiences/tours)",
+          "verifiedAt": "2026-10-09",
+          "environment": "sandbox",
+          "reference": "error:40301",
+          "summary": "HTTP 403 code 40301: 'Experiences API access is not enabled for this account. Please contact support to get access'. Nothing can be tested until Nuitee enables Experiences for the account (sandbox and production)."
         }
       ]
     },
