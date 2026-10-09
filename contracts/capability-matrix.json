@@ -61,6 +61,13 @@
           "environment": "sandbox",
           "reference": "EUR NUmPV1UB8/u_hFBKBsZ; USD 3oOlJ5Q30/WH6UdsdyB; GBP zWf6l2QAB/1glSxRgyt (prebook/booking, all cancelled)",
           "summary": "Prebook usePaymentSdk:true -> payment component (publicKey sandbox, Stripe test card) redirect_status succeeded -> book TRANSACTION_ID CONFIRMED at the prebook price with commission. Provider behaviour: \"payment not completed\" (2014) uses up the clientReference (repeat 4005, lookup none); the transaction is single-use (another reference answers 2014); a repeat of the booking reference is 4005 and the lookup finds the booking. Refundable cancel: penalty 0."
+        },
+        {
+          "source": "apps/web/e2e-sandbox/site-flow.sandbox.spec.ts",
+          "verifiedAt": "2026-10-09",
+          "environment": "sandbox",
+          "reference": "order 3efbd73f / booking lobIb_dn4 (cancelled)",
+          "summary": "Staff order commands from /yonetim on an SDK-paid booking: check status (GET /bookings/{id}) CONFIRMED, unchanged; cancel (PUT /bookings/{id}) CANCELLED, cancellation_fee 0, refund_amount 173.36 EUR = the full amount the customer paid. Whether and when that refund reaches the customer's card is not observable in sandbox and not documented (provider question 10a): the order goes to REFUND_PENDING with a refund confirmation task."
         }
       ]
     },

@@ -13,7 +13,8 @@ export function errorText(err: unknown, locale: AdminLocale): string {
   if (isDomainError(err)) {
     if (err.code === 'FORBIDDEN') return t.errors.forbidden;
     if (err.code === 'NOT_FOUND') return t.errors.notFound;
-    if (err.code === 'VERSION_CONFLICT') return t.errors.conflict;
+    if (err.code === 'VERSION_CONFLICT') return t.errors.known[err.message] ?? t.errors.conflict;
+    if (err.code === 'ILLEGAL_TRANSITION' || err.code === 'CAPABILITY_NOT_AVAILABLE') return t.errors.known[err.message] ?? t.errors.notAllowedNow;
     if (err.code === 'VALIDATION_FAILED') {
       const issues = (err as { issues?: Array<{ path: string; message: string }> }).issues;
       if (Array.isArray(issues) && issues.length > 0) return issues.map((i) => `${i.path}: ${i.message}`).join(' · ');

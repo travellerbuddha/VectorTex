@@ -64,7 +64,7 @@ describe('staff sign-in with MFA', () => {
     const active = await auth.session(ownerToken);
     expect(active?.stage).toBe('ACTIVE');
     expect([...active!.staff.permissions].sort()).toEqual(
-      ['orders.view', 'orders.view_financials', 'permissions.manage', 'pricing_policy.edit', 'risk_policy.edit', 'staff.manage', 'tasks.manage'].sort(),
+      ['orders.cancel', 'orders.record_refund', 'orders.view', 'orders.view_financials', 'permissions.manage', 'pricing_policy.edit', 'risk_policy.edit', 'staff.manage', 'tasks.manage'].sort(),
     );
   });
 

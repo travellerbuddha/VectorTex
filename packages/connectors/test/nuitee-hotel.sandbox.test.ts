@@ -104,7 +104,7 @@ describe.skipIf(!key || !sandbox)('Nuitee hotel sandbox', () => {
     );
     if (booked.kind === 'SUCCEEDED' && booked.value.providerBookingRef) {
       const cancel = await c.cancel(opaque(booked.value.providerBookingRef));
-      evidence('cancel', cancel.kind === 'SUCCEEDED' ? { kind: cancel.kind, status: cancel.value.status, penalty: cancel.value.penalty, refundToUs: cancel.value.refundToUs } : cancel);
+      evidence('cancel', cancel.kind === 'SUCCEEDED' ? { kind: cancel.kind, status: cancel.value.status, penalty: cancel.value.penalty, refundAmount: cancel.value.refundAmount } : cancel);
     }
     expect(booked.kind).toBe('SUCCEEDED');
   }, 400_000);

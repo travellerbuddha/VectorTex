@@ -33,6 +33,12 @@ function port(transactionId: string, book: Array<ExternalOutcome<ProviderBooking
     async lookup() {
       return ok(null);
     },
+    async refresh(_a, _i, ref) {
+      return ok(providerState('CONFIRMED', { providerBookingRef: ref }));
+    },
+    async cancel(_a, _i, ref) {
+      return ok({ ...providerState('CANCELLED', { providerBookingRef: ref }), penalty: money('EUR', 1000n), providerRefund: money('EUR', 49000n) });
+    },
   };
 }
 
@@ -102,5 +108,37 @@ describe('provider-managed checkout in PostgreSQL', () => {
     expect(agg).toMatchObject({ status: 'CANCELLED', compensationReason: 'CHECKOUT_EXPIRED' });
     expect(agg.payment).toMatchObject({ status: 'DECLINED', providerClientSecret: null });
     expect(p.books).toEqual([]);
+  });
+
+  it('staff cancel + recorded provider refunds persist as customer REFUND transactions, never above the amount paid', async () => {
+    const { orderId } = await seedOrder(core, HOTEL, 'mock', { mode: 'PROVIDER_MANAGED' });
+    const store = new DrizzleOrderStore(core.db);
+    const pm = orchestrator(store, port('MOCK-TX-CAN', []));
+    await pm.start(orderId);
+    await pm.finalize(orderId);
+    expect((await pm.cancel(orderId, 'staff:ops', 'Misafir talebi')).outcome).toBe('CANCELLED');
+    let agg = await store.load(orderId);
+    expect(agg).toMatchObject({ status: 'CANCELLED', compensationReason: 'CANCELLED_BY_STAFF' });
+    expect(agg.payment!.status).toBe('REFUND_PENDING');
+    expect(agg.tasks.map((t) => t.reason)).toEqual(['REFUND_UNKNOWN']);
+    const commission = await core.db.execute<{ status: string }>(
+      sql`SELECT c.status FROM core.provider_commissions c JOIN core.order_items i ON i.id = c.order_item_id WHERE i.order_id = ${orderId}`,
+    );
+    expect(commission.rows).toEqual([{ status: 'VOIDED' }]);
+
+    await pm.recordProviderRefund(orderId, 'staff:fin', money('EUR', 49000n), 'Nuitee panel 2026-10-10');
+    agg = await store.load(orderId);
+    expect(agg.payment!.status).toBe('PARTIALLY_REFUNDED');
+    expect(agg.payment!.providerRefunds).toEqual([
+      expect.objectContaining({ amount: money('EUR', 49000n), reference: 'Nuitee panel 2026-10-10', recordedBy: 'staff:fin' }),
+    ]);
+    // The database refuses refunds above the payment even when the domain is bypassed.
+    expect(
+      await dbError(
+        core.db.execute(
+          sql`INSERT INTO core.customer_transactions (payment_attempt_id, kind, status, amount_minor, currency, item_allocations) VALUES (${agg.payment!.id}, 'REFUND', 'SUCCEEDED', 1001, 'EUR', '[]'::jsonb)`,
+        ),
+      ),
+    ).toMatch(/exceed or mismatch/);
   });
 });

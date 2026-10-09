@@ -1,4 +1,5 @@
-import { VersionConflictError, type ExternalOutcome, type OpaqueRef, type ProviderBookingState } from '@texholiday/contracts';
+import { DomainError, VersionConflictError, notAvailable, type ExternalOutcome, type OpaqueRef, type ProviderBookingState } from '@texholiday/contracts';
+import { add, compare, money, toMajor, type Money } from '@texholiday/pricing';
 import type { QuoteDifference } from '../quote';
 import type { BookingStatus } from '../state/machines';
 import {
@@ -6,6 +7,7 @@ import {
   emit,
   raiseTask,
   setBookingStatus,
+  setCancellation,
   setOrderStatus,
   setPaymentStatus,
   type OrderAggregate,
@@ -39,7 +41,32 @@ export interface ProviderManagedBookingPort {
   book(agg: OrderAggregate, it: OrderItemState, clientReference: string, transaction: { prebookRef: OpaqueRef; transactionId: OpaqueRef }): Promise<ExternalOutcome<ProviderBookingState>>;
   /** The booking made under `clientReference`, or null when none exists. */
   lookup(agg: OrderAggregate, it: OrderItemState, clientReference: string): Promise<ExternalOutcome<ProviderBookingState | null>>;
+  /** The provider's current state of a booking, by the provider booking id. */
+  refresh(agg: OrderAggregate, it: OrderItemState, providerBookingRef: OpaqueRef): Promise<ExternalOutcome<ProviderBookingState>>;
+  /**
+   * Cancels the booking at the provider. `penalty` and `providerRefund` are what the provider reports (null when not
+   * reported); the provider, not us, collected the payment and refunds it by its own rules.
+   */
+  cancel(agg: OrderAggregate, it: OrderItemState, providerBookingRef: OpaqueRef): Promise<ExternalOutcome<ProviderBookingState & { penalty: Money | null; providerRefund: Money | null }>>;
 }
+
+/** What a staff "check status" did, for the panel. */
+export interface StatusCheckResult {
+  /** False when the provider could not be read (nothing changed; try again later). */
+  providerAnswered: boolean;
+  changed: boolean;
+  /** A provider call for this order was already in flight; nothing was done. */
+  busy: boolean;
+  orderStatus: OrderAggregate['status'];
+  bookingStatus: OrderItemState['booking']['status'];
+}
+
+export type StaffCancelResult =
+  | { outcome: 'CANCELLED'; penalty: Money | null; providerRefund: Money | null }
+  /** The provider refused the cancellation; the booking stays as it was. */
+  | { outcome: 'REJECTED'; code: string }
+  /** The answer was lost: the booking is checked again automatically; nothing is re-sent. */
+  | { outcome: 'UNKNOWN' };
 
 export interface ProviderManagedPolicy {
   /** Lease for a side-effecting call; must exceed the provider's documented long-operation budget. */
@@ -66,6 +93,8 @@ export type ProviderManagedAction =
   | { type: 'PREBOOK' }
   | { type: 'FINALIZE' }
   | { type: 'LOOKUP' }
+  /** A cancellation answer was lost: read the booking by its provider id (never re-send the cancel). */
+  | { type: 'CANCEL_LOOKUP' }
   | { type: 'EXPIRE' }
   | { type: 'INTENT_EXPIRED' };
 
@@ -90,9 +119,11 @@ function sentReferences(it: OrderItemState): string[] {
 export function decideProviderManaged(agg: OrderAggregate, now: Date, trigger: 'STEP' | 'FINALIZE'): ProviderManagedAction {
   const it = single(agg);
   const p = agg.payment!;
-  if (agg.status === 'CONFIRMED' || agg.status === 'CANCELLED') return { type: 'NONE', reason: 'order settled' };
+  if (agg.status === 'CANCELLED') return { type: 'NONE', reason: 'order settled' };
   const intent = it.booking.intent;
   if (intent) return new Date(intent.leaseUntil).getTime() <= now.getTime() ? { type: 'INTENT_EXPIRED' } : { type: 'NONE', reason: 'call in flight' };
+  if (it.booking.status === 'UNKNOWN' && it.booking.unknownOperation === 'CANCEL') return { type: 'CANCEL_LOOKUP' };
+  if (agg.status === 'CONFIRMED') return { type: 'NONE', reason: 'order settled' };
   if (it.booking.status === 'UNKNOWN' || it.booking.status === 'PENDING_CONFIRMATION') return { type: 'LOOKUP' };
   if (it.booking.status === 'NEW' && p.status === 'NEW') return { type: 'PREBOOK' };
   if (it.booking.status === 'PREPARED' && p.status === 'PENDING') {
@@ -136,6 +167,9 @@ export class ProviderManagedOrchestrator {
           break;
         case 'LOOKUP':
           await this.lookup(agg, now, false);
+          break;
+        case 'CANCEL_LOOKUP':
+          await this.cancelLookup(agg, now);
           break;
         case 'EXPIRE':
           await this.expire(agg, now);
@@ -384,8 +418,241 @@ export class ProviderManagedOrchestrator {
         return;
       }
       setBookingStatus(fresh, fi.id, 'UNKNOWN', 'UPSTREAM_RESULT', ACTOR, now);
-      fi.booking.unknownOperation = 'BOOK';
+      if (op === 'CANCEL') {
+        fi.booking.unknownOperation = 'CANCEL';
+        setCancellation(fresh, fi.id, 'UNKNOWN', 'UPSTREAM_RESULT', ACTOR, now);
+        raiseTask(fresh, 'CANCELLATION_UNKNOWN', fi.id, 'Cancel call lease expired without an answer; the booking is being checked', ACTOR, now);
+      } else {
+        fi.booking.unknownOperation = 'BOOK';
+      }
       emit(fresh, 'order.provider_managed.lookup', { orderId: fresh.id });
     });
+  }
+
+  // ------------------------------------------------------------------ staff commands (/yonetim)
+
+  /**
+   * "Check status": reads the provider now and applies what it says, through the same rules as the automatic steps.
+   * A confirmed booking is read by its provider id (a cancellation made at the provider or the hotel is picked up);
+   * an open checkout or an unknown outcome takes its regular next step. Never creates a payment session.
+   */
+  async checkStatus(orderId: string, actor: string): Promise<StatusCheckResult> {
+    const agg = await this.deps.store.load(orderId);
+    const it = single(agg);
+    const now = this.deps.clock();
+    const before = `${agg.status}|${it.booking.status}|${agg.payment!.status}|${it.booking.voucherReady}`;
+    const result = (fresh: OrderAggregate, providerAnswered: boolean, busy = false): StatusCheckResult => {
+      const fi = single(fresh);
+      return {
+        providerAnswered,
+        busy,
+        changed: `${fresh.status}|${fi.booking.status}|${fresh.payment!.status}|${fi.booking.voucherReady}` !== before,
+        orderStatus: fresh.status,
+        bookingStatus: fi.booking.status,
+      };
+    };
+    if (it.booking.intent && new Date(it.booking.intent.leaseUntil).getTime() > now.getTime()) return result(agg, true, true);
+
+    let answered = true;
+    if ((it.booking.status === 'CONFIRMED' || it.booking.status === 'ISSUED') && it.booking.providerBookingRef && !it.booking.intent) {
+      answered = await this.verifyBooked(agg, now, actor);
+    } else {
+      const action = decideProviderManaged(agg, now, 'FINALIZE');
+      if (action.type !== 'PREBOOK') {
+        const lookupsBefore = it.booking.lookupAttempts;
+        await this.run(orderId, 'FINALIZE', 1);
+        const after = await this.deps.store.load(orderId);
+        answered = !(single(after).booking.status === 'UNKNOWN' && single(after).booking.lookupAttempts > lookupsBefore);
+      }
+    }
+    let fresh = await this.deps.store.load(orderId);
+    const out = result(fresh, answered);
+    await this.apply(orderId, (f) => audit(f, 'order.status_checked', actor, now, { providerAnswered: answered, changed: out.changed, orderStatus: out.orderStatus, bookingStatus: out.bookingStatus }));
+    fresh = await this.deps.store.load(orderId);
+    return result(fresh, answered);
+  }
+
+  /** Reads a confirmed booking; returns false when the provider gave no usable answer. */
+  private async verifyBooked(agg: OrderAggregate, now: Date, actor: string): Promise<boolean> {
+    const it = single(agg);
+    const outcome = await this.deps.port.refresh(agg, it, it.booking.providerBookingRef!);
+    if (outcome.kind !== 'SUCCEEDED') return false;
+    const state = outcome.value;
+    await this.apply(agg.id, (fresh, fi) => {
+      if (fi.booking.intent || (fi.booking.status !== 'CONFIRMED' && fi.booking.status !== 'ISSUED')) return; // changed meanwhile
+      if (state.status === 'CANCELLED') {
+        // Cancelled outside TexHoliday (provider or hotel): the customer refund follows the provider's rules.
+        this.cancelledAtProvider(fresh, fi, null, null, 'RECONCILIATION', now, actor, false);
+        return;
+      }
+      if (state.status === 'CONFIRMED' || state.status === 'ISSUED') {
+        fi.booking.voucherReady = state.voucherReady;
+        return;
+      }
+      // Never move a confirmed booking backwards on a read: a person looks at it.
+      raiseTask(fresh, 'BOOKING_UNKNOWN', fi.id, `Provider reports ${state.status} for a booking we hold as ${fi.booking.status}`, actor, now);
+    });
+    return true;
+  }
+
+  /**
+   * Cancels a confirmed booking at the provider (staff command, `orders.cancel` checked by the caller). The intent is
+   * stored before the call; a lost answer is resolved by reading the booking, never by sending the cancel again.
+   */
+  async cancel(orderId: string, actor: string, reason: string): Promise<StaffCancelResult> {
+    const agg = await this.deps.store.load(orderId);
+    const it = single(agg);
+    const now = this.deps.clock();
+    if (agg.status !== 'CONFIRMED' || (it.booking.status !== 'CONFIRMED' && it.booking.status !== 'ISSUED') || !it.booking.providerBookingRef) {
+      throw new DomainError('ILLEGAL_TRANSITION', 'Only a confirmed booking can be cancelled', { httpStatus: 409 });
+    }
+    if (it.booking.intent) throw new DomainError('VERSION_CONFLICT', 'A provider call for this order is in flight', { httpStatus: 409, retryable: true });
+    const ref = it.booking.providerBookingRef;
+    it.booking.preCancelStatus = it.booking.status;
+    setBookingStatus(agg, it.id, 'CANCEL_PENDING', 'COMMAND', actor, now);
+    // A new request (an earlier one may have been REJECTED, which is final for that request).
+    it.booking.cancellation = 'REQUESTED';
+    it.booking.intent = { op: 'CANCEL', ...this.lease(now) };
+    audit(agg, 'provider_managed.cancel_requested', actor, now, { itemId: it.id, reason });
+    await this.deps.store.save(agg);
+
+    const outcome = await this.deps.port.cancel(agg, it, ref);
+    let result: StaffCancelResult = { outcome: 'UNKNOWN' };
+    await this.apply(orderId, (fresh, fi) => {
+      fi.booking.intent = null;
+      if (outcome.kind === 'SUCCEEDED' && outcome.value.status === 'CANCELLED') {
+        this.cancelledAtProvider(fresh, fi, outcome.value.penalty, outcome.value.providerRefund, 'UPSTREAM_RESULT', now, actor, true);
+        result = { outcome: 'CANCELLED', penalty: outcome.value.penalty, providerRefund: outcome.value.providerRefund };
+        return;
+      }
+      if (outcome.kind === 'REJECTED' || outcome.kind === 'CAPABILITY_NOT_AVAILABLE') {
+        setBookingStatus(fresh, fi.id, fi.booking.preCancelStatus ?? 'CONFIRMED', 'UPSTREAM_RESULT', actor, now);
+        setCancellation(fresh, fi.id, 'REJECTED', 'UPSTREAM_RESULT', actor, now);
+        const code = outcome.kind === 'REJECTED' ? outcome.code : `CAPABILITY_NOT_AVAILABLE:${outcome.capability}`;
+        audit(fresh, 'provider_managed.cancel_rejected', actor, now, { itemId: fi.id, code });
+        result = { outcome: 'REJECTED', code };
+        return;
+      }
+      // UNKNOWN (timeout, 5xx, unreadable answer) or a success that does not say CANCELLED.
+      setBookingStatus(fresh, fi.id, 'UNKNOWN', 'UPSTREAM_RESULT', actor, now);
+      fi.booking.unknownOperation = 'CANCEL';
+      fi.booking.lookupAttempts = 0;
+      setCancellation(fresh, fi.id, 'UNKNOWN', 'UPSTREAM_RESULT', actor, now);
+      raiseTask(fresh, 'CANCELLATION_UNKNOWN', fi.id, 'Cancel answer lost; the booking is being checked automatically (the cancel is not re-sent)', actor, now);
+      emit(fresh, 'order.provider_managed.lookup', { orderId: fresh.id }, new Date(now.getTime() + this.deps.policy.finalizeRetrySeconds(1) * 1000));
+      result = { outcome: 'UNKNOWN' };
+    });
+    return result;
+  }
+
+  /** Resolves a lost cancellation answer by reading the booking. */
+  private async cancelLookup(agg: OrderAggregate, now: Date): Promise<void> {
+    const it = single(agg);
+    const ref = it.booking.providerBookingRef;
+    const outcome: ExternalOutcome<ProviderBookingState> = ref
+      ? await this.deps.port.refresh(agg, it, ref)
+      : notAvailable('PROVIDER_BOOKING_REF', 'no provider booking id');
+    await this.apply(agg.id, (fresh, fi) => {
+      if (fi.booking.status !== 'UNKNOWN' || fi.booking.unknownOperation !== 'CANCEL') return;
+      if (outcome.kind === 'SUCCEEDED') {
+        const st = outcome.value.status;
+        if (st === 'CANCELLED') {
+          this.cancelledAtProvider(fresh, fi, null, null, 'RECONCILIATION', now, ACTOR, true);
+          return;
+        }
+        if (st === 'CONFIRMED' || st === 'ISSUED') {
+          // The cancel did not take effect. It is not re-sent automatically: staff may cancel again.
+          setBookingStatus(fresh, fi.id, st, 'RECONCILIATION', ACTOR, now);
+          fi.booking.unknownOperation = null;
+          fi.booking.lookupAttempts = 0;
+          setCancellation(fresh, fi.id, 'REJECTED', 'RECONCILIATION', ACTOR, now);
+          audit(fresh, 'provider_managed.cancel_not_applied', ACTOR, now, { itemId: fi.id });
+          return;
+        }
+      }
+      fi.booking.lookupAttempts += 1;
+      emit(fresh, 'order.provider_managed.lookup', { orderId: fresh.id }, new Date(now.getTime() + this.deps.policy.finalizeRetrySeconds(fi.booking.lookupAttempts + 1) * 1000));
+    });
+  }
+
+  /**
+   * The provider cancelled the booking. The provider collected the customer payment, so the refund is the provider's:
+   * we record what it reported and ask a person to confirm the customer refund (not documented for SDK payments).
+   */
+  private cancelledAtProvider(
+    agg: OrderAggregate,
+    it: OrderItemState,
+    penalty: Money | null,
+    providerRefund: Money | null,
+    cause: 'UPSTREAM_RESULT' | 'RECONCILIATION',
+    now: Date,
+    actor: string,
+    requestedByUs: boolean,
+  ): void {
+    if (it.booking.status === 'CONFIRMED' || it.booking.status === 'ISSUED') {
+      it.booking.preCancelStatus = it.booking.status;
+      setBookingStatus(agg, it.id, 'CANCEL_PENDING', cause, actor, now);
+    }
+    setBookingStatus(agg, it.id, 'CANCELLED', cause, actor, now);
+    it.booking.unknownOperation = null;
+    it.booking.voucherReady = false;
+    setCancellation(agg, it.id, 'COMPLETED', cause, actor, now);
+    const reason = requestedByUs ? 'CANCELLED_BY_STAFF' : 'CANCELLED_AT_PROVIDER';
+    setOrderStatus(agg, 'CANCELLED', cause, actor, now, reason);
+    agg.compensationReason = reason;
+    const fmt = (m: Money | null) => (m ? `${toMajor(m)} ${m.currency}` : 'not reported');
+    audit(agg, 'provider_managed.cancelled', actor, now, {
+      itemId: it.id,
+      requestedByUs,
+      penalty: penalty ? { currency: penalty.currency, minor: penalty.minor.toString() } : null,
+      providerRefund: providerRefund ? { currency: providerRefund.currency, minor: providerRefund.minor.toString() } : null,
+    });
+    const refundExpected = providerRefund === null || providerRefund.minor > 0n;
+    if (refundExpected) {
+      if (providerRefund && agg.payment!.status === 'CAPTURED') setPaymentStatus(agg, 'REFUND_PENDING', cause, actor, now);
+      raiseTask(
+        agg,
+        'REFUND_UNKNOWN',
+        it.id,
+        `Booking cancelled at Nuitee (${requestedByUs ? 'by us' : 'outside TexHoliday'}). Penalty: ${fmt(penalty)}; refund reported by Nuitee: ${fmt(providerRefund)}. Nuitee collected the payment; an automatic refund to the customer's card is not documented: confirm it, then record it on the order.`,
+        actor,
+        now,
+      );
+    }
+    emit(agg, 'order.cancelled', { orderId: agg.id, reason });
+  }
+
+  /**
+   * Records a refund the provider made to the customer, after staff verified it (`orders.record_refund` checked by
+   * the caller). Partial refunds add up; the total never exceeds what the customer paid.
+   */
+  async recordProviderRefund(orderId: string, actor: string, amount: Money, reference: string): Promise<{ paymentStatus: string; refundedTotal: Money }> {
+    const ref = reference.trim();
+    if (ref.length < 3 || ref.length > 200) throw new DomainError('VALIDATION_FAILED', 'Give where the refund was verified (3-200 characters)', { httpStatus: 422 });
+    let out: { paymentStatus: string; refundedTotal: Money } | null = null;
+    await this.apply(orderId, (agg) => {
+      const p = agg.payment!;
+      const now = this.deps.clock();
+      if (agg.status !== 'CANCELLED' || !['CAPTURED', 'REFUND_PENDING', 'PARTIALLY_REFUNDED'].includes(p.status)) {
+        throw new DomainError('ILLEGAL_TRANSITION', 'A refund can be recorded only for a cancelled, paid order', { httpStatus: 409 });
+      }
+      if (amount.currency !== p.amount.currency) throw new DomainError('VALIDATION_FAILED', 'Refund currency must be the payment currency', { httpStatus: 422 });
+      if (amount.minor <= 0n) throw new DomainError('VALIDATION_FAILED', 'Refund amount must be positive', { httpStatus: 422 });
+      // A double submission (two clicks, two tabs) must not record the same refund twice; a concurrent one reloads
+      // the order after the version conflict and lands here.
+      if (p.providerRefunds.some((r) => r.amount.minor === amount.minor && r.reference === ref)) {
+        throw new DomainError('VALIDATION_FAILED', 'This refund is already recorded', { httpStatus: 422 });
+      }
+      const before = p.providerRefunds.reduce((acc, r) => add(acc, r.amount), money(p.amount.currency, 0n));
+      const total = add(before, amount);
+      if (compare(total, p.amount) > 0) throw new DomainError('VALIDATION_FAILED', 'Refunds would exceed the amount paid', { httpStatus: 422 });
+      p.providerRefunds.push({ amount, reference: ref, recordedBy: actor, recordedAt: now.toISOString() });
+      if (p.status !== 'REFUND_PENDING') setPaymentStatus(agg, 'REFUND_PENDING', 'COMMAND', actor, now);
+      setPaymentStatus(agg, compare(total, p.amount) === 0 ? 'REFUNDED' : 'PARTIALLY_REFUNDED', 'COMMAND', actor, now);
+      audit(agg, 'provider_managed.refund_recorded', actor, now, { amount: { currency: amount.currency, minor: amount.minor.toString() }, reference: ref });
+      emit(agg, 'order.refund_recorded', { orderId: agg.id });
+      out = { paymentStatus: p.status, refundedTotal: total };
+    });
+    return out!;
   }
 }

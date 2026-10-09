@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { opaque, type ExternalOutcome, type ProviderBookingState } from '@texholiday/contracts';
-import { money } from '@texholiday/pricing';
+import { money, type Money } from '@texholiday/pricing';
 import {
   ProviderManagedOrchestrator,
   decideProviderManaged,
@@ -19,6 +19,10 @@ class FakePmPort implements ProviderManagedBookingPort {
   prebookScript: Array<ExternalOutcome<ProviderManagedPrebook>> = [];
   bookScript: Array<ExternalOutcome<ProviderBookingState>> = [];
   lookupScript: Array<ExternalOutcome<ProviderBookingState | null>> = [];
+  refreshScript: Array<ExternalOutcome<ProviderBookingState>> = [];
+  cancelScript: Array<ExternalOutcome<ProviderBookingState & { penalty: Money | null; providerRefund: Money | null }>> = [];
+  /** Called inside cancel(), e.g. to check what was persisted before the call. */
+  onCancel: (() => void) | null = null;
   async prebookForPayment() {
     this.calls.push({ op: 'prebook' });
     return this.prebookScript.shift() ?? ok({ prebookRef: opaque('MOCK-PRE-1'), transactionId: opaque('MOCK-TX-1'), clientSecret: 'MOCK_pi_secret_1', differences: [] });
@@ -30,6 +34,15 @@ class FakePmPort implements ProviderManagedBookingPort {
   async lookup(_a: OrderAggregate, _i: OrderItemState, clientReference: string) {
     this.calls.push({ op: 'lookup', clientReference });
     return this.lookupScript.shift() ?? ok(null);
+  }
+  async refresh(_a: OrderAggregate, _i: OrderItemState, ref: string) {
+    this.calls.push({ op: 'refresh', clientReference: ref });
+    return this.refreshScript.shift() ?? ok(providerState('CONFIRMED', { providerBookingRef: opaque(ref) }));
+  }
+  async cancel(_a: OrderAggregate, _i: OrderItemState, ref: string) {
+    this.calls.push({ op: 'cancel', clientReference: ref });
+    this.onCancel?.();
+    return this.cancelScript.shift() ?? ok({ ...providerState('CANCELLED', { providerBookingRef: opaque(ref) }), penalty: money('EUR', 0n), providerRefund: money('EUR', 50000n) });
   }
   count(op: string) {
     return this.calls.filter((c) => c.op === op).length;
@@ -324,5 +337,157 @@ describe('provider-managed checkout (Nuitee payment SDK, spec §5.1)', () => {
     expect(state(h)).toMatchObject({ status: 'CANCELLED' });
     expect(state(h).payment!.status).toBe('DECLINED');
     expect(state(h).tasks).toEqual([]);
+  });
+});
+
+describe('staff commands on provider-managed orders (/yonetim)', () => {
+  const STAFF = 'staff:ops-1';
+  async function confirmed() {
+    const h = harness();
+    h.port.bookScript.push(ok(providerState('CONFIRMED', { providerBookingRef: opaque('MOCK-PB-1') })));
+    await h.pm.start('ord-1');
+    await h.pm.finalize('ord-1');
+    expect(state(h).status).toBe('CONFIRMED');
+    return h;
+  }
+  const cancelled = (penalty: bigint, refund: bigint | null) =>
+    ok({ ...providerState('CANCELLED', { providerBookingRef: opaque('MOCK-PB-1') }), penalty: money('EUR', penalty), providerRefund: refund === null ? null : money('EUR', refund) });
+
+  it('cancel: intent stored before the call; the provider refund is recorded and a person confirms the customer refund', async () => {
+    const h = await confirmed();
+    h.port.onCancel = () => expect(h.store.peek('ord-1').items[0]!.booking).toMatchObject({ status: 'CANCEL_PENDING', cancellation: 'REQUESTED', intent: { op: 'CANCEL' } });
+    h.port.cancelScript.push(cancelled(2500n, 47500n));
+    const r = await h.pm.cancel('ord-1', STAFF, 'Misafir talebi');
+    expect(r).toEqual({ outcome: 'CANCELLED', penalty: money('EUR', 2500n), providerRefund: money('EUR', 47500n) });
+    const s = state(h);
+    expect(s).toMatchObject({ status: 'CANCELLED', compensationReason: 'CANCELLED_BY_STAFF' });
+    expect(s.items[0]!.booking).toMatchObject({ status: 'CANCELLED', cancellation: 'COMPLETED', intent: null, voucherReady: false });
+    expect(s.payment!.status).toBe('REFUND_PENDING'); // never REFUNDED on the provider's word alone
+    expect(s.tasks.map((t) => t.reason)).toEqual(['REFUND_UNKNOWN']);
+    expect(s.tasks[0]!.detail).toContain('25.00 EUR');
+    expect(h.store.commissions.at(-1)).toMatchObject({ kind: 'VOIDED' });
+    expect(h.store.auditLog.find((a) => a.action === 'provider_managed.cancel_requested')!.detail).toMatchObject({ reason: 'Misafir talebi' });
+    expect(h.port.calls.filter((c) => c.op === 'cancel').map((c) => c.clientReference)).toEqual(['MOCK-PB-1']);
+  });
+
+  it('cancel with full charges (no refund): payment stays collected, no refund task', async () => {
+    const h = await confirmed();
+    h.port.cancelScript.push(cancelled(50000n, 0n));
+    await h.pm.cancel('ord-1', STAFF, 'İade edilemez oda');
+    const s = state(h);
+    expect(s.status).toBe('CANCELLED');
+    expect(s.payment!.status).toBe('CAPTURED');
+    expect(s.tasks).toEqual([]);
+  });
+
+  it('a refused cancel leaves the booking as it was; a new request can be made later', async () => {
+    const h = await confirmed();
+    h.port.cancelScript.push(rejected('NUITEE_BOOKING_NOT_FOUND'));
+    expect(await h.pm.cancel('ord-1', STAFF, 'deneme')).toEqual({ outcome: 'REJECTED', code: 'NUITEE_BOOKING_NOT_FOUND' });
+    expect(state(h)).toMatchObject({ status: 'CONFIRMED' });
+    expect(state(h).items[0]!.booking).toMatchObject({ status: 'CONFIRMED', cancellation: 'REJECTED', intent: null });
+    h.port.cancelScript.push(cancelled(0n, 50000n));
+    expect((await h.pm.cancel('ord-1', STAFF, 'ikinci deneme')).outcome).toBe('CANCELLED');
+  });
+
+  it('a lost cancel answer is resolved by reading the booking, never by cancelling again', async () => {
+    const h = await confirmed();
+    h.port.cancelScript.push(unknown());
+    expect(await h.pm.cancel('ord-1', STAFF, 'misafir')).toEqual({ outcome: 'UNKNOWN' });
+    let s = state(h);
+    expect(s.status).toBe('CONFIRMED');
+    expect(s.items[0]!.booking).toMatchObject({ status: 'UNKNOWN', unknownOperation: 'CANCEL', cancellation: 'UNKNOWN' });
+    expect(s.tasks.map((t) => t.reason)).toEqual(['CANCELLATION_UNKNOWN']);
+    expect(h.store.outbox.at(-1)!.type).toBe('order.provider_managed.lookup');
+    expect(decideProviderManaged(s, NOW, 'FINALIZE').type).toBe('CANCEL_LOOKUP');
+
+    h.port.refreshScript.push(unknown()); // still unreadable: look again later
+    await h.pm.finalize('ord-1');
+    expect(state(h).items[0]!.booking.status).toBe('UNKNOWN');
+    h.port.refreshScript.push(ok(providerState('CANCELLED', { providerBookingRef: opaque('MOCK-PB-1') })));
+    await h.pm.finalize('ord-1');
+    s = state(h);
+    expect(s.status).toBe('CANCELLED');
+    expect(s.items[0]!.booking).toMatchObject({ status: 'CANCELLED', cancellation: 'COMPLETED' });
+    // Amounts were lost with the answer: the refund task says so; the payment is left for the person to settle.
+    expect(s.payment!.status).toBe('CAPTURED');
+    expect(s.tasks.map((t) => t.reason)).toContain('REFUND_UNKNOWN');
+    expect(h.port.count('cancel')).toBe(1);
+  });
+
+  it('a lost cancel that did not take effect returns to the confirmed booking (not re-sent)', async () => {
+    const h = await confirmed();
+    h.port.cancelScript.push(unknown());
+    await h.pm.cancel('ord-1', STAFF, 'misafir');
+    h.port.refreshScript.push(ok(providerState('CONFIRMED', { providerBookingRef: opaque('MOCK-PB-1') })));
+    await h.pm.finalize('ord-1');
+    const s = state(h);
+    expect(s.status).toBe('CONFIRMED');
+    expect(s.items[0]!.booking).toMatchObject({ status: 'CONFIRMED', cancellation: 'REJECTED', unknownOperation: null });
+    expect(h.port.count('cancel')).toBe(1);
+  });
+
+  it('a crashed cancel call expires into a cancel lookup', async () => {
+    const h = await confirmed();
+    const agg = await h.store.load('ord-1');
+    agg.items[0]!.booking.status = 'CANCEL_PENDING';
+    agg.items[0]!.booking.cancellation = 'REQUESTED';
+    agg.items[0]!.booking.intent = { op: 'CANCEL', startedAt: NOW.toISOString(), leaseUntil: NOW.toISOString(), workerId: 'dead' };
+    await h.store.save(agg);
+    h.clock.now = new Date(NOW.getTime() + 1000);
+    expect((await h.pm.finalize('ord-1')).type).toBe('INTENT_EXPIRED');
+    expect(state(h).items[0]!.booking).toMatchObject({ status: 'UNKNOWN', unknownOperation: 'CANCEL' });
+    expect(state(h).tasks.map((t) => t.reason)).toContain('CANCELLATION_UNKNOWN');
+    expect((await h.pm.finalize('ord-1')).type).toBe('CANCEL_LOOKUP');
+  });
+
+  it('only a confirmed booking can be cancelled; nothing is sent otherwise', async () => {
+    const h = harness();
+    await h.pm.start('ord-1');
+    await expect(h.pm.cancel('ord-1', STAFF, 'erken')).rejects.toMatchObject({ code: 'ILLEGAL_TRANSITION' });
+    expect(h.port.count('cancel')).toBe(0);
+  });
+
+  it('check status: a booking cancelled outside TexHoliday is picked up; an unreadable provider changes nothing', async () => {
+    const h = await confirmed();
+    h.port.refreshScript.push(unknown());
+    expect(await h.pm.checkStatus('ord-1', STAFF)).toMatchObject({ providerAnswered: false, changed: false, orderStatus: 'CONFIRMED' });
+    expect(await h.pm.checkStatus('ord-1', STAFF)).toMatchObject({ providerAnswered: true, changed: false, bookingStatus: 'CONFIRMED' });
+    h.port.refreshScript.push(ok(providerState('CANCELLED', { providerBookingRef: opaque('MOCK-PB-1') })));
+    expect(await h.pm.checkStatus('ord-1', STAFF)).toMatchObject({ providerAnswered: true, changed: true, orderStatus: 'CANCELLED', bookingStatus: 'CANCELLED' });
+    const s = state(h);
+    expect(s.compensationReason).toBe('CANCELLED_AT_PROVIDER');
+    expect(s.tasks.map((t) => t.reason)).toEqual(['REFUND_UNKNOWN']);
+    expect(h.store.auditLog.filter((a) => a.action === 'order.status_checked')).toHaveLength(3);
+    expect(h.port.count('cancel')).toBe(0);
+  });
+
+  it('check status on an open checkout tries to finalize (the customer may have paid); it never opens a payment session', async () => {
+    const h = harness();
+    expect(await h.pm.checkStatus('ord-1', STAFF)).toMatchObject({ changed: false });
+    expect(h.port.count('prebook')).toBe(0);
+    await h.pm.start('ord-1');
+    expect(await h.pm.checkStatus('ord-1', STAFF)).toMatchObject({ providerAnswered: true, changed: true, orderStatus: 'CONFIRMED' });
+    expect(h.port.count('book')).toBe(1);
+  });
+
+  it('recorded provider refunds add up to the amount paid, never more; only on cancelled paid orders', async () => {
+    const h = await confirmed();
+    await expect(h.pm.recordProviderRefund('ord-1', STAFF, money('EUR', 100n), 'Nuitee panel')).rejects.toMatchObject({ code: 'ILLEGAL_TRANSITION' });
+    h.port.cancelScript.push(cancelled(2500n, 47500n));
+    await h.pm.cancel('ord-1', STAFF, 'misafir');
+    await expect(h.pm.recordProviderRefund('ord-1', STAFF, money('USD', 100n), 'Nuitee panel')).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    await expect(h.pm.recordProviderRefund('ord-1', STAFF, money('EUR', 100n), 'x')).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    expect(await h.pm.recordProviderRefund('ord-1', STAFF, money('EUR', 40000n), 'Nuitee panel, iade 1')).toEqual({ paymentStatus: 'PARTIALLY_REFUNDED', refundedTotal: money('EUR', 40000n) });
+    // The same refund submitted again (double click, second tab) is refused.
+    await expect(h.pm.recordProviderRefund('ord-1', STAFF, money('EUR', 40000n), 'Nuitee panel, iade 1')).rejects.toMatchObject({ code: 'VALIDATION_FAILED', message: 'This refund is already recorded' });
+    await expect(h.pm.recordProviderRefund('ord-1', STAFF, money('EUR', 10001n), 'Banka dekontu')).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    expect(await h.pm.recordProviderRefund('ord-1', STAFF, money('EUR', 10000n), 'Banka dekontu')).toEqual({ paymentStatus: 'REFUNDED', refundedTotal: money('EUR', 50000n) });
+    const s = state(h);
+    expect(s.payment!.providerRefunds.map((r) => [r.amount.minor, r.reference, r.recordedBy])).toEqual([
+      [40000n, 'Nuitee panel, iade 1', STAFF],
+      [10000n, 'Banka dekontu', STAFF],
+    ]);
+    expect(h.store.auditLog.filter((a) => a.action === 'provider_managed.refund_recorded')).toHaveLength(2);
   });
 });

@@ -172,7 +172,11 @@ export interface HotelConnector {
   }): Promise<ExternalOutcome<ProviderBookingState>>;
   lookupByClientReference(clientReference: string): Promise<ExternalOutcome<ProviderBookingState | null>>;
   getBooking(providerBookingRef: OpaqueRef): Promise<ExternalOutcome<ProviderBookingState>>;
-  cancel(providerBookingRef: OpaqueRef): Promise<ExternalOutcome<ProviderBookingState & { penalty: Money | null; refundToUs: Money | null }>>;
+  /**
+   * `refundAmount` is the provider's `refund_amount` as reported (null when absent). Who receives it (our account card,
+   * or the customer for payment-SDK bookings) is not documented and is never assumed.
+   */
+  cancel(providerBookingRef: OpaqueRef): Promise<ExternalOutcome<ProviderBookingState & { penalty: Money | null; refundAmount: Money | null }>>;
 }
 
 // ---------------- Flight ----------------

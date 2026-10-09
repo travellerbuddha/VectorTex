@@ -91,6 +91,7 @@ export function makeOrder(opts: { items?: ItemSpec[]; payment?: PaymentStatus; s
       itemTransactions: [],
       providerTransaction: null,
       providerClientSecret: null,
+      providerRefunds: [],
       payBy: null,
     },
     tasks: [],

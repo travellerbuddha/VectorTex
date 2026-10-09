@@ -255,7 +255,7 @@ describe('Nuitee hotel lookup / get / cancel (pinned examples)', () => {
     const ex = examples(booking, '/bookings/{bookingId}', 'put', '200');
     const { c } = connector([res(200, ex['non-refundable']!.value), res(200, ex.refundable!.value)]);
     const a = await c.cancel(opaque('hSq2gVDrf'));
-    expect(a.kind === 'SUCCEEDED' && [a.value.status, a.value.penalty, a.value.refundToUs]).toEqual(['CANCELLED', money('USD', 15000n), money('USD', 0n)]);
+    expect(a.kind === 'SUCCEEDED' && [a.value.status, a.value.penalty, a.value.refundAmount]).toEqual(['CANCELLED', money('USD', 15000n), money('USD', 0n)]);
     const b = await c.cancel(opaque('hSq2gVDrf'));
     expect(b.kind === 'SUCCEEDED' && b.value.penalty).toEqual(money('USD', 2500n));
   });

@@ -201,11 +201,11 @@ export class MockHotelConnector implements HotelConnector {
     return b ? { kind: 'SUCCEEDED', value: b, evidence: this.evidence('get') } : { kind: 'REJECTED', code: 'NUITEE_BOOKING_NOT_FOUND', message: 'MOCK not found', evidence: this.evidence('get') };
   }
 
-  async cancel(providerBookingRef: OpaqueRef): Promise<ExternalOutcome<ProviderBookingState & { penalty: Money | null; refundToUs: Money | null }>> {
+  async cancel(providerBookingRef: OpaqueRef): Promise<ExternalOutcome<ProviderBookingState & { penalty: Money | null; refundAmount: Money | null }>> {
     const entry = [...this.bookings.entries()].find(([, x]) => x.providerBookingRef === providerBookingRef);
     if (!entry) return { kind: 'REJECTED', code: 'NUITEE_BOOKING_NOT_FOUND', message: 'MOCK not found', evidence: this.evidence('cancel') };
     const cancelled: ProviderBookingState = { ...entry[1], status: 'CANCELLED', voucherReady: false };
     this.bookings.set(entry[0], cancelled);
-    return { kind: 'SUCCEEDED', value: { ...cancelled, penalty: money(entry[1].supplierCost!.currency, 0n), refundToUs: entry[1].supplierCost }, evidence: this.evidence('cancel') };
+    return { kind: 'SUCCEEDED', value: { ...cancelled, penalty: money(entry[1].supplierCost!.currency, 0n), refundAmount: entry[1].supplierCost }, evidence: this.evidence('cancel') };
   }
 }

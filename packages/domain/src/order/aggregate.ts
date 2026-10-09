@@ -102,6 +102,21 @@ export interface PaymentState {
   providerClientSecret: string | null;
   /** PROVIDER_MANAGED only: after this instant an unpaid checkout is abandoned. */
   payBy: string | null;
+  /**
+   * PROVIDER_MANAGED only: refunds the provider made to the customer, recorded by staff after checking them (we can
+   * neither make nor query a provider-managed refund). Stored as customer REFUND transactions.
+   */
+  providerRefunds: ProviderRefund[];
+}
+
+export interface ProviderRefund {
+  /** Assigned by the store when persisted. */
+  id?: string;
+  amount: Money;
+  /** Where the refund was verified (provider dashboard reference, bank statement...). */
+  reference: string;
+  recordedBy: string;
+  recordedAt: string;
 }
 
 export interface TaskState {

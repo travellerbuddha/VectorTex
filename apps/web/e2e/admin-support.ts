@@ -1,3 +1,4 @@
+import { readFileSync, writeFileSync } from 'node:fs';
 import { expect, type Page } from '@playwright/test';
 import { base32Decode, hotp, totpStep } from '@texholiday/admin';
 import { E2E_ADMIN_PASSWORD } from './keys';
@@ -14,10 +15,13 @@ export const statusIn = (page: Page) => page.locator('#admin-main').getByRole('s
  */
 export async function signIn(page: Page, key: 'admin' | 'finance' | 'approver'): Promise<void> {
   const secret = process.env[`E2E_SECRET_${key}`]!;
-  const used = Number(process.env[`E2E_LAST_STEP_${key}`] ?? 0);
+  // Kept in a file (global setup): Playwright restarts the worker after a failed test, losing process state.
+  const file = process.env.E2E_STEP_FILE!;
+  const steps = JSON.parse(readFileSync(file, 'utf8')) as Record<string, number>;
+  const used = steps[key] ?? 0;
   while (totpStep(new Date()) + 1 <= used) await page.waitForTimeout(1000);
   const step = totpStep(new Date()) + 1;
-  process.env[`E2E_LAST_STEP_${key}`] = String(step);
+  writeFileSync(file, JSON.stringify({ ...steps, [key]: step }));
   await page.goto('/yonetim/giris');
   await page.getByLabel('E-posta').fill(`${key}@e2e.test`);
   await page.getByLabel('Şifre').fill(E2E_ADMIN_PASSWORD);

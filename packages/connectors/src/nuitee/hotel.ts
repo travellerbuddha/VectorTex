@@ -531,7 +531,7 @@ export class NuiteeHotelConnector implements HotelConnector {
     return state ? { kind: 'SUCCEEDED', value: state, evidence: http.evidence } : this.unknown(http.evidence, 'MALFORMED_RESPONSE');
   }
 
-  async cancel(providerBookingRef: OpaqueRef): Promise<ExternalOutcome<ProviderBookingState & { penalty: Money | null; refundToUs: Money | null }>> {
+  async cancel(providerBookingRef: OpaqueRef): Promise<ExternalOutcome<ProviderBookingState & { penalty: Money | null; refundAmount: Money | null }>> {
     const http = await this.send('cancel', 'PUT', `${this.cfg.bookBaseUrl}/bookings/${encodeURIComponent(providerBookingRef)}?timeout=${this.cfg.bookTimeoutSeconds}`, null, this.cfg.bookTimeoutSeconds, true);
     if (!http.ok) return http.outcome;
     const err = this.errorOf(http.json);
@@ -557,7 +557,7 @@ export class NuiteeHotelConnector implements HotelConnector {
         supplierCost: null,
         providerCommission: null,
         penalty: fee !== null ? fromMajor(fee, data.currency) : null,
-        refundToUs: refund !== null ? fromMajor(refund, data.currency) : null,
+        refundAmount: refund !== null ? fromMajor(refund, data.currency) : null,
       },
       evidence: http.evidence,
     };

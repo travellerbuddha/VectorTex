@@ -1,7 +1,7 @@
 import { notAvailable, type ExternalOutcome, type HotelConnector, type OpaqueRef, type ProviderBookingState, type ProviderManagedTransactionRef } from '@texholiday/contracts';
 import type { CheckoutRepository, QuoteRepository } from '@texholiday/db';
 import type { OrderAggregate, OrderItemState, ProviderManagedBookingPort, ProviderManagedPrebook, QuoteDifference } from '@texholiday/domain';
-import { equals } from '@texholiday/pricing';
+import { equals, type Money } from '@texholiday/pricing';
 
 /**
  * Binds the provider-managed orchestrator to the Nuitee hotel connector. Prices and offer ids always come from the
@@ -55,5 +55,16 @@ export class NuiteeHotelProviderManagedPort implements ProviderManagedBookingPor
 
   async lookup(_agg: OrderAggregate, _it: OrderItemState, clientReference: string): Promise<ExternalOutcome<ProviderBookingState | null>> {
     return this.hotels.lookupByClientReference(clientReference);
+  }
+
+  async refresh(_agg: OrderAggregate, _it: OrderItemState, providerBookingRef: OpaqueRef): Promise<ExternalOutcome<ProviderBookingState>> {
+    return this.hotels.getBooking(providerBookingRef);
+  }
+
+  async cancel(_agg: OrderAggregate, _it: OrderItemState, providerBookingRef: OpaqueRef): Promise<ExternalOutcome<ProviderBookingState & { penalty: Money | null; providerRefund: Money | null }>> {
+    const out = await this.hotels.cancel(providerBookingRef);
+    if (out.kind !== 'SUCCEEDED') return out;
+    const { refundAmount, ...rest } = out.value;
+    return { kind: 'SUCCEEDED', value: { ...rest, providerRefund: refundAmount }, evidence: out.evidence };
   }
 }

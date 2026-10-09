@@ -5,6 +5,7 @@ import { money } from '@texholiday/pricing';
 import type { CoreDb } from './client';
 import {
   auditLogs,
+  customerTransactions,
   ledgerEntries,
   operationTasks,
   orderItems,
@@ -38,6 +39,14 @@ export class DrizzleOrderStore implements OrderStore {
     const bookings = itemIds.length ? await this.db.select().from(providerBookings).where(inArray(providerBookings.orderItemId, itemIds)) : [];
     const [attempt] = await this.db.select().from(paymentAttempts).where(eq(paymentAttempts.orderId, orderId)).orderBy(desc(paymentAttempts.createdAt)).limit(1);
     const itemTx = attempt ? await this.db.select().from(paymentItemTransactions).where(eq(paymentItemTransactions.paymentAttemptId, attempt.id)) : [];
+    // Provider-managed refunds recorded by staff (the provider made them; ADR-0008).
+    const refunds = attempt
+      ? await this.db
+          .select()
+          .from(customerTransactions)
+          .where(and(eq(customerTransactions.paymentAttemptId, attempt.id), eq(customerTransactions.kind, 'REFUND'), eq(customerTransactions.status, 'SUCCEEDED')))
+          .orderBy(asc(customerTransactions.createdAt))
+      : [];
     const tasks = await this.db.select().from(operationTasks).where(and(eq(operationTasks.orderId, orderId), eq(operationTasks.status, 'OPEN')));
     const quoteIds = items.map((i) => i.quoteVersionId);
     const quoteCommissions = quoteIds.length
@@ -109,6 +118,13 @@ export class DrizzleOrderStore implements OrderStore {
             attempt.providerPrebookRef && attempt.providerTransactionId ? { prebookRef: opaque(attempt.providerPrebookRef), transactionId: opaque(attempt.providerTransactionId) } : null,
           providerClientSecret: attempt.providerClientSecret,
           payBy: attempt.payBy ? new Date(attempt.payBy).toISOString() : null,
+          providerRefunds: refunds.map((r) => ({
+            id: r.id,
+            amount: money(r.currency, r.amountMinor),
+            reference: r.gatewayReference ?? '',
+            recordedBy: r.approvedBy ?? '',
+            recordedAt: new Date(r.createdAt).toISOString(),
+          })),
         }
       : null;
 
@@ -189,6 +205,25 @@ export class DrizzleOrderStore implements OrderStore {
             updatedAt: new Date().toISOString(),
           })
           .where(eq(paymentAttempts.id, p.id));
+        for (const r of p.providerRefunds) {
+          if (r.id) continue;
+          const [row] = await tx
+            .insert(customerTransactions)
+            .values({
+              paymentAttemptId: p.id,
+              kind: 'REFUND',
+              status: 'SUCCEEDED',
+              amountMinor: r.amount.minor,
+              currency: r.amount.currency,
+              // Single-item provider-managed order: the whole refund belongs to its item.
+              itemAllocations: agg.items.map((i) => ({ itemId: i.id, currency: r.amount.currency, minor: r.amount.minor.toString() })),
+              gatewayReference: r.reference,
+              approvedBy: r.recordedBy,
+              createdAt: r.recordedAt,
+            })
+            .returning({ id: customerTransactions.id });
+          r.id = row!.id;
+        }
         for (const t of p.itemTransactions) {
           await tx
             .insert(paymentItemTransactions)

@@ -49,6 +49,14 @@ export const PERMISSIONS = {
     tr: 'Operasyon görevlerini üstlenme ve gerekçeyle kapatma',
     en: 'Take operation tasks and close them with a resolution',
   },
+  'orders.cancel': {
+    tr: 'Onaylı rezervasyonu sağlayıcıda gerekçeyle iptal etme',
+    en: 'Cancel a confirmed booking at the provider, with a reason',
+  },
+  'orders.record_refund': {
+    tr: 'Sağlayıcının müşteriye yaptığı iadeyi doğruladıktan sonra siparişe kaydetme',
+    en: 'Record a refund the provider made to the customer, after verifying it',
+  },
 } as const satisfies Record<string, { tr: string; en: string }>;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -68,11 +76,21 @@ export type StaffRole = (typeof STAFF_ROLES)[number];
  * (content: P06, operations/refunds: P15).
  */
 export const ROLE_PRESETS: Readonly<Record<StaffRole, readonly Permission[]>> = {
-  OWNER_ADMIN: ['permissions.manage', 'staff.manage', 'pricing_policy.edit', 'risk_policy.edit', 'orders.view', 'orders.view_financials', 'tasks.manage'],
-  FINANCE: ['pricing_policy.edit', 'risk_policy.edit', 'orders.view', 'orders.view_financials'],
+  OWNER_ADMIN: [
+    'permissions.manage',
+    'staff.manage',
+    'pricing_policy.edit',
+    'risk_policy.edit',
+    'orders.view',
+    'orders.view_financials',
+    'tasks.manage',
+    'orders.cancel',
+    'orders.record_refund',
+  ],
+  FINANCE: ['pricing_policy.edit', 'risk_policy.edit', 'orders.view', 'orders.view_financials', 'orders.record_refund'],
   FINANCE_APPROVER: ['pricing_policy.approve', 'risk_policy.approve', 'orders.view', 'orders.view_financials'],
   CONTENT_EDITOR: [],
-  OPERATIONS: ['orders.view', 'tasks.manage'],
+  OPERATIONS: ['orders.view', 'tasks.manage', 'orders.cancel'],
   VIEWER: ['orders.view'],
 };
 

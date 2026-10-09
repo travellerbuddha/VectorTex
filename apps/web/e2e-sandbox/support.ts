@@ -69,11 +69,27 @@ async function cardFrame(page: Page): Promise<Frame> {
 export async function payWithTestCard(page: Page): Promise<void> {
   const frame = await cardFrame(page);
   const yy = String((new Date().getUTCFullYear() + 3) % 100).padStart(2, '0');
-  await frame.locator('input[name="number"]').fill('4242424242424242');
-  await frame.locator('input[name="expiry"]').fill(`12 / ${yy}`);
-  await frame.locator('input[name="cvc"]').fill('123');
+  // Stripe's fields can drop input typed while they are still mounting (seen once in sandbox): type, then check that
+  // the field kept a value, and type again if not.
+  const typeInto = async (name: string, value: string) => {
+    const field = frame.locator(`input[name="${name}"]`);
+    await expect
+      .poll(
+        async () => {
+          if ((await field.inputValue()).replace(/\D/g, '') !== '') return true;
+          await field.click();
+          await field.fill(value);
+          return (await field.inputValue()).replace(/\D/g, '') !== '';
+        },
+        { timeout: 20_000, intervals: [500], message: `payment field ${name}` },
+      )
+      .toBe(true);
+  };
+  await typeInto('number', '4242424242424242');
+  await typeInto('expiry', `12 / ${yy}`);
+  await typeInto('cvc', '123');
   const postal = frame.locator('input[name="postalCode"]');
-  if ((await postal.count()) > 0) await postal.fill('12345');
+  if ((await postal.count()) > 0) await typeInto('postalCode', '12345');
   const pay = page.getByRole('button', { name: /^\s*pay\s*$/i });
   // The provider's frames keep resizing and scrolling the page while the last field settles (seen at 320px): click
   // only once the button has stayed in place, or the tap lands where it used to be.

@@ -1,11 +1,14 @@
 import { expect, test } from '@playwright/test';
+import pg from 'pg';
 import { opaque } from '@texholiday/contracts';
+import { signIn, statusIn } from '../e2e/admin-support';
 import { evidence, payWithTestCard, sandboxHotelConnector, watchCsp } from './support';
 
 /**
  * The customer site against the Nuitee SANDBOX (ADR-0008): search → refundable offer → guest details → Nuitee payment
  * component (test card) → provider return → confirmed. Also proves our Content-Security-Policy lets the component
- * work. The booking is cancelled at the end.
+ * work. On desktop the booking is then checked and cancelled from /yonetim (GET and PUT /bookings/{id} through our
+ * order commands); otherwise it is cancelled directly at the end.
  */
 const destination = process.env.SANDBOX_SITE_DESTINATION ?? 'Antalya';
 
@@ -51,11 +54,40 @@ test('hotel booking on our site with the Nuitee payment component (sandbox)', as
 
   const violations = await csp();
   evidence('site.csp', { violations });
+  let cancelledInPanel = false;
   try {
     expect(violations).toEqual([]);
+    if (test.info().project.name === 'desktop') {
+      page.on('dialog', (d) => void d.accept());
+      await signIn(page, 'admin');
+      await page.goto(`/yonetim/siparisler/${orderId}`);
+      const commands = page.getByTestId('order-commands');
+      await commands.getByRole('button', { name: 'Durumu kontrol et' }).click();
+      await expect(statusIn(page)).toHaveText('Kontrol edildi: değişiklik yok (Onaylandı).', { timeout: 60_000 });
+      evidence('panel.check_status', { orderId, providerBookingRef: ref, result: 'CONFIRMED, unchanged' });
+      await commands.getByLabel('İptal gerekçesi').fill('Sandbox test rezervasyonu iptali');
+      await commands.getByRole('button', { name: 'Rezervasyonu iptal et' }).click();
+      await expect(page.getByRole('heading', { level: 1 })).toContainText('İptal', { timeout: 150_000 });
+      cancelledInPanel = true;
+      const db = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
+      await db.connect();
+      const audit = await db.query(`SELECT detail FROM core.audit_logs WHERE entity_type = 'order' AND entity_id = $1 AND action = 'provider_managed.cancelled'`, [orderId]);
+      const pay = await db.query(`SELECT status FROM core.payment_attempts WHERE order_id = $1`, [orderId]);
+      const tasks = await db.query(`SELECT reason FROM core.operation_tasks WHERE order_id = $1 AND status = 'OPEN'`, [orderId]);
+      await db.end();
+      evidence('panel.cancel', { orderId, providerBookingRef: ref, ...audit.rows[0]?.detail, paymentStatus: pay.rows[0]?.status, openTasks: tasks.rows.map((r) => r.reason) });
+      await customerSeesCancellation(page, orderId);
+    }
   } finally {
-    const cancel = await sandboxHotelConnector().cancel(opaque(ref));
-    evidence('site.cancel', cancel.kind === 'SUCCEEDED' ? { ref, kind: cancel.kind, status: cancel.value.status, penalty: cancel.value.penalty } : { ref, ...cancel });
-    expect(cancel).toMatchObject({ kind: 'SUCCEEDED', value: { status: 'CANCELLED' } });
+    if (!cancelledInPanel) {
+      const cancel = await sandboxHotelConnector().cancel(opaque(ref));
+      evidence('site.cancel', cancel.kind === 'SUCCEEDED' ? { ref, kind: cancel.kind, status: cancel.value.status, penalty: cancel.value.penalty, refund: cancel.value.refundAmount } : { ref, ...cancel });
+      expect(cancel).toMatchObject({ kind: 'SUCCEEDED', value: { status: 'CANCELLED' } });
+    }
   }
 });
+
+async function customerSeesCancellation(page: import('@playwright/test').Page, orderId: string): Promise<void> {
+  await page.goto(`/tr/orders/${orderId}`);
+  await expect(page.getByText('Rezervasyonunuz iptal edildi.')).toBeVisible({ timeout: 30_000 });
+}

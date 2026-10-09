@@ -1,3 +1,6 @@
+import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import pg from 'pg';
 import { adminSettingsFromEnv, base32Decode, hotp, StaffAuthService, totpStep } from '@texholiday/admin';
 import { createCoreDatabase, migrateCore, PermissionRepository, PolicyRepository } from '@texholiday/db';
@@ -17,6 +20,9 @@ export default async function globalSetup() {
   await admin.query('DROP SCHEMA IF EXISTS core CASCADE');
   await admin.end();
   await migrateCore(url);
+  // Last TOTP step used per account, shared across worker restarts (a code is accepted once per account).
+  process.env.E2E_STEP_FILE = join(tmpdir(), `texholiday-e2e-steps-${process.pid}.json`);
+  writeFileSync(process.env.E2E_STEP_FILE, '{}');
   const { db, close } = createCoreDatabase(url, { max: 2 });
   try {
     const auth = new StaffAuthService(db, adminSettingsFromEnv({ STAFF_MFA_KEY: E2E_STAFF_MFA_KEY }));

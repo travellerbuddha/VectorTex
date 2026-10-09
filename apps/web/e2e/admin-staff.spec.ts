@@ -29,7 +29,7 @@ test('invite, role preset, revoke, a restricted colleague, disable', async ({ pa
   await expect(page.getByRole('heading', { level: 1, name: 'Ops Kişi' })).toBeVisible();
   await page.getByLabel('Rol').selectOption({ label: 'Operasyon' });
   await page.getByRole('button', { name: 'Paketi uygula' }).click();
-  await expect(statusIn(page)).toHaveText('2 izin verildi.');
+  await expect(statusIn(page)).toHaveText('3 izin verildi.');
   await page.reload();
   const active = page.locator('.perm-list');
   await expect(active.getByText('Siparişleri, misafir bilgilerini ve operasyon görevlerini görüntüleme')).toBeVisible();

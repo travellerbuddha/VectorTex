@@ -77,7 +77,18 @@ export interface OrderDetail {
     /** Present only for holders of orders.view_financials. */
     financials: { supplierCost: MoneyJson; sell: MoneyJson; providerCommission: MoneyJson | null; commissionStatus: string | null } | null;
   }>;
-  payment: { mode: string; gatewayId: string; status: string; amount: MoneyJson; providerTransactionId: string | null; payBy: string | null; createdAt: string } | null;
+  payment: {
+    mode: string;
+    gatewayId: string;
+    status: string;
+    amount: MoneyJson;
+    providerTransactionId: string | null;
+    payBy: string | null;
+    createdAt: string;
+    /** Provider-made refunds recorded by staff (ADR-0008). */
+    refunds: Array<{ amount: MoneyJson; reference: string; recordedBy: string; at: string }>;
+    refundedTotal: MoneyJson;
+  } | null;
   tasks: TaskRow[];
   timeline: Array<{ at: string; action: string; actor: string; detail: unknown }>;
   canSeeFinancials: boolean;
@@ -204,9 +215,18 @@ export class OrdersQuery {
 
     const [pay] = (
       await this.db.execute<Record<string, unknown>>(sql`
-        SELECT mode, gateway_id, status, amount_minor::text AS amount_minor, currency, provider_transaction_id, pay_by, created_at
+        SELECT id, mode, gateway_id, status, amount_minor::text AS amount_minor, currency, provider_transaction_id, pay_by, created_at
         FROM core.payment_attempts WHERE order_id = ${orderId} ORDER BY created_at DESC LIMIT 1`)
     ).rows;
+    const refunds = pay
+      ? (
+          await this.db.execute<Record<string, unknown>>(sql`
+            SELECT amount_minor::text AS amount_minor, currency, gateway_reference, approved_by, created_at
+            FROM core.customer_transactions
+            WHERE payment_attempt_id = ${pay.id} AND kind = 'REFUND' AND status = 'SUCCEEDED'
+            ORDER BY created_at`)
+        ).rows
+      : [];
 
     const tasks = await this.tasksOf(sql`t.order_id = ${orderId}`);
     const timeline = await this.db
@@ -277,6 +297,14 @@ export class OrdersQuery {
             providerTransactionId: (pay.provider_transaction_id as string | null) ?? null,
             payBy: isoOrNull(pay.pay_by),
             createdAt: iso(pay.created_at),
+            refunds: refunds.map((r) => ({
+              amount: money(r.amount_minor, r.currency),
+              reference: String(r.gateway_reference ?? ''),
+              recordedBy: String(r.approved_by ?? ''),
+              at: iso(r.created_at),
+            })),
+            // Exact: summed as bigint.
+            refundedTotal: money(refunds.reduce((acc, r) => acc + BigInt(String(r.amount_minor)), 0n).toString(), pay.currency),
           }
         : null,
       tasks,

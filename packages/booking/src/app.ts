@@ -32,6 +32,7 @@ import {
 } from '@texholiday/pricing';
 import { canAccessOrder, orderAccessToken } from './access';
 import { NuiteeHotelProviderManagedPort } from './nuitee-pm-port';
+import { StaffOrderCommands } from './staff-orders';
 import type { BookingSettings } from './settings';
 import { checkoutInput, hotelSearchInput, parse, type HotelSearchInput } from './validation';
 import type { CancellationView, HotelOfferView, HotelResultView, HotelSearchView, OrderStage, OrderView, PaymentSessionView, QuoteView } from './views';
@@ -98,6 +99,8 @@ function cancellationView(c: QuoteVersionSnapshot['cancellation']): Cancellation
  */
 export class BookingApp {
   readonly orchestrator: ProviderManagedOrchestrator;
+  /** Staff commands for /yonetim (permission-checked). */
+  readonly staff: StaffOrderCommands;
   private readonly policies: PolicyRepository;
   private readonly quotes: QuoteRepository;
   private readonly checkout: CheckoutRepository;
@@ -127,6 +130,7 @@ export class BookingApp {
         maxAutomaticLookups: s.maxAutomaticLookups,
       },
     });
+    this.staff = new StaffOrderCommands(deps.db, this.store, this.orchestrator, s.environment);
   }
 
   // ------------------------------------------------------------------ routing & pricing
@@ -551,6 +555,7 @@ export class BookingApp {
     if (agg.status === 'CONFIRMED') return 'CONFIRMED';
     if (agg.status === 'ACTION_REQUIRED') return 'NEEDS_ATTENTION';
     if (agg.status === 'CANCELLED') {
+      if (it.booking.status === 'CANCELLED') return 'CANCELLED';
       const code = it.booking.failureCode ?? agg.compensationReason ?? '';
       if (code === 'CHECKOUT_EXPIRED') return 'EXPIRED';
       if (code.startsWith('QUOTE_CHANGED')) return 'PRICE_CHANGED';

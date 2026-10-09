@@ -1,10 +1,12 @@
 import { notFound } from 'next/navigation';
 import { isDomainError } from '@texholiday/contracts';
+import { ActionForm } from '../../../../../components/admin/ActionForm';
 import { TaskList } from '../../../../../components/admin/TaskList';
 import { adminDict, adminLocale } from '../../../../../i18n/admin';
 import { formatDate, formatMoney } from '../../../../../i18n/format';
 import { admin, can, requireStaff } from '../../../../../server/admin';
 import { actorOf, formatAdminInstant } from '../../../../../server/admin-forms';
+import { cancelOrderAction, checkStatusAction, recordRefundAction } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +31,18 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   }
   const accounts = await auth.accounts();
   const names = new Map(accounts.map((a) => [a.id, a.displayName]));
-  const who = (actor: string) => names.get(actor) ?? (actor.startsWith('system:') ? t.common.system : actor);
+  const who = (actor: string) => {
+    const id = actor.startsWith('staff:') ? actor.slice(6) : actor;
+    return names.get(id) ?? (actor.startsWith('system:') ? t.common.system : actor);
+  };
+  const c = t.orders.commands;
+  const first = order.items[0];
+  const pm = order.payment?.mode === 'PROVIDER_MANAGED';
+  const mayCheck = pm && order.status !== 'CANCELLED' && can(staff, 'tasks.manage');
+  const mayCancel =
+    pm && order.status === 'CONFIRMED' && (first?.booking?.status === 'CONFIRMED' || first?.booking?.status === 'ISSUED') && can(staff, 'orders.cancel');
+  const mayRecordRefund =
+    pm && order.status === 'CANCELLED' && ['CAPTURED', 'REFUND_PENDING', 'PARTIALLY_REFUNDED'].includes(order.payment?.status ?? '') && can(staff, 'orders.record_refund');
   const describe = (action: string, detail: unknown) => {
     const label = t.orders.events[action] ?? action;
     const x = (detail ?? {}) as Record<string, unknown>;
@@ -104,8 +117,65 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           ) : (
             <p className="muted">—</p>
           )}
+          {order.payment && order.payment.refunds.length > 0 && (
+            <div className="top-gap" data-testid="refunds">
+              <h3>{d.refunds}</h3>
+              <ul className="plain">
+                {order.payment.refunds.map((r, i) => (
+                  <li key={i}>{d.refundRow(formatMoney(r.amount, locale), r.reference, who(r.recordedBy), formatAdminInstant(r.at, locale))}</li>
+                ))}
+              </ul>
+              <p>
+                {d.refundedTotal}: <strong>{formatMoney(order.payment.refundedTotal, locale)}</strong>
+              </p>
+            </div>
+          )}
         </section>
       </div>
+
+      {(mayCheck || mayCancel || mayRecordRefund) && (
+        <section className="card" data-testid="order-commands">
+          <h2>{c.title}</h2>
+          <div className="stack">
+            {mayCheck && (
+              <ActionForm action={checkStatusAction} submit={c.check} variant="secondary">
+                <input type="hidden" name="orderId" value={order.id} />
+                <small className="muted">{c.checkHint}</small>
+              </ActionForm>
+            )}
+            {mayCancel && (
+              <ActionForm action={cancelOrderAction} submit={c.cancel} variant="danger" confirmText={c.cancelConfirm} className="stack top-gap">
+                <input type="hidden" name="orderId" value={order.id} />
+                <p className="muted">{c.cancelHint}</p>
+                <div className="field">
+                  <label htmlFor="cancel-reason">{c.cancelReason}</label>
+                  <textarea id="cancel-reason" name="reason" required minLength={5} maxLength={500} />
+                </div>
+              </ActionForm>
+            )}
+            {mayRecordRefund && order.payment && (
+              <ActionForm action={recordRefundAction} submit={c.refund} confirmText={c.refundConfirm} className="stack top-gap">
+                <input type="hidden" name="orderId" value={order.id} />
+                <input type="hidden" name="currency" value={order.payment.amount.currency} />
+                <p className="muted">{c.refundHint}</p>
+                <div className="row3">
+                  <div className="field">
+                    <label htmlFor="refund-amount">{c.refundAmount(order.payment.amount.currency)}</label>
+                    <input id="refund-amount" name="amount" inputMode="decimal" required autoComplete="off" />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="refund-reference">{c.refundReference}</label>
+                    <input id="refund-reference" name="reference" required minLength={3} maxLength={200} aria-describedby="refund-reference-hint" />
+                    <small id="refund-reference-hint" className="muted">
+                      {c.refundReferenceHint}
+                    </small>
+                  </div>
+                </div>
+              </ActionForm>
+            )}
+          </div>
+        </section>
+      )}
 
       {order.items.map((item) => {
         const o = item.option as {

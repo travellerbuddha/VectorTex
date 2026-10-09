@@ -68,6 +68,8 @@ export type OrderStage =
   | 'PRICE_CHANGED'
   | 'EXPIRED'
   | 'FAILED'
+  /** A confirmed booking that was cancelled afterwards (by us at the customer's request, or at the provider). */
+  | 'CANCELLED'
   | 'NEEDS_ATTENTION';
 
 export interface OrderView {
