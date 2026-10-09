@@ -66,5 +66,12 @@
 
 - Teknik güvenlik değerleri (`STAFF_SESSION_IDLE_MINUTES`, `STAFF_SESSION_MAX_HOURS`, `STAFF_LOCKOUT_ATTEMPTS`, `STAFF_LOCKOUT_MINUTES`, `STAFF_SETUP_LINK_HOURS`, `STAFF_MIN_PASSWORD_LENGTH`, `STAFF_IP_ATTEMPTS_PER_5_MIN`) işletme girdisi değildir. Varsayılanları NIST SP 800-63B yaklaşımına göredir; sınırlar içinde sıkılaştırılabilir.
 - `STAFF_MFA_KEY` kaybolursa kayıtlı Authenticator anahtarları açılamaz. Bu durumda herkesin MFA'sı sıfırlanır ve uygulamalar yeniden kurulur. Anahtar secret manager'da yedeklenmelidir.
-- Kurtarma kodları ve WebAuthn/passkey sonraki adımdır.
+- **Kurtarma kodları (9 Ekim 2026):**
+  - Kişi "Hesabım" sayfasından 10 tek kullanımlık kod oluşturur. Bunun için doğrulama uygulamasındaki güncel kod istenir; yalnız ele geçirilmiş bir oturum kod üretemez.
+  - Kodlar bir kez gösterilir. Veritabanında yalnız `STAFF_MFA_KEY` ile alınmış HMAC özetleri tutulur (`core.staff_recovery_codes`); veritabanı kopyası tek başına kod tahminine yetmez.
+  - Kod biçimi: Crockford base32, 10 karakter (`xxxxx-xxxxx`, 50 bit). Büyük/küçük harf, boşluk ve tire önemsizdir; i/l ve o harfleri 1 ve 0 okunur.
+  - Girişte doğrulama kodu yerine kurtarma kodu kullanılabilir. Her kod bir kez çalışır. Yanlış kod, yanlış doğrulama kodu gibi kilit sayacına eklenir.
+  - Yeni kodlar oluşturulunca kullanılmamış eskiler geçersiz olur. Yönetici MFA'yı sıfırlarsa kullanılmamış kodlar da silinir.
+  - Kodu olmayan ya da 2 veya daha az kodu kalan kişiye ana sayfada uyarı gösterilir.
+- **WebAuthn/passkey (değerlendirme):** Ertelendi. Passkey'ler alan adına (RP ID) bağlanır: canlı alan adı kesinleşmeden kayıt alınırsa alan adı değişince herkes yeniden kayıt olmak zorunda kalır. Ayrıca sunucu kütüphanesi sürüm politikasına (ADR-0001) göre seçilmelidir. Telefon kaybı durumunu şimdilik kurtarma kodları karşılıyor. Canlı alan adı netleşince passkey, doğrulama uygulamasına ek ikinci adım olarak eklenecek.
 - Kanıt: RFC 4226 ve RFC 6238 test vektörleri (`packages/admin/test/crypto.test.ts`); PostgreSQL senaryoları (`staff-auth.int.test.ts`): davet, kurulum, MFA, tekrar kullanılan kod, kilitlenme, oturum süresi, MFA sıfırlama, kapatma kuralları ve denetim kaydında gizli bilgi olmaması.

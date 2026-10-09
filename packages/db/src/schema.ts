@@ -729,6 +729,25 @@ export const staffSetupTokens = core.table(
   (t) => [uniqueIndex('staff_setup_tokens_token_uq').on(t.tokenHash), index('staff_setup_tokens_staff_idx').on(t.staffId)],
 );
 
+/**
+ * One-time MFA recovery codes (ADR-0010): only a keyed hash (HMAC with STAFF_MFA_KEY) is stored. A new batch replaces
+ * the previous one; a used code keeps its row for the audit trail.
+ */
+export const staffRecoveryCodes = core.table(
+  'staff_recovery_codes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    staffId: uuid('staff_id')
+      .notNull()
+      .references(() => staffUsers.id),
+    codeHash: text('code_hash').notNull(),
+    batchId: uuid('batch_id').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    usedAt: ts('used_at'),
+  },
+  (t) => [uniqueIndex('staff_recovery_codes_hash_uq').on(t.staffId, t.codeHash), index('staff_recovery_codes_staff_idx').on(t.staffId)],
+);
+
 export const fxRateSnapshots = core.table('fx_rate_snapshots', {
   id: uuid('id').primaryKey().defaultRandom(),
   base: ccy('base').notNull(),

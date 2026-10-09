@@ -2,8 +2,14 @@ import { isDomainError, type StaffActor } from '@texholiday/contracts';
 import type { StaffIdentity } from '@texholiday/admin';
 import { adminDict, type AdminLocale } from '../i18n/admin';
 
-/** Result of a panel form action, rendered by <ActionForm>. A link is shown once (setup links). */
-export type FormState = { ok?: string; error?: string; link?: { url: string; note: string } } | null;
+/** Result of a panel form action, rendered by <ActionForm>. Links and recovery codes are shown once. */
+export type FormState = {
+  ok?: string;
+  error?: string;
+  link?: { url: string; note: string };
+  /** One-time recovery codes, shown once with their note. */
+  codes?: { values: string[]; note: string };
+} | null;
 
 export const actorOf = (staff: StaffIdentity): StaffActor => ({ kind: 'STAFF', id: staff.id });
 

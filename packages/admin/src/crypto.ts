@@ -36,6 +36,40 @@ export async function verifyPassword(password: string, stored: string): Promise<
 export const randomToken = (): string => randomBytes(32).toString('base64url');
 export const sha256 = (value: string): string => createHash('sha256').update(value).digest('hex');
 
+// ------------------------------------------------------------------ recovery codes
+
+/** Crockford base32 (no i, l, o, u): codes are read off paper and typed by hand. */
+const CROCKFORD = '0123456789abcdefghjkmnpqrstvwxyz';
+const RECOVERY_LENGTH = 10;
+
+/** `count` one-time recovery codes of 10 Crockford characters (50 random bits each), shown as `xxxxx-xxxxx`. */
+export function newRecoveryCodes(count = 10): string[] {
+  const codes = new Set<string>();
+  while (codes.size < count) {
+    const bytes = randomBytes(RECOVERY_LENGTH);
+    // 256 is a multiple of 32: taking the low 5 bits of each byte is uniform.
+    const raw = [...bytes].map((b) => CROCKFORD[b & 31]).join('');
+    codes.add(`${raw.slice(0, 5)}-${raw.slice(5)}`);
+  }
+  return [...codes];
+}
+
+/** What the person typed -> the canonical code, or null. Case, spaces and dashes are ignored; i/l read as 1, o as 0. */
+export function normalizeRecoveryCode(text: string): string | null {
+  const t = String(text ?? '')
+    .toLowerCase()
+    .replace(/[\s-]/g, '')
+    .replace(/[il]/g, '1')
+    .replace(/o/g, '0');
+  if (t.length !== RECOVERY_LENGTH || [...t].some((c) => !CROCKFORD.includes(c))) return null;
+  return t;
+}
+
+/** Keyed hash of a recovery code, bound to one account: a database copy alone does not allow guessing codes. */
+export function recoveryCodeHash(key: Buffer, staffId: string, normalized: string): string {
+  return createHmac('sha256', key).update(`staff-recovery:${staffId}:${normalized}`).digest('hex');
+}
+
 // ------------------------------------------------------------------ base32 (RFC 4648, no padding)
 
 const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';

@@ -17,9 +17,9 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         <a className="admin-brand" href="/yonetim">
           {t.brand}
         </a>
-        <span className="who" data-testid="staff-name">
+        <a className="who" data-testid="staff-name" href="/yonetim/hesap" title={t.nav.account}>
           {staff.displayName}
-        </span>
+        </a>
         <LanguageSwitch next={locale === 'tr' ? 'en' : 'tr'} text={t.lang} />
         <form action={signOutAction}>
           <button type="submit" className="secondary small">

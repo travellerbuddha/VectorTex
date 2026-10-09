@@ -64,6 +64,13 @@
       "when": 1791584114210,
       "tag": "0008_order_commands",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791585625796,
+      "tag": "0009_staff_recovery_codes",
+      "breakpoints": true
     }
   ]
 }

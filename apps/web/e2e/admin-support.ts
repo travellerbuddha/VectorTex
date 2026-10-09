@@ -15,22 +15,29 @@ export const statusIn = (page: Page) => page.locator('#admin-main').getByRole('s
  * account and only one step ahead is accepted, so a second sign-in of the same account within a step waits for it.
  */
 export async function signIn(page: Page, key: 'admin' | 'finance' | 'approver'): Promise<void> {
-  const secret = process.env[`E2E_SECRET_${key}`]!;
-  // Kept in a file (global setup): Playwright restarts the worker after a failed test, losing process state.
-  const file = process.env.E2E_STEP_FILE!;
-  const steps = JSON.parse(readFileSync(file, 'utf8')) as Record<string, number>;
-  const used = steps[key] ?? 0;
-  while (totpStep(new Date()) + 1 <= used) await page.waitForTimeout(1000);
-  const step = totpStep(new Date()) + 1;
-  writeFileSync(file, JSON.stringify({ ...steps, [key]: step }));
   await page.goto('/yonetim/giris');
   await page.getByLabel('E-posta').fill(`${key}@e2e.test`);
   await page.getByLabel('Şifre').fill(E2E_ADMIN_PASSWORD);
   await page.getByRole('button', { name: 'Devam' }).click();
   await expect(page).toHaveURL(/\/yonetim\/giris\/kod/);
-  await page.getByLabel('Kod', { exact: true }).fill(hotp(base32Decode(secret), step));
+  await page.getByLabel('Kod', { exact: true }).fill(await nextCode(page, key));
   await page.getByRole('button', { name: 'Giriş yap' }).click();
   await expect(page).toHaveURL(/\/yonetim$/);
+}
+
+/**
+ * A TOTP code of the account that has not been used yet. A code works once per account and only one step ahead is
+ * accepted, so a second code within a step waits for the next one. The last step is kept in a file (global setup):
+ * Playwright restarts the worker after a failed test, losing process state.
+ */
+export async function nextCode(page: Page, key: 'admin' | 'finance' | 'approver'): Promise<string> {
+  const secret = process.env[`E2E_SECRET_${key}`]!;
+  const file = process.env.E2E_STEP_FILE!;
+  const read = () => JSON.parse(readFileSync(file, 'utf8')) as Record<string, number>;
+  while (totpStep(new Date()) + 1 <= (read()[key] ?? 0)) await page.waitForTimeout(1000);
+  const step = totpStep(new Date()) + 1;
+  writeFileSync(file, JSON.stringify({ ...read(), [key]: step }));
+  return hotp(base32Decode(secret), step);
 }
 
 export const signInAdmin = (page: Page) => signIn(page, 'admin');

@@ -1,10 +1,27 @@
-import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+import { and, asc, count, eq, gt, isNull, max, sql } from 'drizzle-orm';
 import { DomainError, type Permission, type StaffActor } from '@texholiday/contracts';
 import { activePermissions, PermissionRepository, schema, type CoreDb } from '@texholiday/db';
-import { hashPassword, newTotpSecret, open, otpauthUri, randomToken, seal, sha256, verifyPassword, verifyTotp } from './crypto';
+import {
+  hashPassword,
+  newRecoveryCodes,
+  newTotpSecret,
+  normalizeRecoveryCode,
+  open,
+  otpauthUri,
+  randomToken,
+  recoveryCodeHash,
+  seal,
+  sha256,
+  verifyPassword,
+  verifyTotp,
+} from './crypto';
 import type { AdminSettings } from './settings';
 
-const { auditLogs, staffSessions, staffSetupTokens, staffUsers } = schema;
+const { auditLogs, staffRecoveryCodes, staffSessions, staffSetupTokens, staffUsers } = schema;
+
+/** Codes per batch: enough for a few lost-phone sign-ins until a new authenticator is set up. */
+const RECOVERY_CODES_PER_BATCH = 10;
 
 export type SessionStage = 'MFA_REQUIRED' | 'MFA_ENROLL' | 'ACTIVE';
 
@@ -257,6 +274,88 @@ export class StaffAuthService {
     if (s) await this.audit(this.db, s.staffId, 'staff.signed_out', ACTOR_SELF(s.staffId));
   }
 
+  // ------------------------------------------------------------------ recovery codes
+
+  /** Unused codes of the person's current batch (0 when none were created). */
+  async recoveryStatus(staffId: string): Promise<{ remaining: number; createdAt: string | null }> {
+    const [r] = await this.db
+      .select({ remaining: count(), createdAt: max(staffRecoveryCodes.createdAt) })
+      .from(staffRecoveryCodes)
+      .where(and(eq(staffRecoveryCodes.staffId, staffId), isNull(staffRecoveryCodes.usedAt)));
+    return { remaining: Number(r?.remaining ?? 0), createdAt: r?.createdAt ? new Date(r.createdAt).toISOString() : null };
+  }
+
+  /**
+   * A new batch of one-time recovery codes for the signed-in person, confirmed with a current authenticator code
+   * (step-up: a stolen session alone cannot create them). The previous unused codes stop working. The codes are
+   * returned once and stored only as keyed hashes.
+   */
+  async generateRecoveryCodes(token: string, totpCode: string): Promise<string[]> {
+    const row = await this.sessionRow(token);
+    if (!row || row.s.stage !== 'ACTIVE' || !row.u.mfaSecret) throw unauthenticated();
+    const { u } = row;
+    const secret = open(this.settings.mfaKey, u.mfaSecret!, owner(u.id));
+    const step = verifyTotp(secret, String(totpCode ?? '').replace(/\s/g, ''), this.clock(), u.mfaLastStep);
+    const claimed =
+      step === null
+        ? []
+        : await this.db
+            .update(staffUsers)
+            .set({ mfaLastStep: step })
+            .where(and(eq(staffUsers.id, u.id), sql`(${staffUsers.mfaLastStep} IS NULL OR ${staffUsers.mfaLastStep} < ${step})`))
+            .returning({ id: staffUsers.id });
+    if (claimed.length === 0) {
+      await this.recordFailure(u.id, 'MFA_STEP_UP');
+      throw invalid('The authenticator code was not accepted');
+    }
+    const codes = newRecoveryCodes(RECOVERY_CODES_PER_BATCH);
+    const batchId = randomUUID();
+    const now = this.clock().toISOString();
+    await this.db.transaction(async (tx) => {
+      await tx.delete(staffRecoveryCodes).where(and(eq(staffRecoveryCodes.staffId, u.id), isNull(staffRecoveryCodes.usedAt)));
+      await tx.insert(staffRecoveryCodes).values(
+        codes.map((c) => ({ staffId: u.id, codeHash: recoveryCodeHash(this.settings.mfaKey, u.id, normalizeRecoveryCode(c)!), batchId, createdAt: now })),
+      );
+      await this.audit(tx as unknown as CoreDb, u.id, 'staff.recovery_codes_created', ACTOR_SELF(u.id), { count: codes.length, batchId });
+    });
+    return codes;
+  }
+
+  /**
+   * Second step with a recovery code instead of the authenticator (lost or broken phone). Each code works once; a
+   * wrong code counts towards the account lock like a wrong authenticator code.
+   */
+  async verifyRecoveryCode(token: string, code: string): Promise<{ token: string; remaining: number }> {
+    const row = await this.sessionRow(token);
+    if (!row || row.s.stage !== 'MFA_REQUIRED') throw unauthenticated();
+    const { s, u } = row;
+    const normalized = normalizeRecoveryCode(code);
+    const now = this.clock().toISOString();
+    const used = normalized
+      ? await this.db
+          .update(staffRecoveryCodes)
+          .set({ usedAt: now })
+          .where(
+            and(
+              eq(staffRecoveryCodes.staffId, u.id),
+              eq(staffRecoveryCodes.codeHash, recoveryCodeHash(this.settings.mfaKey, u.id, normalized)),
+              isNull(staffRecoveryCodes.usedAt),
+            ),
+          )
+          .returning({ id: staffRecoveryCodes.id })
+      : [];
+    if (used.length === 0) {
+      await this.db.update(staffSessions).set({ mfaFailures: sql`${staffSessions.mfaFailures} + 1` }).where(eq(staffSessions.id, s.id));
+      await this.recordFailure(u.id, 'RECOVERY_CODE');
+      throw unauthenticated();
+    }
+    await this.db.update(staffUsers).set({ failedAttempts: 0, lastLoginAt: now }).where(eq(staffUsers.id, u.id));
+    const next = await this.elevate(s.id);
+    const { remaining } = await this.recoveryStatus(u.id);
+    await this.audit(this.db, u.id, 'staff.signed_in', ACTOR_SELF(u.id), { method: 'RECOVERY_CODE', remaining });
+    return { token: next, remaining };
+  }
+
   // ------------------------------------------------------------------ setup links
 
   private async issueSetupLink(db: CoreDb, staffId: string, purpose: 'INVITE' | 'PASSWORD_RESET', createdBy: string): Promise<{ token: string; expiresAt: string }> {
@@ -365,7 +464,7 @@ export class StaffAuthService {
     return { ...link, purpose };
   }
 
-  /** Lost phone: removes the authenticator; the person enrolls again at the next sign-in. */
+  /** Lost phone: removes the authenticator and unused recovery codes; the person enrolls again at the next sign-in. */
   async resetMfa(actor: StaffActor, staffId: string): Promise<void> {
     await this.requirePermission(actor, 'staff.manage');
     const now = this.clock().toISOString();
@@ -373,6 +472,8 @@ export class StaffAuthService {
       const rows = await tx.update(staffUsers).set({ mfaSecret: null, mfaEnrolledAt: null, mfaLastStep: null, updatedAt: now }).where(eq(staffUsers.id, staffId)).returning({ id: staffUsers.id });
       if (rows.length === 0) throw notFound();
       await tx.update(staffSessions).set({ revokedAt: now, revokeReason: 'MFA_RESET' }).where(and(eq(staffSessions.staffId, staffId), isNull(staffSessions.revokedAt)));
+      // Recovery codes belong to the second factor: they go with it (new ones after the next enrollment).
+      await tx.delete(staffRecoveryCodes).where(and(eq(staffRecoveryCodes.staffId, staffId), isNull(staffRecoveryCodes.usedAt)));
       await this.audit(tx as unknown as CoreDb, staffId, 'staff.mfa_reset', actor.id);
     });
   }

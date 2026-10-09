@@ -543,3 +543,19 @@ h3 {
   font-size: 1.6rem;
   margin-right: 0.5rem;
 }
+.panel-head a.who {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+ol.codes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: 0.35rem 1rem;
+  margin: 0 0 0.75rem;
+  padding-left: 1.6rem;
+}
+ol.codes code {
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+}

@@ -35,6 +35,20 @@ export async function verifyCodeAction(form: FormData): Promise<void> {
   redirect('/yonetim');
 }
 
+export async function verifyRecoveryAction(form: FormData): Promise<void> {
+  if (!(await allowAttempt('mfa'))) redirect('/yonetim/giris?durum=sinir');
+  let remaining: number;
+  try {
+    const out = await admin().auth.verifyRecoveryCode((await staffToken()) ?? '', field(form, 'code'));
+    await setStaffCookie(out.token);
+    remaining = out.remaining;
+  } catch (err) {
+    if (isAuthFailure(err)) redirect('/yonetim/giris/kurtarma?durum=hata');
+    throw err;
+  }
+  redirect(`/yonetim/hesap?kurtarma=${remaining}`);
+}
+
 export async function completeEnrollmentAction(form: FormData): Promise<void> {
   if (!(await allowAttempt('mfa'))) redirect('/yonetim/giris?durum=sinir');
   try {

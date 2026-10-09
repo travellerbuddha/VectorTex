@@ -167,10 +167,56 @@ describe('staff sign-in with MFA', () => {
     expect((await auth.setupInfo(back.token))?.purpose).toBe('INVITE');
   });
 
+  it('recovery codes: created with a current authenticator code, each works once, a new batch replaces the old', async () => {
+    const owner = secrets.get('owner')!;
+    tick(60_000);
+    const pw = await auth.signIn('owner@example.test', OWNER_PASSWORD);
+    const active = (await auth.verifyMfa(pw.token, codeFor(owner))).token;
+    expect(await auth.recoveryStatus(ownerId)).toEqual({ remaining: 0, createdAt: null });
+    // Step-up: a wrong code, and the code just used to sign in (replay), are both refused.
+    await expect(auth.generateRecoveryCodes(active, '000000')).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    await expect(auth.generateRecoveryCodes(active, codeFor(owner))).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    tick(30_000);
+    const codes = await auth.generateRecoveryCodes(active, codeFor(owner));
+    expect(codes).toHaveLength(10);
+    for (const c of codes) expect(c).toMatch(/^[0-9a-hjkmnp-tv-z]{5}-[0-9a-hjkmnp-tv-z]{5}$/);
+    expect((await auth.recoveryStatus(ownerId)).remaining).toBe(10);
+
+    // Lost phone: password, then a recovery code (typed loosely) instead of the authenticator.
+    const s1 = await auth.signIn('owner@example.test', OWNER_PASSWORD);
+    const r1 = await auth.verifyRecoveryCode(s1.token, ` ${codes[0]!.toUpperCase().replace('-', ' ')} `);
+    expect(r1.remaining).toBe(9);
+    expect((await auth.session(r1.token))?.stage).toBe('ACTIVE');
+    const s2 = await auth.signIn('owner@example.test', OWNER_PASSWORD);
+    await expect(auth.verifyRecoveryCode(s2.token, codes[0]!)).rejects.toMatchObject({ code: 'UNAUTHENTICATED' }); // once only
+    await expect(auth.verifyRecoveryCode(s2.token, 'not-a-code')).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+
+    // A new batch makes the old unused codes stop working.
+    tick(30_000);
+    const fresh = await auth.generateRecoveryCodes(r1.token, codeFor(owner));
+    const s3 = await auth.signIn('owner@example.test', OWNER_PASSWORD);
+    await expect(auth.verifyRecoveryCode(s3.token, codes[1]!)).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+    expect((await auth.verifyRecoveryCode(s3.token, fresh[0]!)).remaining).toBe(9);
+
+    // Only keyed hashes are stored; an MFA reset removes the unused codes with the authenticator.
+    const stored = await core.db.execute<{ code_hash: string }>(sql`SELECT code_hash FROM core.staff_recovery_codes WHERE staff_id = ${ownerId}`);
+    const all = stored.rows.map((r) => r.code_hash).join(' ');
+    for (const c of [...codes, ...fresh]) expect(all).not.toContain(c.replace('-', ''));
+    for (const c of [...codes, ...fresh]) secrets.set(`recovery-${c}`, c);
+    const ownerActor = { kind: 'STAFF' as const, id: ownerId };
+    const inv = await auth.invite(ownerActor, { email: 'recovery@example.test', displayName: 'Recovery Test' });
+    const rcToken = await onboard(inv.token, 'spare-codes-test-passphrase', 'rc');
+    tick(30_000);
+    await auth.generateRecoveryCodes(rcToken, codeFor(secrets.get('rc')!));
+    expect((await auth.recoveryStatus(inv.staffId)).remaining).toBe(10);
+    await auth.resetMfa(ownerActor, inv.staffId);
+    expect((await auth.recoveryStatus(inv.staffId)).remaining).toBe(0);
+  });
+
   it('the audit trail records every step without passwords, codes, tokens or secrets', async () => {
     const rows = await core.db.execute<{ action: string; detail: unknown }>(sql`SELECT action, detail FROM core.audit_logs WHERE entity_type = 'staff' ORDER BY id`);
     const actions = rows.rows.map((r) => r.action);
-    for (const a of ['staff.bootstrapped', 'staff.invite_accepted', 'staff.mfa_enrolled', 'staff.signed_in', 'staff.sign_in_failed', 'staff.locked', 'staff.mfa_reset', 'staff.disabled', 'staff.signed_out']) {
+    for (const a of ['staff.bootstrapped', 'staff.invite_accepted', 'staff.mfa_enrolled', 'staff.signed_in', 'staff.sign_in_failed', 'staff.locked', 'staff.mfa_reset', 'staff.disabled', 'staff.signed_out', 'staff.recovery_codes_created']) {
       expect(actions).toContain(a);
     }
     const text = JSON.stringify(rows.rows);

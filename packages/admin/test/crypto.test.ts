@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { adminSettingsFromEnv, base32Decode, base32Encode, hashPassword, hotp, open, otpauthUri, seal, totpStep, verifyPassword, verifyTotp } from '../src/index';
+import {
+  adminSettingsFromEnv,
+  base32Decode,
+  base32Encode,
+  hashPassword,
+  hotp,
+  newRecoveryCodes,
+  normalizeRecoveryCode,
+  open,
+  otpauthUri,
+  recoveryCodeHash,
+  seal,
+  totpStep,
+  verifyPassword,
+  verifyTotp,
+} from '../src/index';
 
 const rfcKey = Buffer.from('12345678901234567890', 'ascii');
 
@@ -71,5 +86,19 @@ describe('staff credential primitives (ADR-0010)', () => {
     const s = adminSettingsFromEnv({ STAFF_MFA_KEY: Buffer.alloc(32, 1).toString('base64') });
     expect(s).toMatchObject({ sessionIdleMinutes: 30, sessionMaxHours: 12, lockoutAttempts: 5, minPasswordLength: 12, ipAttemptsPerFiveMinutes: 30 });
     expect(() => adminSettingsFromEnv({ STAFF_MFA_KEY: Buffer.alloc(32, 1).toString('base64'), STAFF_LOCKOUT_ATTEMPTS: '100' })).toThrow();
+  });
+
+  it('recovery codes: 10 distinct Crockford codes; typing slips are forgiven; the hash needs the key and the account', () => {
+    const codes = newRecoveryCodes(10);
+    expect(new Set(codes).size).toBe(10);
+    for (const c of codes) expect(c).toMatch(/^[0-9a-hjkmnp-tv-z]{5}-[0-9a-hjkmnp-tv-z]{5}$/);
+    expect(normalizeRecoveryCode(' AB1C2-D3E4F ')).toBe('ab1c2d3e4f');
+    expect(normalizeRecoveryCode('abicz dOefo')).toBe('ab1czd0ef0'); // i/l -> 1, o -> 0
+    for (const bad of ['', 'abc', 'ab1c2-d3e4f-x', 'ab1c2-d3e4u', '!!!!!-?????']) expect(normalizeRecoveryCode(bad)).toBeNull();
+    const k1 = Buffer.alloc(32, 1);
+    const k2 = Buffer.alloc(32, 2);
+    expect(recoveryCodeHash(k1, 'a', 'ab1c2d3e4f')).toBe(recoveryCodeHash(k1, 'a', 'ab1c2d3e4f'));
+    expect(recoveryCodeHash(k1, 'a', 'ab1c2d3e4f')).not.toBe(recoveryCodeHash(k2, 'a', 'ab1c2d3e4f'));
+    expect(recoveryCodeHash(k1, 'a', 'ab1c2d3e4f')).not.toBe(recoveryCodeHash(k1, 'b', 'ab1c2d3e4f'));
   });
 });

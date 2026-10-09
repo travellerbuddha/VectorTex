@@ -59,6 +59,25 @@ export function ActionForm({
           {state.ok}
         </p>
       )}
+      {state?.codes && (
+        <div className="ok-box" data-testid="recovery-codes">
+          <ol className="codes">
+            {state.codes.values.map((c) => (
+              <li key={c}>
+                <code>{c}</code>
+              </li>
+            ))}
+          </ol>
+          <div className="actions">
+            {copyText && (
+              <button type="button" className="secondary small" onClick={() => void navigator.clipboard?.writeText(state.codes!.values.join('\n'))}>
+                {copyText}
+              </button>
+            )}
+            <small>{state.codes.note}</small>
+          </div>
+        </div>
+      )}
       {state?.link && (
         <div className="ok-box">
           <input ref={linkRef} readOnly value={state.link.url} aria-label={state.link.note} data-testid="one-time-link" onFocus={(e) => e.currentTarget.select()} />

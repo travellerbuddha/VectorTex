@@ -9,12 +9,18 @@ export default async function AdminHome() {
   const staff = await requireStaff();
   const t = adminDict(await adminLocale());
   const sections = visibleNav(staff).filter((n) => n.key !== 'home');
+  const recovery = await admin().auth.recoveryStatus(staff.id);
   const ops = can(staff, 'orders.view')
     ? await Promise.all([admin().orders.tasks(actorOf(staff), 'OPEN'), admin().orders.list(actorOf(staff), { attention: true, limit: 200 })])
     : null;
   return (
     <div>
       <h1>{t.home.title(staff.displayName)}</h1>
+      {recovery.remaining <= 2 && (
+        <p className="notice" data-testid="recovery-warning">
+          <a href="/yonetim/hesap">{recovery.remaining === 0 ? t.home.noRecovery : t.home.lowRecovery(recovery.remaining)}</a>
+        </p>
+      )}
       {ops && (
         <ul className="tiles stats" data-testid="ops-stats">
           <li>
