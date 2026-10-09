@@ -34,7 +34,7 @@ describe('database invariants', () => {
   });
 
   it('approved policies are immutable except retirement; approval needs an approver', async () => {
-    await expect(core.db.insert(schema.pricingPolicyVersions).values({ id: 'pp', version: 1, status: 'DRAFT', document: {} })).resolves.toBeDefined();
+    await expect(core.db.insert(schema.pricingPolicyVersions).values({ id: 'pp', version: 1, status: 'DRAFT', document: {}, createdBy: 'fin-1', updatedBy: 'fin-1' })).resolves.toBeDefined();
     expect(await dbError(core.db.execute(sql`UPDATE core.pricing_policy_versions SET status = 'APPROVED' WHERE id = 'pp'`))).toMatch(/approved_by/);
     await core.db.execute(sql`UPDATE core.pricing_policy_versions SET status = 'APPROVED', approved_by = 'cfo', approved_at = now() WHERE id = 'pp'`);
     expect(await dbError(core.db.execute(sql`UPDATE core.pricing_policy_versions SET document = '{"x":1}' WHERE id = 'pp'`))).toMatch(/immutable/);

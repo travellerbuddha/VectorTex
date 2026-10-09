@@ -3,3 +3,4 @@ export * from './money';
 export * from './allocate';
 export * from './fx';
 export * from './policy';
+export * from './policy-schema';

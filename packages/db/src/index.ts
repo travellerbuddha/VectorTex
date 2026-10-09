@@ -4,3 +4,4 @@ export * from './migrate';
 export * from './order-store';
 export * from './messaging';
 export * from './checkout-repository';
+export * from './policy-repository';

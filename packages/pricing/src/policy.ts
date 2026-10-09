@@ -26,8 +26,25 @@ export interface PricingPolicyVersion {
   approvedAt: string | null;
   rounding: RoundingMode;
   rules: readonly MarginRule[];
+  /** Service fees collected by TexHoliday on top of the sell price (own gateway only). */
+  serviceFees: readonly ServiceFeeRule[];
+  /** Exchange-rate policy for converting supplier currency to the charge currency; null = no conversion allowed. */
+  fx: FxPolicy | null;
   /** Whether opaque packages may undercut a supplier's suggested selling price. Defaults to false. */
   allowBelowSspInOpaquePackage: boolean;
+}
+
+/** A fee line shown to the customer. Fees exist only where we collect the money (OWN_GATEWAY). */
+export type ServiceFeeRule =
+  | { code: string; label: { tr: string; en: string }; scope: ProductType | 'PACKAGE'; kind: 'PERCENT_OF_SELL'; basisPoints: number }
+  | { code: string; label: { tr: string; en: string }; scope: ProductType | 'PACKAGE'; kind: 'FIXED'; amounts: Readonly<Record<string, string>> };
+
+export interface FxPolicy {
+  /** Name of the approved rate source; snapshots from any other source are refused. */
+  source: string;
+  /** Oldest acceptable rate observation at quote time. */
+  maxRateAgeSeconds: number;
+  rounding: RoundingMode;
 }
 
 export class PricingPolicyError extends Error {
@@ -184,4 +201,32 @@ export function itemRefundAmount(args: { itemPaid: Money; alreadyRefunded: Money
   if (remaining.minor < 0n) throw new RefundComputationError('Recorded refunds exceed the amount paid for the item');
   const due = subtract(remaining, penaltyCharged);
   return due.minor <= 0n ? money(itemPaid.currency, 0n) : due;
+}
+
+/**
+ * Service fees for one product (or a whole package) on the own-gateway route. A FIXED fee without an amount
+ * for the charge currency cannot price that currency (route stays closed rather than guessing a conversion).
+ */
+export function computeServiceFees(args: { scope: ProductType | 'PACKAGE'; sell: Money; policy: PricingPolicyVersion }): Array<{ code: string; label: { tr: string; en: string }; amount: Money }> {
+  assertApproved(args.policy);
+  return args.policy.serviceFees
+    .filter((f) => f.scope === args.scope)
+    .map((f) => {
+      if (f.kind === 'PERCENT_OF_SELL') return { code: f.code, label: f.label, amount: percentOf(args.sell, BigInt(f.basisPoints), args.policy.rounding) };
+      const minorAmount = f.amounts[args.sell.currency];
+      if (minorAmount === undefined) {
+        throw new PricingPolicyError('NO_RULE', `Fee ${f.code} has no fixed amount for ${args.sell.currency}`);
+      }
+      return { code: f.code, label: f.label, amount: money(args.sell.currency, minorAmount) };
+    });
+}
+
+/** An FX snapshot may be used only if it comes from the approved source and is fresh enough. */
+export function assertFxSnapshotAcceptable(snapshot: { source: string; observedAt: string; id: string }, policy: PricingPolicyVersion, now: Date): FxPolicy {
+  assertApproved(policy);
+  if (!policy.fx) throw new PricingPolicyError('NO_RULE', 'Currency conversion is not enabled by the approved pricing policy');
+  if (snapshot.source !== policy.fx.source) throw new PricingPolicyError('INVALID_RULE', `FX snapshot ${snapshot.id} is not from the approved source`);
+  const age = (now.getTime() - new Date(snapshot.observedAt).getTime()) / 1000;
+  if (!(age >= 0) || age > policy.fx.maxRateAgeSeconds) throw new PricingPolicyError('INVALID_RULE', `FX snapshot ${snapshot.id} is too old`);
+  return policy.fx;
 }

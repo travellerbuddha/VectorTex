@@ -1,10 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { and, desc, eq } from 'drizzle-orm';
 import { describeConfig, type AppConfig } from '@texholiday/config';
-import { DomainError, parseSourceLock, type RiskPolicyVersion, type SourceLock } from '@texholiday/contracts';
-import { DrizzleOrderStore, OutboxRepository, createCoreDatabase, schema, type CoreDatabase } from '@texholiday/db';
+import { DomainError, parseSourceLock, type SourceLock } from '@texholiday/contracts';
+import { DrizzleOrderStore, OutboxRepository, PolicyRepository, createCoreDatabase, type CoreDatabase } from '@texholiday/db';
 import { PackageOrchestrator, type ItemBookingPort, type OrchestrationPolicy, type OrderItemState } from '@texholiday/domain';
 import { GatewayRegistry, IYZICO_REQUIRED_SOURCES, IyzicoGateway } from '@texholiday/payments';
 import type { EventHandler, Logger } from './relay';
@@ -30,6 +29,8 @@ export interface TechnicalSettings {
   serverEgressIp: string;
   iyzicoTimeoutMs: number;
   iyzicoForeignIdentityPolicy: 'REFUSE' | 'SEND_FOREIGN_ID';
+  /** Which business-edited policy set (G06) this deployment uses, e.g. the B2C channel. */
+  policyId: string;
 }
 
 export function technicalSettings(env: Record<string, string | undefined>): TechnicalSettings {
@@ -49,19 +50,8 @@ export function technicalSettings(env: Record<string, string | undefined>): Tech
     serverEgressIp: env.SERVER_EGRESS_IP ?? '',
     iyzicoTimeoutMs: int('IYZICO_TIMEOUT_MS', 30_000),
     iyzicoForeignIdentityPolicy: env.IYZICO_FOREIGN_IDENTITY_POLICY === 'SEND_FOREIGN_ID' ? 'SEND_FOREIGN_ID' : 'REFUSE',
+    policyId: env.POLICY_ID ?? 'b2c',
   };
-}
-
-/** Latest APPROVED risk policy (G06). No approved policy -> orders are not advanced automatically. */
-export async function approvedRiskPolicy(core: CoreDatabase): Promise<RiskPolicyVersion | null> {
-  const [row] = await core.db
-    .select()
-    .from(schema.riskPolicyVersions)
-    .where(and(eq(schema.riskPolicyVersions.status, 'APPROVED')))
-    .orderBy(desc(schema.riskPolicyVersions.approvedAt))
-    .limit(1);
-  if (!row) return null;
-  return { ...(row.document as Omit<RiskPolicyVersion, 'id' | 'version' | 'status' | 'approvedBy' | 'approvedAt'>), id: row.id, version: row.version, status: row.status, approvedBy: row.approvedBy, approvedAt: row.approvedAt };
 }
 
 export interface Runtime {
@@ -98,11 +88,13 @@ export async function createRuntime(config: AppConfig, env: Record<string, strin
   log.info('worker runtime', { config: describeConfig(config), gateways: gateways.capabilities().map((g) => g.gatewayId), connectors: [...bookingPorts.keys()] });
 
   const store = new DrizzleOrderStore(core.db);
+  const policies = new PolicyRepository(core.db);
   const handlers: Record<string, EventHandler> = {
     'order.advance': async (payload) => {
       const orderId = String(payload.orderId);
-      const risk = await approvedRiskPolicy(core);
-      if (!risk) throw new Error('No approved risk policy: automatic order processing is disabled (G06)');
+      // Business-edited and approved in /yonetim (G06); read per event so an approved change applies at once.
+      const risk = await policies.activeRisk(tech.policyId);
+      if (!risk) throw new Error(`No approved risk policy '${tech.policyId}': automatic order processing is disabled (G06)`);
       const policy: OrchestrationPolicy = {
         authorizationSafetyMarginSeconds: risk.authorizationSafetyMarginSeconds,
         maxAutomaticLookups: tech.maxAutomaticLookups,

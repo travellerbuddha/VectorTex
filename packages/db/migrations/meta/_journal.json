@@ -15,6 +15,13 @@
       "when": 1791538691974,
       "tag": "0001_core_invariants",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791542526926,
+      "tag": "0002_policy_editing",
+      "breakpoints": true
     }
   ]
 }

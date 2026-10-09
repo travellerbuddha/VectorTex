@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  check,
   bigserial,
   boolean,
   char,
@@ -488,9 +489,19 @@ export const pricingPolicyVersions = core.table(
     approvedBy: text('approved_by'),
     approvedAt: ts('approved_at'),
     document: jsonb('document').notNull(),
+    createdBy: text('created_by').notNull(),
+    updatedBy: text('updated_by').notNull(),
+    changeNote: text('change_note'),
     createdAt: ts('created_at').notNull().defaultNow(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.id, t.version] })],
+  (t) => [
+    primaryKey({ columns: [t.id, t.version] }),
+    // Exactly one active (APPROVED) version per policy id.
+    uniqueIndex('pricing_policy_versions_one_approved_uq').on(t.id).where(sql`status = 'APPROVED'`),
+    // Four-eyes: whoever created or last edited a version cannot approve it.
+    check('pricing_policy_versions_four_eyes', sql`approved_by IS NULL OR (approved_by <> created_by AND approved_by <> updated_by)`),
+  ],
 );
 
 export const riskPolicyVersions = core.table(
@@ -502,9 +513,19 @@ export const riskPolicyVersions = core.table(
     approvedBy: text('approved_by'),
     approvedAt: ts('approved_at'),
     document: jsonb('document').notNull(),
+    createdBy: text('created_by').notNull(),
+    updatedBy: text('updated_by').notNull(),
+    changeNote: text('change_note'),
     createdAt: ts('created_at').notNull().defaultNow(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.id, t.version] })],
+  (t) => [
+    primaryKey({ columns: [t.id, t.version] }),
+    // Exactly one active (APPROVED) version per policy id.
+    uniqueIndex('risk_policy_versions_one_approved_uq').on(t.id).where(sql`status = 'APPROVED'`),
+    // Four-eyes: whoever created or last edited a version cannot approve it.
+    check('risk_policy_versions_four_eyes', sql`approved_by IS NULL OR (approved_by <> created_by AND approved_by <> updated_by)`),
+  ],
 );
 
 export const fxRateSnapshots = core.table('fx_rate_snapshots', {

@@ -45,6 +45,8 @@ const pricing: PricingPolicyVersion = {
   approvedAt: '2026-10-01T00:00:00Z',
   rounding: 'HALF_EVEN',
   allowBelowSspInOpaquePackage: false,
+  serviceFees: [],
+  fx: null,
   rules: (['HOTEL', 'FLIGHT', 'EXPERIENCE', 'TRANSFER'] as const).flatMap((productType) => [
     { productType, paymentMode: 'OWN_GATEWAY' as const, application: 'LOCAL' as const, kind: 'PERCENT_OF_NET' as const, basisPoints: 0 },
     { productType, paymentMode: 'PROVIDER_MANAGED' as const, application: 'PROVIDER_API' as const, kind: 'PERCENT_OF_NET' as const, basisPoints: 0 },
