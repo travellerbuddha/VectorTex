@@ -1,7 +1,7 @@
 import pg from 'pg';
-import { adminSettingsFromEnv, StaffAuthService } from '@texholiday/admin';
+import { adminSettingsFromEnv, base32Decode, hotp, StaffAuthService, totpStep } from '@texholiday/admin';
 import { createCoreDatabase, migrateCore, PermissionRepository, PolicyRepository } from '@texholiday/db';
-import { E2E_STAFF_MFA_KEY } from './keys';
+import { E2E_ADMIN_PASSWORD, E2E_STAFF_MFA_KEY } from './keys';
 
 /**
  * Fresh core schema + an approved TEST pricing policy (10% provider API margin) + /yonetim accounts. These are test
@@ -25,6 +25,13 @@ export default async function globalSetup() {
     process.env['E2E_SETUP_TOKEN_desktop'] = boot.token;
     process.env['E2E_SETUP_TOKEN_mobile-320'] = (await auth.invite(owner, { email: 'mobile@e2e.test', displayName: 'E2E Mobile' })).token;
     const perms = new PermissionRepository(db);
+    // A fully set-up administrator for the panel tests (password + enrolled authenticator, Owner/Admin preset).
+    const adm = await auth.invite(owner, { email: 'admin@e2e.test', displayName: 'E2E Admin' });
+    const setup = await auth.completeSetup(adm.token, E2E_ADMIN_PASSWORD);
+    const { secret } = await auth.beginEnrollment(setup.token);
+    await auth.completeEnrollment(setup.token, hotp(base32Decode(secret), totpStep(new Date())));
+    await perms.grantRole(adm.staffId, 'OWNER_ADMIN', owner);
+    process.env.E2E_ADMIN_SECRET = secret;
     await perms.grantRole('e2e-finance', 'FINANCE', owner);
     await perms.grantRole('e2e-approver', 'FINANCE_APPROVER', owner);
     const policies = new PolicyRepository(db);
