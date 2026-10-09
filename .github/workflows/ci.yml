@@ -10,9 +10,11 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-24.04
+    # Docker Official Images from Docker's ECR Public mirror: unauthenticated Docker Hub pulls from shared runner IPs
+    # hit the pull rate limit and fail the job before any test runs.
     services:
       postgres:
-        image: postgres:16
+        image: public.ecr.aws/docker/library/postgres:16
         env:
           POSTGRES_USER: texholiday
           POSTGRES_PASSWORD: texholiday_ci
@@ -21,7 +23,7 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U texholiday" --health-interval 5s --health-timeout 5s --health-retries 10
       redis:
-        image: redis:7
+        image: public.ecr.aws/docker/library/redis:7
         ports: ['6379:6379']
         options: >-
           --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
