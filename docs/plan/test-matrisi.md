@@ -2,7 +2,7 @@
 
 Kaynak: şartname §19. Durum: ✅ otomatik test var ve geçiyor · ◐ kısmi (sözleşmeden bağımsız kısım test edildi; gerçek sağlayıcı/arayüz kısmı bekliyor) · ⛔ henüz yok / dış girdiye bağlı.
 
-Ortam etiketi: **mock** = etiketli test dublörü, **db** = gerçek PostgreSQL 16 + Redis 7 (yerel/CI), **sandbox/prod** = sağlayıcı ortamı. Bu tabloda hiçbir satır sandbox veya production kanıtı değildir.
+Ortam etiketi: **mock** = etiketli test dublörü, **db** = gerçek PostgreSQL 16 + Redis 7 (yerel/CI), **sandbox/prod** = sağlayıcı ortamı. Ortam sütununda **sandbox** yazan satırların kanıtı R0 raporundadır (§10–10.2); hiçbir satır production kanıtı değildir.
 
 | ID | Senaryo | Durum | Kanıt (dosya) | Ortam | Eksik olan |
 |---|---|---|---|---|---|
@@ -18,13 +18,13 @@ Ortam etiketi: **mock** = etiketli test dublörü, **db** = gerçek PostgreSQL 1
 | T10 | Bekleyen aktivite/voucher | ◐ | `orchestrator.test.ts` (PENDING_CONFIRMATION onay sayılmıyor) | mock | Async webhook/voucher akışı (spec) |
 | T11 | Transfer lokasyon/saat | ◐ | `connectors.test.ts` | mock | Welcome staging |
 | T12 | Tahmini transfer fiyatı | ◐ | `connectors.test.ts` | mock | Welcome firm/estimate alanı (staging) |
-| T13 | Sahte redirect/callback | ◐ | Domain durumunu yalnız sunucu `retrieve` değiştirir (`orchestrator.ts`); `iyzico.test.ts`; Nuitee tahsilatında dönüş yalnız tetikleyici, URL kimlikleri kullanılmıyor (`provider-managed.test.ts`, dönüş sayfası); sipariş erişimi çerezle, CSRF reddi (`apps/web/e2e`) | mock, db | iyzico sandbox; Nuitee ödeme bileşeninin sandbox'ta gerçek dönüşü |
+| T13 | Sahte redirect/callback | ◐ | Domain durumunu yalnız sunucu `retrieve` değiştirir (`orchestrator.ts`); `iyzico.test.ts`; Nuitee tahsilatında dönüş yalnız tetikleyici, URL kimlikleri kullanılmıyor (`provider-managed.test.ts`, dönüş sayfası); sipariş erişimi çerezle, CSRF reddi (`apps/web/e2e`); Nuitee ödeme bileşeninin gerçek dönüşüyle onay (`apps/web/e2e-sandbox/site-flow.sandbox.spec.ts`) | mock, db, sandbox | iyzico sandbox |
 | T14 | Tutar/para birimi/kimlik farkı | ✅ | `orchestrator.test.ts` (mismatch → void), `iyzico.test.ts` | mock | iyzico sandbox |
 | T15 | İmza/ortam doğrulama | ◐ | `invariants.int.test.ts` (ortam karışımı), `config.test.ts` (host kilidi), `iyzico.test.ts` (yanıt imzası, V3 HPP webhook), `nuitee-hotel.test.ts` (sandbox kaydı production'ı güncellemez) | mock, db | Webhook endpoint'i (P16), iyzico webhook aktivasyonu |
 | T16 | Fraud review | ✅ | `orchestrator.test.ts`, `iyzico.test.ts` | mock | fraudStatus kodlarının doküman teyidi |
 | T17 | Çift tıklama/iki worker | ✅ | `orchestrator.test.ts`, `order-store.int.test.ts` | mock, db | — |
 | T18 | Tekrar/sırası değişmiş webhook | ◐ | `invariants.int.test.ts` (inbox), `orchestrator.test.ts` (geri gitmeyen durum) | mock, db | Webhook endpoint'leri (P16) |
-| T19 | Sağlayıcı create yanıtı kayıp | ✅ | `orchestrator.test.ts`, `order-store.int.test.ts`, `nuitee-hotel.test.ts` (4005/2014/5000 → UNKNOWN → lookup); Nuitee sandbox'ta `clientReference` sorgusu doğrulandı | mock, db, sandbox | Kayıp yanıt senaryosunun sandbox'ta zorlanması |
+| T19 | Sağlayıcı create yanıtı kayıp | ✅ | `orchestrator.test.ts`, `order-store.int.test.ts`, `nuitee-hotel.test.ts` (4005/2014/5000 → UNKNOWN → lookup); `provider-managed.test.ts` (2014 sonrası yeni referans, süre dolunca gönderilmiş tüm referansların sorgusu, tek kullanımlık işlem); Nuitee sandbox'ta 4005 → sorgu, tükenmiş referans ve tek kullanımlık işlem doğrulandı (`provider-payment.sandbox.spec.ts`) | mock, db, sandbox | Kayıp yanıt senaryosunun sandbox'ta zorlanması |
 | T20 | Capture/refund yanıtı kayıp | ✅ | `orchestrator.test.ts`, `iyzico.test.ts` | mock | Refund komut akışı (P15) |
 | T21 | Gateway değişimi | ✅ | `invariants.int.test.ts` (tek canlı ödeme denemesi) | db | — |
 | T22 | Desteklenmeyen yetenek | ✅ | `routing.test.ts`, `iyzico.test.ts` | mock | — |
@@ -38,7 +38,7 @@ Ortam etiketi: **mock** = etiketli test dublörü, **db** = gerçek PostgreSQL 1
 | T30 | CMS/MFA/Local API | ⛔ | — | — | P05/P06 |
 | T31 | Log/belge/secret | ◐ | `config.test.ts` (secret değeri hata mesajında yok, redaction) | mock | Log redaction middleware, signed URL (P05/P15) |
 | T32 | Legacy/SEO import | ⛔ | — | — | P17 + içerik/URL envanteri |
-| T33 | Mobil/erişilebilirlik | ◐ | `apps/web/e2e/hotel-booking.spec.ts` (320 px'te yatay taşma yok, etiketli alanlar, rol/isimle erişim), 16 px temel yazı, 44 px dokunma alanları, odak çerçevesi, reduced motion | mock | Tam WCAG 2.2 AA denetimi (ekran okuyucu, kontrast ölçümü), diğer ürün sayfaları |
+| T33 | Mobil/erişilebilirlik | ◐ | `apps/web/e2e/hotel-booking.spec.ts` (320 px'te yatay taşma yok, etiketli alanlar, rol/isimle erişim, sayfa hatası/hydration yok), 16 px temel yazı, 44 px dokunma alanları, odak çerçevesi, reduced motion; Nuitee ödeme bileşeni 320 px'te taşmasız ve ödenebilir (`site-flow.sandbox.spec.ts`) | mock, sandbox | Tam WCAG 2.2 AA denetimi (ekran okuyucu, kontrast ölçümü), diğer ürün sayfaları |
 | T34 | Personel kabulü | ⛔ | — | — | P18 (insan testi) |
 | T35 | Yük/limit/restore | ⛔ | — | — | Hesap limitleri + barındırma |
 | T36 | Onaylı gerçek pilot | ⛔ | Nuitee otel sandbox zinciri (search→prebook→book→lookup→cancel) geçti; bu pilot değildir | sandbox | Yetki/bütçe onayı + bütün G kapıları |

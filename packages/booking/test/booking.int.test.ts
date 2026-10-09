@@ -26,6 +26,7 @@ const settings: BookingSettings = {
   maxRatesPerHotel: 8,
   intentLeaseSeconds: 600,
   maxAutomaticLookups: 3,
+  enforceRateParity: true,
 };
 
 let core: CoreDatabase;

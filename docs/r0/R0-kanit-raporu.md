@@ -141,3 +141,26 @@ Kod etkisi: 2001 artık prebook için kesin red (yeniden arama) olarak sınıfla
 | İptal | CANCELLED, ceza 0, iade 1.521,09 EUR (komisyon dahil tam tutar) | — |
 
 Sandbox gizli test kartı kullanıldığı için kart ekstresi görülemez: kartın komisyon dahil tutarla yüklendiği yanıttaki `price` alanından ve dokümandan çıkarılmıştır. Komisyonun haftalık payout ile check-out sonrası ödenmesi yalnız doküman kanıtıdır (production'da doğrulanacak; soru metni `saglayici-sorulari.md`).
+
+### 10.2 ADR-0008 akışı — Nuitee tahsilatlı ödeme (9 Ekim 2026)
+
+Ağ izinleri verildikten sonra Nuitee ödeme bileşeni (`payment-wrapper.liteapi.travel`, Stripe test modu) gerçek tarayıcıda Stripe test kartıyla (4242…) ödendi. Komut: `pnpm web:e2e:sandbox` (`apps/web/e2e-sandbox/`). Kanıtlar (kişisel veri yok):
+
+| Adım | Sonuç | Referans |
+|---|---|---|
+| Ödemeden önce book (`TRANSACTION_ID`) | REJECTED 2014 "payment not completed" | — |
+| Ödeme bileşeni (publicKey `sandbox`) | `redirect_status=succeeded`, dönüş URL'sine yönlendirme | EUR, USD, GBP |
+| Ödemeden sonra **aynı** `clientReference` | 4005 (yinelenen); sorguda rezervasyon **yok** → referans tükenmiş | — |
+| **Yeni** `clientReference` ile book | CONFIRMED; maliyet = prebook fiyatı; komisyon raporlandı | EUR `NUmPV1UB8`/`u_hFBKBsZ`, USD `3oOlJ5Q30`/`WH6UdsdyB`, GBP `zWf6l2QAB`/`1glSxRgyt` |
+| Aynı referansla tekrar | 4005 → sorgu aynı rezervasyonu buldu | — |
+| Aynı işlemle üçüncü referans | 2014 → işlem tek kullanımlık, ikinci rezervasyon yok | — |
+| İptal (iade edilebilir oran) | CANCELLED, ceza 0 | — |
+| Kendi sitemiz, masaüstü ve 320 px: arama → teklif → misafir → ödeme → dönüş → onay | CONFIRMED; sitemizin CSP'si ihlal üretmedi; iptal cezası 0 | sipariş `a4cc0db3…` / `roaGBtWE9`, `eb5fccb2…` / `azYhTLiRy` |
+
+**Kod etkisi (hata düzeltmesi):** ADR-0008 ilk tasarımı 2014'ten sonra aynı `clientReference` ile yeniden deniyordu. Sandbox, bu referansın tükendiğini gösterdi: müşteri ödese bile sipariş hiç rezerve edilemezdi. Artık 2014'ten sonra her deneme yeni referansla yapılıyor. Vazgeçmeden önce gönderilmiş **tüm** referanslar sorgulanıyor; çift rezervasyona karşı güvence işlemin tek kullanımlık olması (sandbox kanıtı). Mock bağlayıcı da aynı davranışı taklit ediyor.
+
+**Diğer bulgular:**
+- **Önerilen satış fiyatı (SSP):** Sandbox'ta SSP yapay. Marj %0–16 arasında net × 1,163, %20 ve üstünde fiyat × (1 + marj). Bu yüzden her marjda fiyat SSP'nin altında kalıyor ve kamuya açık site (fiyat paritesi kuralı, revenue guide) hiçbir teklif göstermiyor. Antalya'da 266 teklifin 266'sı. Sitenin sandbox'ta test edilebilmesi için yalnız `PROVIDER_ENV=sandbox` iken kabul edilen `SANDBOX_SKIP_RATE_PARITY=true` eklendi; başka ortamda uygulama açılmaz. Canlıda SSP'nin otelin gerçek alt fiyatı olduğu doğrulanmalı.
+- **Ödeme yöntemleri para birimine göre değişiyor:** USD'de kartın yanında Cash App Pay, Afterpay, Affirm, Amazon Pay ve Klarna listelendi (kart varsayılan değil). Düğme metni İngilizce ("Pay").
+- **Geliştirme ortamı ağı:** `r.stripe.com` (analitik), `b.stripecdn.com` ve `merchant-ui-api.stripe.com` (Link) kapalı. Ödeme yine tamamlandı (Stripe pasif captcha hatasını tolere etti). Canlı müşteri tarayıcılarında bu kısıt yok.
+- **Hydration hatası düzeltildi:** Ülke adları ve sıralaması Node ile tarayıcıda farklı (TR'de 92 fark, EN'de 4). Liste artık yalnız sunucuda üretiliyor. Mock E2E sayfa hatasında başarısız sayılıyor.

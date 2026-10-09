@@ -27,8 +27,8 @@ class FakePmPort implements ProviderManagedBookingPort {
     this.calls.push({ op: 'book', clientReference, transactionId: tx.transactionId });
     return this.bookScript.shift() ?? ok(providerState('CONFIRMED', { providerCommission: money('EUR', 4500n) }));
   }
-  async lookup() {
-    this.calls.push({ op: 'lookup' });
+  async lookup(_a: OrderAggregate, _i: OrderItemState, clientReference: string) {
+    this.calls.push({ op: 'lookup', clientReference });
     return this.lookupScript.shift() ?? ok(null);
   }
   count(op: string) {
@@ -78,21 +78,54 @@ describe('provider-managed checkout (Nuitee payment SDK, spec §5.1)', () => {
     expect(h.port.count('prebook')).toBe(1);
   });
 
-  it('a return before the payment is completed books nothing and retries with the SAME client reference', async () => {
+  it('a return before the payment is completed books nothing; the next try uses a NEW client reference', async () => {
+    // Nuitee sandbox 2026-10-09: "payment not completed" uses up the reference (a repeat answers 4005, lookup finds
+    // nothing), so reusing it would never book the paid order.
     const h = harness();
     await h.pm.start('ord-1');
     h.port.bookScript.push(rejected('NUITEE_PAYMENT_NOT_COMPLETED'));
     await h.pm.finalize('ord-1', 1);
     let s = state(h);
     expect(s.payment!.status).toBe('PENDING');
-    expect(s.items[0]!.booking.status).toBe('PREPARED');
+    expect(s.items[0]!.booking).toMatchObject({ status: 'PREPARED', clientReference: null });
     expect(h.store.outbox.filter((e) => e.type === 'order.provider_managed.finalize').at(-1)!.payload).toMatchObject({ attempt: 2 });
     await h.pm.finalize('ord-1', 2);
     s = state(h);
     const refs = h.port.calls.filter((c) => c.op === 'book').map((c) => c.clientReference);
-    expect(new Set(refs).size).toBe(1);
+    expect(refs).toEqual(['pb-item-hotel-1', 'pb-item-hotel-2']);
     expect(h.port.calls.filter((c) => c.op === 'book').every((c) => c.transactionId === 'MOCK-TX-1')).toBe(true);
     expect(s.status).toBe('CONFIRMED');
+  });
+
+  it('with the provider semantics (used-up references, single-use transaction) the paid order books exactly once', async () => {
+    const h = harness();
+    const used = new Set<string>();
+    const bookings = new Map<string, ProviderBookingState>();
+    let paid = false;
+    let consumed = false;
+    h.port.book = async (_a, _i, clientReference, tx) => {
+      h.port.calls.push({ op: 'book', clientReference, transactionId: tx.transactionId });
+      if (used.has(clientReference)) return unknown(); // 4005
+      used.add(clientReference);
+      if (!paid || consumed) return rejected('NUITEE_PAYMENT_NOT_COMPLETED');
+      consumed = true;
+      const b = providerState('CONFIRMED');
+      bookings.set(clientReference, b);
+      return ok(b);
+    };
+    h.port.lookup = async (_a, _i, clientReference) => {
+      h.port.calls.push({ op: 'lookup', clientReference });
+      return ok(bookings.get(clientReference) ?? null);
+    };
+    await h.pm.start('ord-1');
+    await h.pm.finalize('ord-1', 1); // worker: customer still typing
+    await h.pm.finalize('ord-1', 2); // browser return before the provider saw the payment
+    paid = true;
+    await h.pm.finalize('ord-1', 3);
+    await h.pm.finalize('ord-1', 4); // late duplicate trigger
+    expect(state(h).status).toBe('CONFIRMED');
+    expect(bookings.size).toBe(1);
+    expect(h.port.count('book')).toBe(3);
   });
 
   it('a confirmed booking confirms the order: provider collected (CAPTURED), secret cleared, commission expected', async () => {
@@ -193,6 +226,37 @@ describe('provider-managed checkout (Nuitee payment SDK, spec §5.1)', () => {
     await tried.pm.finalize('ord-1');
     expect(state(tried).status).toBe('CONFIRMED'); // paid at the last second: the booking wins
     expect(tried.port.count('lookup')).toBe(1);
+  });
+
+  it('before abandoning, every reference ever sent is looked up: a booking whose answer was lost still wins', async () => {
+    const h = harness();
+    await h.pm.start('ord-1');
+    // Try 1: response lost; the lookup right after finds nothing yet (provider still writing) -> new reference.
+    h.port.bookScript.push(unknown());
+    await h.pm.finalize('ord-1', 1);
+    h.port.lookupScript.push(ok(null));
+    await h.pm.finalize('ord-1');
+    // Try 2: the transaction is already used by try 1, so the provider answers "payment not completed".
+    h.port.bookScript.push(rejected('NUITEE_PAYMENT_NOT_COMPLETED'));
+    await h.pm.finalize('ord-1', 2);
+    h.clock.now = new Date(PAY_BY);
+    h.port.lookupScript.push(ok(null), ok(providerState('CONFIRMED')));
+    expect((await h.pm.finalize('ord-1')).type).toBe('EXPIRE');
+    expect(h.port.calls.filter((c) => c.op === 'lookup').map((c) => c.clientReference)).toEqual(['pb-item-hotel-1', 'pb-item-hotel-2', 'pb-item-hotel-1']);
+    expect(state(h).status).toBe('CONFIRMED');
+    expect(state(h).tasks).toEqual([]);
+  });
+
+  it('an inconclusive lookup at the deadline does not abandon the checkout', async () => {
+    const h = harness();
+    await h.pm.start('ord-1');
+    h.port.bookScript.push(rejected('NUITEE_PAYMENT_NOT_COMPLETED'));
+    await h.pm.finalize('ord-1', 1);
+    h.clock.now = new Date(PAY_BY);
+    h.port.lookupScript.push(unknown());
+    await h.pm.finalize('ord-1');
+    expect(state(h).status).not.toBe('CANCELLED');
+    expect(h.store.outbox.at(-1)!.type).toBe('order.provider_managed.lookup');
   });
 
   it('the retry schedule never goes past the deadline', async () => {

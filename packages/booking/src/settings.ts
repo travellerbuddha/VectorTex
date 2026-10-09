@@ -24,6 +24,12 @@ export interface BookingSettings {
   maxRatesPerHotel: number;
   intentLeaseSeconds: number;
   maxAutomaticLookups: number;
+  /**
+   * Public prices never undercut the hotel's suggested selling price (rate parity, revenue guide). Only a SANDBOX
+   * deployment may switch this off: sandbox suggested prices are synthetic and always above the price (2026-10-09:
+   * net x 1.163 up to a 16% margin, price x (1 + margin) from 20%), so nothing could be shown or tested there.
+   */
+  enforceRateParity: boolean;
 }
 
 export function bookingSettingsFromEnv(env: Record<string, string | undefined>, environment: ProviderEnvironment, policyId: string): BookingSettings {
@@ -38,6 +44,9 @@ export function bookingSettingsFromEnv(env: Record<string, string | undefined>, 
   if (secret.length < 32) throw new Error('ORDER_ACCESS_SECRET must be set (at least 32 characters)');
   const terms = env.TERMS_VERSION ?? '';
   if (!/^[\w.-]{1,40}$/.test(terms)) throw new Error('TERMS_VERSION must name the published sales terms version');
+  const skipParity = env.SANDBOX_SKIP_RATE_PARITY ?? '';
+  if (skipParity !== '' && skipParity !== 'true' && skipParity !== 'false') throw new Error('SANDBOX_SKIP_RATE_PARITY must be true or false');
+  if (skipParity === 'true' && environment !== 'sandbox') throw new Error('SANDBOX_SKIP_RATE_PARITY is only allowed with PROVIDER_ENV=sandbox');
   const currencies = (env.SALE_CURRENCIES ?? 'EUR,USD,GBP,TRY').split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
   return {
     environment,
@@ -53,5 +62,6 @@ export function bookingSettingsFromEnv(env: Record<string, string | undefined>, 
     // Must exceed the provider's longest documented booking call (~2 minutes) plus our HTTP margin.
     intentLeaseSeconds: int('INTENT_LEASE_SECONDS', 600),
     maxAutomaticLookups: int('MAX_AUTOMATIC_LOOKUPS', 6),
+    enforceRateParity: skipParity !== 'true',
   };
 }

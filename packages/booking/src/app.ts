@@ -249,7 +249,7 @@ export class BookingApp {
     // Public prices may not undercut the hotel's suggested selling price (rate parity); with the provider collecting
     // the payment we cannot raise the price locally, so such offers are not shown publicly.
     const ssp = offer.suggestedSellingPrice;
-    if (ssp && (ssp.currency !== sell.currency || sell.minor < ssp.minor)) {
+    if (this.deps.settings.enforceRateParity && ssp && (ssp.currency !== sell.currency || sell.minor < ssp.minor)) {
       hidden.belowSuggestedPrice += 1;
       return null;
     }

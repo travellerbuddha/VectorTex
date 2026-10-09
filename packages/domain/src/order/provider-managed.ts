@@ -20,6 +20,10 @@ import type { OrderStore } from './orchestrator';
  *   the proof. A browser return only triggers finalization; ids from the URL are never used.
  * - Closing the browser loses nothing: the worker keeps finalizing until the pay-by deadline, then abandons the
  *   checkout after a lookup (an unfinished provider payment hold is released by the provider).
+ * - "Payment not completed" uses up the client reference without creating a booking (Nuitee sandbox, 2026-10-09:
+ *   the same reference then answers 4005 and finds nothing), so every try after it gets a NEW reference. The provider
+ *   transaction books at most once (a used transaction answers "payment not completed" again), and before giving up
+ *   every reference ever sent is looked up.
  */
 export interface ProviderManagedPrebook {
   prebookRef: OpaqueRef;
@@ -33,7 +37,8 @@ export interface ProviderManagedPrebook {
 export interface ProviderManagedBookingPort {
   prebookForPayment(agg: OrderAggregate, it: OrderItemState): Promise<ExternalOutcome<ProviderManagedPrebook>>;
   book(agg: OrderAggregate, it: OrderItemState, clientReference: string, transaction: { prebookRef: OpaqueRef; transactionId: OpaqueRef }): Promise<ExternalOutcome<ProviderBookingState>>;
-  lookup(agg: OrderAggregate, it: OrderItemState): Promise<ExternalOutcome<ProviderBookingState | null>>;
+  /** The booking made under `clientReference`, or null when none exists. */
+  lookup(agg: OrderAggregate, it: OrderItemState, clientReference: string): Promise<ExternalOutcome<ProviderBookingState | null>>;
 }
 
 export interface ProviderManagedPolicy {
@@ -71,6 +76,14 @@ function single(agg: OrderAggregate): OrderItemState {
     throw new Error(`Order ${agg.id} is not a single-item provider-managed checkout`);
   }
   return agg.items[0] as OrderItemState;
+}
+
+/** Every client reference a book call may have been sent with, newest first (`${booking.id}-${n}`, see book()). */
+function sentReferences(it: OrderItemState): string[] {
+  const refs = new Set<string>();
+  if (it.booking.clientReference) refs.add(it.booking.clientReference);
+  for (let n = it.booking.clientReferenceSeq; n >= 1; n -= 1) refs.add(`${it.booking.id}-${n}`);
+  return [...refs];
 }
 
 /** Pure decision for one provider-managed order. `trigger` says whether a finalization was asked for. */
@@ -220,8 +233,8 @@ export class ProviderManagedOrchestrator {
       await this.deps.store.save(agg);
       return;
     }
-    // One client reference per booking intent; a retry after "payment not completed" reuses it, so a booking
-    // created by an earlier attempt is reported as a duplicate (4005) instead of being created twice.
+    // A new client reference unless the current one may still hold a booking (only after an inconclusive answer,
+    // which goes to lookup, never to another book call).
     if (!it.booking.clientReference) {
       it.booking.clientReferenceSeq += 1;
       it.booking.clientReference = `${it.booking.id}-${it.booking.clientReferenceSeq}`;
@@ -240,7 +253,9 @@ export class ProviderManagedOrchestrator {
           return;
         case 'REJECTED':
           if (PAYMENT_NOT_COMPLETED_CODES.has(outcome.code)) {
-            audit(fresh, 'provider_managed.payment_not_completed', ACTOR, now, { itemId: fi.id });
+            // The provider used up this reference without a booking; the next try needs a new one.
+            audit(fresh, 'provider_managed.payment_not_completed', ACTOR, now, { itemId: fi.id, clientReference });
+            fi.booking.clientReference = null;
             this.scheduleFinalize(fresh, now, attempt + 1);
             return;
           }
@@ -304,15 +319,29 @@ export class ProviderManagedOrchestrator {
 
   // ------------------------------------------------------------------ lookup / expiry
 
+  /**
+   * Reads the provider. An open outcome looks up the reference it was sent with; abandoning looks up every reference
+   * ever sent, so a booking whose answer was lost is found even after later tries.
+   */
   private async lookup(agg: OrderAggregate, now: Date, abandonIfMissing: boolean): Promise<void> {
     const it = single(agg);
-    const outcome = await this.deps.port.lookup(agg, it);
-    await this.apply(agg.id, (fresh, fi) => {
+    const refs = !abandonIfMissing && it.booking.clientReference ? [it.booking.clientReference] : sentReferences(it);
+    let found: ProviderBookingState | null = null;
+    let inconclusive = false;
+    for (const ref of refs) {
+      const outcome = await this.deps.port.lookup(agg, it, ref);
       if (outcome.kind === 'SUCCEEDED' && outcome.value) {
-        this.applyBooked(fresh, fi, outcome.value, 'RECONCILIATION', now);
+        found = outcome.value;
+        break;
+      }
+      if (outcome.kind !== 'SUCCEEDED') inconclusive = true;
+    }
+    await this.apply(agg.id, (fresh, fi) => {
+      if (found) {
+        this.applyBooked(fresh, fi, found, 'RECONCILIATION', now);
         return;
       }
-      if (outcome.kind === 'SUCCEEDED' && outcome.value === null) {
+      if (!inconclusive) {
         if (abandonIfMissing) {
           this.fail(fresh, fi, 'CHECKOUT_EXPIRED', fi.booking.status === 'UNKNOWN' ? 'RECONCILIATION' : 'COMMAND', now, true);
           return;
@@ -337,8 +366,8 @@ export class ProviderManagedOrchestrator {
 
   private async expire(agg: OrderAggregate, now: Date): Promise<void> {
     const it = single(agg);
-    if (it.booking.clientReference) {
-      // A book call was sent before: make sure no booking exists before abandoning (T19).
+    if (sentReferences(it).length > 0) {
+      // A book call was sent before: make sure no booking exists under any reference before abandoning (T19).
       await this.lookup(agg, now, true);
       return;
     }

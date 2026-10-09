@@ -23,7 +23,8 @@
     "contracts:types": "node scripts/generate-provider-types.mjs",
     "test:sandbox": "NODE_USE_ENV_PROXY=1 vitest run --project sandbox",
     "web:dev": "pnpm --filter @texholiday/web dev",
-    "web:e2e": "pnpm --filter @texholiday/web build && pnpm --filter @texholiday/web e2e"
+    "web:e2e": "pnpm --filter @texholiday/web build && pnpm --filter @texholiday/web e2e",
+    "web:e2e:sandbox": "pnpm --filter @texholiday/web build && pnpm --filter @texholiday/web e2e:sandbox"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

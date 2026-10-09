@@ -53,11 +53,7 @@ export class NuiteeHotelProviderManagedPort implements ProviderManagedBookingPor
     });
   }
 
-  async lookup(_agg: OrderAggregate, it: OrderItemState): Promise<ExternalOutcome<ProviderBookingState | null>> {
-    // No book call was ever sent under a reference: nothing can exist at the provider.
-    if (!it.booking.clientReference) {
-      return { kind: 'SUCCEEDED', value: null, evidence: { operation: 'lookup:no-reference', environment: _agg.environment, at: new Date().toISOString(), httpStatus: null, upstreamRequestId: null, durationMs: 0 } };
-    }
-    return this.hotels.lookupByClientReference(it.booking.clientReference);
+  async lookup(_agg: OrderAggregate, _it: OrderItemState, clientReference: string): Promise<ExternalOutcome<ProviderBookingState | null>> {
+    return this.hotels.lookupByClientReference(clientReference);
   }
 }

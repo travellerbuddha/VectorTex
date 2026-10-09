@@ -7,7 +7,9 @@ export const COUNTRY_CODES = (
   'UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW'
 ).split(' ');
 
+/** Server only: browsers ship other Intl data (names and order differ), so the list is rendered once, on the server. */
 export function countryOptions(locale: 'tr' | 'en'): Array<{ code: string; name: string }> {
-  const names = new Intl.DisplayNames([locale === 'tr' ? 'tr' : 'en'], { type: 'region' });
-  return COUNTRY_CODES.map((code) => ({ code, name: names.of(code) ?? code })).sort((a, b) => a.name.localeCompare(b.name, locale));
+  const lang = locale === 'tr' ? 'tr' : 'en';
+  const names = new Intl.DisplayNames([lang], { type: 'region' });
+  return COUNTRY_CODES.map((code) => ({ code, name: names.of(code) ?? code })).sort((a, b) => a.name.localeCompare(b.name, lang));
 }

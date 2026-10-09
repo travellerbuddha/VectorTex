@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { dict, errorMessage, type Locale } from '../i18n/dictionaries';
-import { countryOptions } from '../i18n/countries';
 import { api, ApiError } from './api';
 
 interface Place {
@@ -16,27 +15,40 @@ interface RoomInput {
   childAges: number[];
 }
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
-const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86_400_000);
+const addDays = (isoDate: string, n: number) => new Date(Date.parse(`${isoDate}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 
-export function SearchForm({ locale, currencies, initial }: { locale: Locale; currencies: string[]; initial?: { place?: Place; checkin?: string; checkout?: string; rooms?: RoomInput[]; nationality?: string; currency?: string } }) {
+/**
+ * `today` and `countries` come from the server: the browser's Intl data differs from Node's (country names and their
+ * order), and anything rendered differently on the two sides breaks hydration.
+ */
+export function SearchForm({
+  locale,
+  currencies,
+  countries,
+  today,
+  initial,
+}: {
+  locale: Locale;
+  currencies: string[];
+  countries: ReadonlyArray<{ code: string; name: string }>;
+  today: string;
+  initial?: { place?: Place; checkin?: string; checkout?: string; rooms?: RoomInput[]; nationality?: string; currency?: string };
+}) {
   const t = dict(locale);
   const router = useRouter();
   const ids = { dest: useId(), list: useId(), hint: useId(), nat: useId() };
-  const today = useMemo(() => new Date(), []);
   const [query, setQuery] = useState(initial?.place?.name ?? '');
   const [place, setPlace] = useState<Place | null>(initial?.place ?? null);
   const [suggestions, setSuggestions] = useState<Place[]>([]);
   const [active, setActive] = useState(-1);
-  const [checkin, setCheckin] = useState(initial?.checkin ?? iso(addDays(today, 14)));
-  const [checkout, setCheckout] = useState(initial?.checkout ?? iso(addDays(today, 17)));
+  const [checkin, setCheckin] = useState(initial?.checkin ?? addDays(today, 14));
+  const [checkout, setCheckout] = useState(initial?.checkout ?? addDays(today, 17));
   const [rooms, setRooms] = useState<RoomInput[]>(initial?.rooms ?? [{ adults: 2, childAges: [] }]);
   const [nationality, setNationality] = useState(initial?.nationality ?? (locale === 'tr' ? 'TR' : 'GB'));
   const [currency, setCurrency] = useState(initial?.currency && currencies.includes(initial.currency) ? initial.currency : (currencies[0] ?? 'EUR'));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const countries = useMemo(() => countryOptions(locale), [locale]);
 
   useEffect(() => {
     if (place && query === place.name) return;
@@ -135,7 +147,7 @@ export function SearchForm({ locale, currencies, initial }: { locale: Locale; cu
       <div className="row">
         <div className="field">
           <label htmlFor="checkin">{t.search.checkin}</label>
-          <input id="checkin" type="date" value={checkin} min={iso(today)} onChange={(e) => setCheckin(e.target.value)} required />
+          <input id="checkin" type="date" value={checkin} min={today} onChange={(e) => setCheckin(e.target.value)} required />
         </div>
         <div className="field">
           <label htmlFor="checkout">{t.search.checkout}</label>

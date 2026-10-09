@@ -61,7 +61,10 @@ describe('provider-managed checkout in PostgreSQL', () => {
     agg = await store.load(orderId);
     expect(agg.status).toBe('CONFIRMED');
     expect(agg.payment).toMatchObject({ status: 'CAPTURED', providerClientSecret: null });
-    expect(new Set(p.books).size).toBe(1); // same client reference on the retry
+    // "Payment not completed" uses up the client reference at Nuitee (sandbox 2026-10-09): the retry sends a new one.
+    expect(p.books).toHaveLength(2);
+    expect(new Set(p.books).size).toBe(2);
+    expect(agg.items[0]!.booking.clientReferenceSeq).toBe(2);
     const commission = await core.db.execute<{ status: string; payment_mode: string; amount_minor: string }>(
       sql`SELECT c.status, c.payment_mode, c.amount_minor::text FROM core.provider_commissions c JOIN core.order_items i ON i.id = c.order_item_id WHERE i.order_id = ${orderId}`,
     );

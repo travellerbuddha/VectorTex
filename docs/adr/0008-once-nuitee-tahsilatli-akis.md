@@ -20,12 +20,14 @@
   - `secretKey` denetim kaydına yazılmaz ve ödeme sonuçlanınca silinir.
 - **Dönüş:** Tarayıcının dönüşü yalnız tetikleyicidir; URL'deki kimlikler kullanılmaz.
   - Sunucu, kayıtlı prebook ve transaction ile `TRANSACTION_ID` rezervasyonu dener.
-  - Nuitee "payment not completed" (2014) döndürürse aynı `clientReference` ile tekrar denenir. Arada bir rezervasyon oluştuysa Nuitee bunu yinelenen istek (4005) olarak bildirir, böylece iki kez rezervasyon yapılmaz.
-- **Tarayıcı kapanırsa:** İşçi, son ödeme zamanına kadar artan aralıklarla (20 s → 5 dk) tamamlamayı dener. Süre dolunca, daha önce rezervasyon denendiyse önce sorgu yapılır, sonra sipariş kapanır.
+  - Nuitee "payment not completed" (2014) döndürürse sonraki deneme **yeni** bir `clientReference` ile yapılır. Sandbox (9 Ekim 2026) gösterdi ki 2014 yanıtı o referansı tüketiyor: ödeme sonrası aynı referans 4005 dönüyor ve sorguda rezervasyon çıkmıyor. İlk tasarımdaki "aynı referansla tekrar" bu yüzden düzeltildi.
+  - Çift rezervasyona karşı güvence: işlem tek kullanımlık (kullanılmış işlemle yeni referans yine 2014 dönüyor, sandbox kanıtı). Yanıtı belirsiz (UNKNOWN) bir denemeden sonra yeni book yapılmaz; önce o referans sorgulanır.
+- **Tarayıcı kapanırsa:** İşçi, son ödeme zamanına kadar artan aralıklarla (20 s → 5 dk) tamamlamayı dener. Süre dolunca, gönderilmiş **bütün** referanslar sorgulanır (yanıtı kaybolmuş bir rezervasyon da bulunur). Rezervasyon yoksa sipariş kapanır; sorgu sonuçsuzsa kapanmaz, sorgu sürer.
 - **Kesin red:** Sipariş iptal edilir ve bir operasyon görevi açılır (`PROVIDER_PAYMENT_HOLD`). Müşteriye, kartındaki provizyonun Nuitee tarafından 1–2 iş günü içinde kaldırılacağı söylenir.
 - **Fiyat değişirse:** Ön rezervasyonda fiyat veya koşul değişmişse ödeme oturumu hiç açılmaz; yeni teklif ve yeni kabul gerekir (K15).
 - **Fiyatlandırma:** Nuitee fiyatı + onaylı politika marjı (API marjı).
   - Kamuya açık fiyat SSP'nin altındaysa teklif gösterilmez, çünkü Nuitee tahsil ettiği için fiyatı yerelde yükseltemeyiz.
+  - Sandbox'ta SSP yapay ve her marjda fiyatın üstünde. Sitenin sandbox'ta denenebilmesi için `SANDBOX_SKIP_RATE_PARITY=true` var; yalnız `PROVIDER_ENV=sandbox` iken kabul edilir.
   - Nuitee ödemesi (`NUITEE_PAY`) olmayan teklifler gösterilmez.
 
 ## Kanıt durumu
@@ -35,8 +37,10 @@
 | MOCK ortamda uçtan uca tarayıcı testi (masaüstü ve 320 px) | ✅ |
 | PostgreSQL senaryoları | ✅ |
 | Nuitee sandbox'ta ödeme SDK'lı prebook | ✅ (`vKh3SHrTO`) |
-| Nuitee sandbox'ta SDK ile ödeme + `TRANSACTION_ID` rezervasyonu | ⛔ Yapılmadı |
+| Nuitee sandbox'ta SDK ile ödeme (test kartı) + `TRANSACTION_ID` rezervasyonu + sorgu + iptal: EUR, USD, GBP | ✅ (R0 §10.2) |
+| Kendi sitemiz sandbox'ta, masaüstü ve 320 px: arama → ödeme → onay; CSP ihlali yok | ✅ (R0 §10.2) |
+| Production | ⛔ Yapılmadı (canlı anahtar ve işletme onayı gerekir) |
 
-Son satırın engeli: Ödeme bileşeni `payment-wrapper.liteapi.travel` adresinden yükleniyor ve Stripe adreslerini kullanıyor. Bu adresler bu geliştirme ortamının ağ izninde kapalı.
+Matris: `nuitee.hotel.provider_managed` sandbox PASSED, EUR/USD/GBP VERIFIED. Production NOT_RUN ve `enabledForProduction: false`. Canlıya açılış G01 kapısına bağlı.
 
-Bu yüzden `nuitee.hotel.provider_managed` için `sandboxStatus` NOT_RUN ve para birimleri UNVERIFIED kalır. Sonuç olarak staging'de (sandbox) rota da kapalı kalır. Ağ izni verildiğinde Playwright ile sandbox test kartı (4242…) üzerinden kanıt alınacak, ardından matris güncellenecek.
+Sandbox testleri isteğe bağlıdır ve CI'da çalışmaz: `pnpm web:e2e:sandbox` (sandbox anahtarı + `NUITEE_KEY_ENVIRONMENT=sandbox` + test veritabanı). Her test kendi rezervasyonunu iptal eder.

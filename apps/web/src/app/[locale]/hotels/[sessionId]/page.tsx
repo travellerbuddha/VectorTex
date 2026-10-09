@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { OfferButton } from '../../../../components/OfferButton';
 import { CancellationLine } from '../../../../components/QuoteSummary';
 import { SearchForm } from '../../../../components/SearchForm';
+import { countryOptions } from '../../../../i18n/countries';
 import { dict, type Locale } from '../../../../i18n/dictionaries';
 import { boardLabel, formatDate, formatMoney } from '../../../../i18n/format';
 import { booking } from '../../../../server/booking';
@@ -19,7 +20,7 @@ export default async function Results({ params, searchParams }: { params: Promis
   if (!criteria) notFound();
   const currencies = await app.availableCurrencies();
   const place = sp.place && sp.placeName ? { placeId: sp.place, name: sp.placeName, address: '' } : undefined;
-  const form = <SearchForm locale={locale} currencies={currencies} initial={{ place, checkin: criteria.checkin, checkout: criteria.checkout, rooms: criteria.rooms, nationality: criteria.nationality, currency: criteria.currency }} />;
+  const form = <SearchForm locale={locale} currencies={currencies} countries={countryOptions(locale)} today={new Date().toISOString().slice(0, 10)} initial={{ place, checkin: criteria.checkin, checkout: criteria.checkout, rooms: criteria.rooms, nationality: criteria.nationality, currency: criteria.currency }} />;
 
   let view;
   try {

@@ -22,6 +22,8 @@ import { money, percentOf, add, type Money } from '@texholiday/pricing';
  * MOCK hotel connector for local development, UI work and automated tests (ADR-0005). Every id starts with MOCK,
  * the environment is 'mock', and the registry/config refuse it in production. Prices are invented test data.
  * The payment component is simulated: a transaction counts as paid only after `markPaid` (the mock payment page).
+ * Like the Nuitee sandbox (2026-10-09): a client reference is used up by any book answer, "payment not completed"
+ * included (a repeat is a duplicate), and a transaction books at most once.
  */
 export class MockHotelConnector implements HotelConnector {
   private seq = 0;
@@ -31,6 +33,8 @@ export class MockHotelConnector implements HotelConnector {
   private readonly prebooks = new Map<string, { offerRef: string; transactionId: string | null; price: Money; commission: Money }>();
   private readonly paid = new Set<string>();
   private readonly bookings = new Map<string, ProviderBookingState>();
+  private readonly usedReferences = new Set<string>();
+  private readonly consumedTransactions = new Set<string>();
   /** Test hooks: force the next book/prebook outcome. */
   nextBook: ExternalOutcome<ProviderBookingState> | null = null;
   nextPrebookPriceChange = false;
@@ -160,12 +164,16 @@ export class MockHotelConnector implements HotelConnector {
       this.nextBook = null;
       return forced;
     }
-    if (this.bookings.has(input.clientReference)) return { kind: 'UNKNOWN', reason: 'AMBIGUOUS', evidence: this.evidence('book:duplicate') };
+    // 4005 "duplicate booking attempt with existing client reference": open, resolved by lookup.
+    if (this.usedReferences.has(input.clientReference)) return { kind: 'UNKNOWN', reason: 'AMBIGUOUS', evidence: this.evidence('book:duplicate') };
     const pre = this.prebooks.get(input.prebookRef);
     if (!pre) return { kind: 'REJECTED', code: 'NUITEE_4002', message: 'MOCK prebook not found', evidence: this.evidence('book') };
+    this.usedReferences.add(input.clientReference);
     if (input.funding.kind === 'PROVIDER_MANAGED') {
-      if (input.funding.transaction.transactionId !== pre.transactionId) return { kind: 'REJECTED', code: 'NUITEE_4002', message: 'MOCK transaction mismatch', evidence: this.evidence('book') };
-      if (!this.paid.has(pre.transactionId!)) return { kind: 'REJECTED', code: 'NUITEE_PAYMENT_NOT_COMPLETED', message: 'payment not completed', evidence: this.evidence('book') };
+      const tx = input.funding.transaction.transactionId;
+      if (tx !== pre.transactionId) return { kind: 'REJECTED', code: 'NUITEE_4002', message: 'MOCK transaction mismatch', evidence: this.evidence('book') };
+      if (!this.paid.has(tx) || this.consumedTransactions.has(tx)) return { kind: 'REJECTED', code: 'NUITEE_PAYMENT_NOT_COMPLETED', message: 'payment not completed', evidence: this.evidence('book') };
+      this.consumedTransactions.add(tx);
     }
     this.seq += 1;
     const state: ProviderBookingState = {

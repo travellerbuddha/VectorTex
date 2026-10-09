@@ -1,5 +1,15 @@
 import { expect, test, type Page } from '@playwright/test';
 
+// Any uncaught page error fails the test, hydration mismatches included (server and browser must render the same).
+let pageErrors: string[] = [];
+test.beforeEach(({ page }) => {
+  pageErrors = [];
+  page.on('pageerror', (e) => pageErrors.push(e.message));
+});
+test.afterEach(() => {
+  expect(pageErrors).toEqual([]);
+});
+
 async function noHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);

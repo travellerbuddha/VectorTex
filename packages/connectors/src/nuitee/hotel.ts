@@ -492,8 +492,9 @@ export class NuiteeHotelConnector implements HotelConnector {
     if (err || http.status >= 400) {
       const code = err?.code ?? null;
       if (code !== null && BOOK_DEFINITIVE_CODES.has(code)) return { kind: 'REJECTED', code: `NUITEE_${code}`, message: err?.message ?? 'refused', evidence };
-      // TRANSACTION_ID bookings: the customer has not paid in the payment SDK yet (documented 2014 example). The
-      // caller retries with the SAME clientReference, so anything created meanwhile surfaces as a 4005 duplicate.
+      // TRANSACTION_ID bookings: the customer has not paid in the payment SDK yet (documented 2014 example). Sandbox
+      // 2026-10-09: this answer uses up the clientReference (a repeat is 4005 and the lookup finds nothing), so the
+      // caller retries with a NEW reference; a transaction that already booked answers the same, never books twice.
       if (code === 2014 && err?.message === 'payment not completed') {
         return { kind: 'REJECTED', code: 'NUITEE_PAYMENT_NOT_COMPLETED', message: 'payment not completed', evidence };
       }

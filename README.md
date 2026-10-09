@@ -7,7 +7,7 @@ Kendi müşteri sitesi, booking engine, Payload içerik yönetimi, operasyon pan
 - Durum: [`docs/plan/is-paketleri.md`](docs/plan/is-paketleri.md) · [`docs/plan/canli-kapilari.md`](docs/plan/canli-kapilari.md) · [`docs/plan/test-matrisi.md`](docs/plan/test-matrisi.md)
 - Mimari kararlar: [`docs/adr/`](docs/adr/)
 
-> İlk canlı sürüm G01–G09 geçmeden açılmaz. Bu repodaki testler mock ve yerel PostgreSQL/Redis üzerindedir; sağlayıcı sandbox/production kanıtı değildir.
+> İlk canlı sürüm G01–G09 geçmeden açılmaz. CI testleri mock ve yerel PostgreSQL/Redis üzerindedir. Sağlayıcı sandbox kanıtları isteğe bağlı koşulardan gelir ve R0 raporuna (§10–10.2) işlenir. Production kanıtı yoktur.
 
 ## Yapı
 
@@ -40,4 +40,7 @@ pnpm test                            # unit
 TEST_DATABASE_URL=... TEST_REDIS_URL=... pnpm test:integration   # tek kullanımlık DB/Redis; silinir
 pnpm contracts:pin && pnpm contracts:types   # doküman erişimi açıldığında
 pnpm --filter @texholiday/db permissions:bootstrap <personelId>   # ilk izin yöneticisi (yalnız bir kez, ADR-0007)
+# İsteğe bağlı, CI dışı (yalnız sandbox anahtarıyla; her test kendi rezervasyonunu iptal eder):
+NUITEE_API_KEY=... NUITEE_KEY_ENVIRONMENT=sandbox pnpm test:sandbox            # bağlayıcı zinciri (hesap kartı)
+NUITEE_API_KEY=... NUITEE_KEY_ENVIRONMENT=sandbox TEST_DATABASE_URL=... pnpm web:e2e:sandbox   # Nuitee ödeme bileşeni + site
 ```
