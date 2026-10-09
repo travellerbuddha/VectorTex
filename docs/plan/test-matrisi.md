@@ -24,7 +24,7 @@ Ortam etiketi: **mock** = etiketli test dublörü, **db** = gerçek PostgreSQL 1
 | T16 | Fraud review | ✅ | `orchestrator.test.ts`, `iyzico.test.ts` | mock | fraudStatus kodlarının doküman teyidi |
 | T17 | Çift tıklama/iki worker | ✅ | `orchestrator.test.ts`, `order-store.int.test.ts` | mock, db | — |
 | T18 | Tekrar/sırası değişmiş webhook | ◐ | `invariants.int.test.ts` (inbox), `orchestrator.test.ts` (geri gitmeyen durum) | mock, db | Webhook endpoint'leri (P16) |
-| T19 | Sağlayıcı create yanıtı kayıp | ✅ | `orchestrator.test.ts`, `order-store.int.test.ts`, `nuitee-hotel.test.ts` (4005/2014/5000 → UNKNOWN → lookup) | mock, db | Gerçek clientReference lookup (sandbox) |
+| T19 | Sağlayıcı create yanıtı kayıp | ✅ | `orchestrator.test.ts`, `order-store.int.test.ts`, `nuitee-hotel.test.ts` (4005/2014/5000 → UNKNOWN → lookup); Nuitee sandbox'ta `clientReference` sorgusu doğrulandı | mock, db, sandbox | Kayıp yanıt senaryosunun sandbox'ta zorlanması |
 | T20 | Capture/refund yanıtı kayıp | ✅ | `orchestrator.test.ts`, `iyzico.test.ts` | mock | Refund komut akışı (P15) |
 | T21 | Gateway değişimi | ✅ | `invariants.int.test.ts` (tek canlı ödeme denemesi) | db | — |
 | T22 | Desteklenmeyen yetenek | ✅ | `routing.test.ts`, `iyzico.test.ts` | mock | — |
@@ -41,6 +41,6 @@ Ortam etiketi: **mock** = etiketli test dublörü, **db** = gerçek PostgreSQL 1
 | T33 | Mobil/erişilebilirlik | ⛔ | — | — | P16 |
 | T34 | Personel kabulü | ⛔ | — | — | P18 (insan testi) |
 | T35 | Yük/limit/restore | ⛔ | — | — | Hesap limitleri + barındırma |
-| T36 | Onaylı gerçek pilot | ⛔ | — | — | Yetki/bütçe onayı + bütün G kapıları |
+| T36 | Onaylı gerçek pilot | ⛔ | Nuitee otel sandbox zinciri (search→prebook→book→lookup→cancel) geçti; bu pilot değildir | sandbox | Yetki/bütçe onayı + bütün G kapıları |
 
 Komutlar: `pnpm test` (unit), `pnpm test:integration` (TEST_DATABASE_URL + TEST_REDIS_URL gerekli; ilgili şema/DB silinir).

@@ -55,7 +55,9 @@ type Parsed = Extract<ParsedHttp, { ok: true }>['parsed'];
  * unknown codes) leaves the outcome open and is resolved by clientReference lookup, never by re-booking.
  */
 const BOOK_DEFINITIVE_CODES = new Set([4000, 4002, 4003, 4010, 4012]);
-const PREBOOK_DEFINITIVE_CODES = new Set([4002, 4016, 4040]);
+// 2001 (HTTP 409, "no availability" / "provider price exceeds locked selling price") is not in the pinned spec
+// but was observed in sandbox on 2026-10-09: the rate cannot be prebooked, search again.
+const PREBOOK_DEFINITIVE_CODES = new Set([2001, 4002, 4016, 4040]);
 
 const CANCELLED_STATUSES = new Set(['CANCELLED', 'CANCELED', 'CANCELLED_WITH_CHARGES']);
 

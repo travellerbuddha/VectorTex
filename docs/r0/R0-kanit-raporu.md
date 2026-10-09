@@ -110,3 +110,20 @@ Ağ izni verildikten sonra 45 kaynak SHA-256 ile sabitlendi (`contracts/sources/
 3. Nuitee uçak: `ACC_CREDIT_CARD` için payment bypass gerekip gerekmediği.
 4. Welcome: `booking_reference` tekilliği ve listeleme filtresinin birebir eşleşme semantiği (kayıp create yanıtının çözümü buna dayanıyor); `quote-requests`/`quote_requests` yol farkı.
 5. Nuitee Experiences için bağımsız funding: Nuitee'ye resmî talep (G03).
+
+## 10. Nuitee otel sandbox sonuçları (9 Ekim 2026)
+
+API host'larına ağ izni verildikten sonra `pnpm test:sandbox` (bkz. `packages/connectors/test/nuitee-hotel.sandbox.test.ts`) koşuldu. Kimlik bilgisi içermeyen kanıtlar:
+
+| Adım | Sonuç | Referans |
+|---|---|---|
+| Arama (`/hotels/rates`, lp1897, EUR, %1 marj) | SUCCEEDED, 37 teklif | — |
+| Prebook (`usePaymentSdk:false`) | SUCCEEDED, fiyat/iptal/pansiyon değişimi yok | prebook `Iq6EixV6S` |
+| Book (`ACC_CREDIT_CARD`, sandbox test kartı) | CONFIRMED, maliyet 1.365,67 EUR | booking `b2MtlGLgA` |
+| `clientReference` ile sorgu | CONFIRMED (aynı rezervasyon) | — |
+| İptal (`PUT /bookings/{id}`) | CANCELLED, ceza 0, tam iade | — |
+| Nuitee ödeme SDK'lı prebook (`usePaymentSdk:true`) | SUCCEEDED; `transactionId` + `secretKey` döndü | prebook `vKh3SHrTO` |
+
+**Çelişki — Nuitee'ye sorulmalı:** `margin: 0` ile (net fiyat) aranan teklifler prebook'ta 7 denemenin hepsinde HTTP 409 / kod 2001 ile reddedildi; %0,5, %1, %5, %10 marj ve hesap varsayılanı sorunsuz. Rehber net fiyatı merchant-of-record kullanımı için öneriyor. Şartnamedeki "kendi ödemede net fiyat + yerel marj" kuralı (K13/§6) bu yüzden şu an sandbox'ta uygulanamıyor; kod kuralı değiştirmeden net fiyat istemeye devam ediyor (yanlış fiyatla rezervasyon yapılmıyor). Hazır soru metni: `saglayici-sorulari.md`.
+
+Kod etkisi: 2001 artık prebook için kesin red (yeniden arama) olarak sınıflandırılıyor. Matris: `nuitee.hotel.own_gateway.account_card` → account ENABLED (sandbox anahtarı), sandbox PASSED; production NOT_RUN.

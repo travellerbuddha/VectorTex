@@ -12,7 +12,7 @@
         "PROVIDER_MANAGED"
       ],
       "documentationStatus": "DOCUMENTED",
-      "accountStatus": "UNVERIFIED",
+      "accountStatus": "ENABLED",
       "sandboxStatus": "NOT_RUN",
       "productionStatus": "NOT_RUN",
       "enabledForProduction": false,
@@ -47,6 +47,13 @@
           "environment": "documentation",
           "reference": "sha256:1766558ac0c2f2414c8331fe38d5bbaf546652f6ea673ca21362487d42afa879",
           "summary": "POST /hotels/rates accepts 'margin' (percent, overrides account default) -> supportsApiMargin."
+        },
+        {
+          "source": "packages/connectors/test/nuitee-hotel.sandbox.test.ts",
+          "verifiedAt": "2026-10-09",
+          "environment": "sandbox",
+          "reference": "prebook:vKh3SHrTO",
+          "summary": "Sandbox prebook with usePaymentSdk:true returned transactionId + secretKey; paymentTypes NUITEE_PAY, TRANSACTION_ID, ACC_CREDIT_CARD, WALLET. Browser SDK payment and TRANSACTION_ID book not run yet, so sandboxStatus stays NOT_RUN."
         }
       ]
     },
@@ -59,8 +66,8 @@
         "ACCOUNT_CARD"
       ],
       "documentationStatus": "DOCUMENTED",
-      "accountStatus": "UNVERIFIED",
-      "sandboxStatus": "NOT_RUN",
+      "accountStatus": "ENABLED",
+      "sandboxStatus": "PASSED",
       "productionStatus": "NOT_RUN",
       "enabledForProduction": false,
       "chargeCurrencies": {
@@ -96,6 +103,20 @@
           "environment": "documentation",
           "reference": "sha256:2fc71cf2f305b2d1f6cab369549dc44a90c516e31f6c77fd10ca508eba04eb1b",
           "summary": "/rates/book payment.method enum includes ACC_CREDIT_CARD, CREDIT, TRANSACTION_ID, WALLET, CREDIT_CARD, CREDIT_CARD_SCHEDULED; clientReference duplicate -> 4005."
+        },
+        {
+          "source": "packages/connectors/test/nuitee-hotel.sandbox.test.ts",
+          "verifiedAt": "2026-10-09",
+          "environment": "sandbox",
+          "reference": "prebook:Iq6EixV6S booking:b2MtlGLgA",
+          "summary": "Sandbox chain passed: search -> prebook (no change flags) -> book with ACC_CREDIT_CARD (sandbox test card) CONFIRMED -> lookup by clientReference CONFIRMED -> cancel CANCELLED, penalty 0, full refund. Searched with margin 1%. Production card attachment still unverified."
+        },
+        {
+          "source": "packages/connectors/test/nuitee-hotel.sandbox.test.ts",
+          "verifiedAt": "2026-10-09",
+          "environment": "sandbox",
+          "reference": "probe:margin-0",
+          "summary": "CONFLICT with revenue guide: search results requested with margin 0 (net rates) were refused at prebook with HTTP 409 / code 2001 ('provider price exceeds locked selling price' / 'no availability found') in 7 attempts; margins 0.5%, 1%, 5%, 10% and the account default prebooked fine. Own-gateway pricing (net + local margin) is blocked until Nuitee clarifies."
         }
       ]
     },

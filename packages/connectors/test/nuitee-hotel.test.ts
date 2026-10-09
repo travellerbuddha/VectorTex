@@ -109,6 +109,9 @@ describe('Nuitee hotel prebook (pinned booking OpenAPI example)', () => {
     }
     const { c } = connector([{ kind: 'NO_RESPONSE', reason: 'TIMEOUT', detail: 't', durationMs: 135_000 }]);
     expect(await c.prebook({ offerRef: opaque('o'), usePaymentSdk: false, clientReference: 'pb' })).toMatchObject({ kind: 'REJECTED', code: 'NUITEE_PREBOOK_UNCONFIRMED' });
+    // Observed in sandbox (not in the pinned spec): HTTP 409 + code 2001 when a net-rate offer is prebooked.
+    const sbx = connector([res(409, { error: { code: 2001, message: 'provider price exceeds locked selling price, please search again' } })]);
+    expect(await sbx.c.prebook({ offerRef: opaque('o'), usePaymentSdk: false, clientReference: 'pb' })).toMatchObject({ kind: 'REJECTED', code: 'NUITEE_2001' });
   });
 });
 
