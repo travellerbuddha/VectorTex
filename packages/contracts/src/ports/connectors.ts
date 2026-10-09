@@ -2,8 +2,12 @@ import type { Money } from '@texholiday/pricing';
 import type { CancellationPolicySnapshot, OpaqueRef, ProductType, ProviderEnvironment, ProviderManagedTransactionRef, TravelerRef } from '../common';
 import type { ExternalOutcome } from '../outcome';
 
-/** Whether an operation has side effects upstream. Side-effecting operations need a persisted intent first. */
-export type OperationEffect = 'READ_ONLY' | 'CREATES_PROVIDER_RESERVATION' | 'CANCELS_PROVIDER_RESERVATION' | 'MODIFIES_PROVIDER_RESERVATION';
+/**
+ * Whether an operation has side effects upstream. Side-effecting operations need a persisted intent first.
+ * CREATES_PROVIDER_SESSION: creates a provider-side session (quote/prebook) that is not a reservation and
+ * holds no money of ours, so an abandoned one has no consequence.
+ */
+export type OperationEffect = 'READ_ONLY' | 'CREATES_PROVIDER_SESSION' | 'CREATES_PROVIDER_RESERVATION' | 'CANCELS_PROVIDER_RESERVATION' | 'MODIFIES_PROVIDER_RESERVATION';
 
 /**
  * How a lost response of a side-effecting call can be resolved.
@@ -107,11 +111,21 @@ export interface HotelConnector {
   descriptor(): ConnectorDescriptor;
   searchRates(criteria: HotelSearchCriteria): Promise<ExternalOutcome<readonly (QuotedOffer & { hotelId: string; occupancyNumbers: readonly number[] })[]>>;
   prebook(input: { offerRef: OpaqueRef; usePaymentSdk: boolean; clientReference: string }): Promise<
-    ExternalOutcome<{ prebookRef: OpaqueRef; offer: QuotedOffer; providerManagedTransaction: ProviderManagedTransactionRef | null }>
+    ExternalOutcome<{
+      prebookRef: OpaqueRef;
+      offer: QuotedOffer;
+      providerManagedTransaction: ProviderManagedTransactionRef | null;
+      /** Provider-reported changes since search; any true flag needs a new customer acceptance. */
+      changeFlags: { price: boolean; cancellation: boolean; board: boolean };
+    }>
   >;
-  book(input: { prebookRef: OpaqueRef; clientReference: string; holder: { firstName: string; lastName: string; email: string }; guests: readonly HotelRoomGuest[]; funding: HotelFunding }): Promise<
-    ExternalOutcome<ProviderBookingState>
-  >;
+  book(input: {
+    prebookRef: OpaqueRef;
+    clientReference: string;
+    holder: { firstName: string; lastName: string; email: string; phone: string };
+    guests: readonly HotelRoomGuest[];
+    funding: HotelFunding;
+  }): Promise<ExternalOutcome<ProviderBookingState>>;
   lookupByClientReference(clientReference: string): Promise<ExternalOutcome<ProviderBookingState | null>>;
   getBooking(providerBookingRef: OpaqueRef): Promise<ExternalOutcome<ProviderBookingState>>;
   cancel(providerBookingRef: OpaqueRef): Promise<ExternalOutcome<ProviderBookingState & { penalty: Money | null; refundToUs: Money | null }>>;

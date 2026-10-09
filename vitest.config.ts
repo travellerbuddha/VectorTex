@@ -9,8 +9,18 @@ export default defineConfig({
         test: {
           name: 'unit',
           include: ['packages/*/test/**/*.test.ts', 'apps/*/test/**/*.test.ts'],
-          exclude: ['**/*.int.test.ts', '**/node_modules/**'],
+          exclude: ['**/*.int.test.ts', '**/*.sandbox.test.ts', '**/node_modules/**'],
           environment: 'node',
+        },
+      },
+      {
+        // Opt-in provider sandbox evidence runs; never part of CI. See packages/*/test/*.sandbox.test.ts.
+        test: {
+          name: 'sandbox',
+          include: ['packages/*/test/**/*.sandbox.test.ts'],
+          environment: 'node',
+          fileParallelism: false,
+          testTimeout: 400_000,
         },
       },
       {

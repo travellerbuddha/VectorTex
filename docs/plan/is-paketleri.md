@@ -4,7 +4,7 @@ Kaynak: şartname §18. Durum: ✅ tamam · ◐ kısmi · ⛔ dış blokaj · �
 
 | İş | Durum | Bu repoda olan | Eksik / blokaj |
 |---|---|---|---|
-| P00 Erişim/kanıt matrisi | ◐ | `contracts/capability-matrix.json` (4 ayrı durum alanı + kanıt), `contracts/sources.lock.json` + `scripts/pin-contracts.mjs`, R0 raporu | Doküman alan adları build ortamından erişilemedi (403) → hash'ler alınamadı. Hesap/yetki kanıtı yok |
+| P00 Erişim/kanıt matrisi | ◐ | 45 kaynak SHA-256 ile kilitli; matris kanıtları hash referanslı; R0 raporu güncel | Hesap/yetki kanıtı yok; sağlayıcı API host'ları ağ politikasında kapalı |
 | P01 Ödeme/finansman PoC | ⛔ | Rota kuralları ve yetenek değerlendirmesi kodda (`selectPaymentRoutes`) | Nuitee/Welcome/iyzico sandbox anahtarları ve hesap yetkileri; Experiences bağımsız funding (G03) |
 | P02 Repo/altyapı | ◐ | pnpm monorepo, sürüm kilidi (ADR-0001), Zod config fail-fast, CI, DB, worker | Render altyapı tanımı, secret manager, `apps/web` (Next+Payload) iskeleti |
 | P03 Domain/DB | ✅ | Money, QuoteVersion, Order/Item, ayrı durum makineleri, Drizzle `core` şeması, migration'lar, DB değişmezlikleri | CustomerTransaction/SupplierSettlement için komut akışları P15 ile |
@@ -12,9 +12,9 @@ Kaynak: şartname §18. Durum: ✅ tamam · ◐ kısmi · ⛔ dış blokaj · �
 | P05 Kimlik/yetki | ⬜ | — | Payload auth + MFA, müşteri OTP, rol/kayıt kapsamı |
 | P06 Payload/içerik | ⬜ | ADR-0003 (`cms` şeması) | Next 16.3.8 + Payload 3.90.2 kurulum, koleksiyonlar, blok/preview/SEO |
 | P07 Connector sözleşmeleri | ◐ | Ürün arayüzleri (`HotelConnector`…), `ExternalOutcome`, capability registry, sözleşme kilidi, OpenAPI→TS üretici | Kilitli OpenAPI dokümanları |
-| P08 Fiyatlandırma | ◐ | Net/satış/tek marj, SSP tabanı, dağılım, FX snapshot, onaylı politika tablosu | Onaylı marj/ücret/kur kaynağı/yuvarlama (G06) |
-| P09 iyzico adapteri | ◐ | Ön provizyon CF, retrieve, postauth, cancel, item refund, imza doğrulama, registry | Sandbox anahtarı + merchant preauth/döviz teyidi; V3 webhook alan sırası (doküman kilidi) |
-| P10 Nuitee otel | ◐ | Çok oda/occupancy/milliyet doğrulaması | `api-search/booking/hotel-data.json` kilidi, sandbox anahtarı, hesap kartı/kredi teyidi |
+| P08 Fiyatlandırma | ◐ | Net/satış/tek marj, SSP tabanı, dağılım, FX snapshot; **kullanıcının düzenlediği sürümlü fiyat/risk politikaları** (taslak → dört göz onayı → aktif), servis bedeli ve kur politikası | /yonetim düzenleme ekranı (P15/P06); kur kaynağı entegrasyonu |
+| P09 iyzico adapteri | ◐ | Ön provizyon CF, retrieve, postauth, cancel, kalem iadesi, doküman kilitli imza kuralları, V3 HPP webhook doğrulaması, registry | Sandbox anahtarı; `phase` değerleri ve kullanılmayan ön provizyonun serbest bırakılması sandbox'ta; webhook aktivasyonu |
+| P10 Nuitee otel | ◐ | `NuiteeHotelConnector`: search/prebook/book/lookup/get/cancel, kilitli OpenAPI örnekleriyle sözleşme testleri, hata kodu sınıflandırması, sandbox'ta CREDIT engeli; opt-in sandbox testi | `api.liteapi.travel`/`book.liteapi.travel` ağ izni; sipariş→connector köprüsü (oda-misafir eşlemesi checkout ile, P16) |
 | P11 Nuitee uçak | ⛔ | Biletleme ayrımı orchestrator'da | `openapiflights.json`, uçak erişimi, prebook bypass teyidi |
 | P12 Nuitee Experiences | ⛔ | Katılımcı/soru doğrulaması; bağımsız ödeme rotası kapalı (G03) | `api-experiences.json`, async/voucher, G03 |
 | P13 Welcome transfer | ◐ | JSON:API hata ayrımı, referanslar, firm quote ve lokasyon/saat doğrulaması | Welcome dokümanı, staging anahtarı, kredi hesabı, audit |

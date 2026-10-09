@@ -20,7 +20,8 @@
     "contracts:pin": "node scripts/pin-contracts.mjs",
     "contracts:check": "node scripts/pin-contracts.mjs --check",
     "worker": "pnpm --filter @texholiday/worker start",
-    "contracts:types": "node scripts/generate-provider-types.mjs"
+    "contracts:types": "node scripts/generate-provider-types.mjs",
+    "test:sandbox": "NODE_USE_ENV_PROXY=1 vitest run --project sandbox"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
