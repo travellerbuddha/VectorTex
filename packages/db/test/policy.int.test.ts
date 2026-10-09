@@ -1,16 +1,18 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import type { StaffActor } from '@texholiday/contracts';
-import { PolicyRepository, PolicyValidationError, type CoreDatabase } from '../src/index';
+import { PermissionRepository, PolicyRepository, PolicyValidationError, type CoreDatabase } from '../src/index';
 import { dbError, freshDatabase } from './support/db';
 
 let core: CoreDatabase;
 let repo: PolicyRepository;
 
-const finance: StaffActor = { kind: 'STAFF', id: 'staff-finance-1', roles: ['FINANCE'] };
-const finance2: StaffActor = { kind: 'STAFF', id: 'staff-finance-2', roles: ['FINANCE'] };
-const approver: StaffActor = { kind: 'STAFF', id: 'staff-approver-1', roles: ['FINANCE_APPROVER'] };
-const viewer: StaffActor = { kind: 'STAFF', id: 'staff-viewer-1', roles: ['VIEWER'] };
+const owner: StaffActor = { kind: 'STAFF', id: 'staff-owner-1' };
+const finance: StaffActor = { kind: 'STAFF', id: 'staff-finance-1' };
+const finance2: StaffActor = { kind: 'STAFF', id: 'staff-finance-2' };
+const approver: StaffActor = { kind: 'STAFF', id: 'staff-approver-1' };
+const viewer: StaffActor = { kind: 'STAFF', id: 'staff-viewer-1' };
+let permissions: PermissionRepository;
 
 // Values below are test inputs typed by a "user"; the product ships no defaults.
 const pricingDoc = (bp: number) => ({
@@ -27,6 +29,13 @@ const pricingDoc = (bp: number) => ({
 beforeAll(async () => {
   core = await freshDatabase();
   repo = new PolicyRepository(core.db);
+  // Authority comes from grants made on the permissions screen (ADR-0007).
+  permissions = new PermissionRepository(core.db);
+  await permissions.bootstrapManager(owner.id);
+  await permissions.grantRole(finance.id, 'FINANCE', owner);
+  await permissions.grantRole(finance2.id, 'FINANCE', owner);
+  await permissions.grantRole(approver.id, 'FINANCE_APPROVER', owner);
+  await permissions.grantRole(viewer.id, 'VIEWER', owner);
 });
 afterAll(async () => {
   await core?.close();
@@ -63,14 +72,41 @@ describe('G06: business-editable pricing policy', () => {
     expect(await dbError(core.db.execute(sql`UPDATE core.pricing_policy_versions SET document = '{}' WHERE id = 'b2c' AND version = 2`))).toMatch(/immutable/);
   });
 
-  it('enforces roles and four-eyes approval', async () => {
+  it('enforces permissions and, by default, four-eyes approval', async () => {
     await expect(repo.createDraft('PRICING', 'b2c', pricingDoc(1), viewer)).rejects.toMatchObject({ code: 'FORBIDDEN' });
     const v = await repo.createDraft('PRICING', 'b2c', pricingDoc(1100), finance);
     await expect(repo.approve('PRICING', 'b2c', v.version, finance2)).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    const both: StaffActor = { kind: 'STAFF', id: 'staff-finance-1', roles: ['FINANCE', 'FINANCE_APPROVER'] };
-    await expect(repo.approve('PRICING', 'b2c', v.version, both)).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    // The database refuses self-approval even if application code were bypassed.
-    expect(await dbError(core.db.execute(sql`UPDATE core.pricing_policy_versions SET status = 'APPROVED', approved_by = 'staff-finance-1', approved_at = now() WHERE id = 'b2c' AND version = ${v.version}`))).toMatch(/four_eyes|one_approved/);
+    // Holding the approve permission is not enough for one's own draft.
+    await permissions.grant(finance.id, 'pricing_policy.approve', owner);
+    await expect(repo.approve('PRICING', 'b2c', v.version, finance)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await permissions.revoke(finance.id, 'pricing_policy.approve', owner);
+    // The database refuses it even if application code were bypassed: FOUR_EYES needs another person, SELF needs approve_own.
+    const approveDirect = (mode: string) =>
+      core.db.execute(sql`UPDATE core.pricing_policy_versions SET status = 'APPROVED', approved_by = 'staff-finance-1', approved_at = now(), approval_mode = ${mode} WHERE id = 'b2c' AND version = ${v.version}`);
+    expect(await dbError(approveDirect('FOUR_EYES'))).toMatch(/approval_mode|one_approved/);
+    expect(await dbError(approveDirect('SELF'))).toMatch(/lacks the permission|one_approved/);
+    // An approval without a mode is refused as well.
+    expect(await dbError(core.db.execute(sql`UPDATE core.pricing_policy_versions SET approved_by = 'staff-approver-1' WHERE id = 'b2c' AND version = ${v.version}`))).toMatch(/approval_mode/);
+    // Editing without the edit permission is refused by the database too.
+    expect(await dbError(core.db.execute(sql`UPDATE core.pricing_policy_versions SET document = '{}', updated_by = 'staff-viewer-1' WHERE id = 'b2c' AND version = ${v.version}`))).toMatch(/lacks pricing_policy.edit/);
+  });
+
+  it('ADR-0007: a person given approve_own may approve their own change alone; it is recorded as SELF', async () => {
+    const own = await repo.createDraft('PRICING', 'b2c', pricingDoc(1200), finance2, 'quick fix');
+    await expect(repo.approve('PRICING', 'b2c', own.version, finance2)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await permissions.grant(finance2.id, 'pricing_policy.approve_own', owner, 'single approver for weekends');
+    expect(await repo.approve('PRICING', 'b2c', own.version, finance2)).toEqual({ approvalMode: 'SELF' });
+    const [latest] = await repo.versions('PRICING', 'b2c');
+    expect(latest).toMatchObject({ version: own.version, status: 'APPROVED', approvedBy: finance2.id, approvalMode: 'SELF' });
+    const audit = await core.db.execute<{ detail: { approvalMode: string; permission: string } }>(
+      sql`SELECT detail FROM core.audit_logs WHERE entity_type = 'policy:PRICING' AND action = 'policy.approved' ORDER BY id DESC LIMIT 1`,
+    );
+    expect(audit.rows[0]!.detail).toMatchObject({ approvalMode: 'SELF', permission: 'pricing_policy.approve_own' });
+    // Revoking takes effect at once.
+    await permissions.revoke(finance2.id, 'pricing_policy.approve_own', owner);
+    const next = await repo.createDraft('PRICING', 'b2c', pricingDoc(1300), finance2);
+    await expect(repo.approve('PRICING', 'b2c', next.version, finance2)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(await repo.approve('PRICING', 'b2c', next.version, approver)).toEqual({ approvalMode: 'FOUR_EYES' });
   });
 
   it('rejects inconsistent documents with field-level messages for the UI', async () => {

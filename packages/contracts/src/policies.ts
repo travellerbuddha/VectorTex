@@ -1,15 +1,5 @@
 import { z } from 'zod';
 
-/** Staff roles (§16). Customers are a separate identity type and never hold these roles. */
-export const STAFF_ROLES = ['OWNER_ADMIN', 'CONTENT_EDITOR', 'OPERATIONS', 'FINANCE', 'FINANCE_APPROVER', 'VIEWER'] as const;
-export type StaffRole = (typeof STAFF_ROLES)[number];
-
-export interface StaffActor {
-  kind: 'STAFF';
-  id: string;
-  roles: readonly StaffRole[];
-}
-
 const minorAmount = z.string().regex(/^\d+$/, 'non-negative integer in minor units');
 
 /**

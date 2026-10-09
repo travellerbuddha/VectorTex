@@ -16,7 +16,8 @@
   },
   "scripts": {
     "generate": "drizzle-kit generate --config drizzle.config.ts",
-    "migrate": "tsx src/migrate.ts"
+    "migrate": "tsx src/migrate.ts",
+    "permissions:bootstrap": "tsx src/bootstrap-permissions.ts"
   },
   "devDependencies": {
     "drizzle-kit": "0.31.7",

@@ -10,3 +10,4 @@ export * from './ports/provider-managed';
 export * from './http';
 export * from './time';
 export * from './policies';
+export * from './permissions';

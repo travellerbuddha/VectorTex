@@ -37,4 +37,5 @@ pnpm lint                            # mimari sınırlar + typecheck
 pnpm test                            # unit
 TEST_DATABASE_URL=... TEST_REDIS_URL=... pnpm test:integration   # tek kullanımlık DB/Redis; silinir
 pnpm contracts:pin && pnpm contracts:types   # doküman erişimi açıldığında
+pnpm --filter @texholiday/db permissions:bootstrap <personelId>   # ilk izin yöneticisi (yalnız bir kez, ADR-0007)
 ```

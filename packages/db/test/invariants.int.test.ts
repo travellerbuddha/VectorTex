@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { IdempotencyConflictError } from '@texholiday/contracts';
 import { money } from '@texholiday/pricing';
-import { CheckoutRepository, IdempotencyRepository, InboxRepository, PaymentUnresolvedError, QuoteRepository, schema, type CoreDatabase } from '../src/index';
+import { CheckoutRepository, IdempotencyRepository, InboxRepository, PaymentUnresolvedError, PermissionRepository, QuoteRepository, schema, type CoreDatabase } from '../src/index';
 import { dbError, freshDatabase, seedOrder } from './support/db';
 
 let core: CoreDatabase;
@@ -34,9 +34,13 @@ describe('database invariants', () => {
   });
 
   it('approved policies are immutable except retirement; approval needs an approver', async () => {
+    const permissions = new PermissionRepository(core.db);
+    await permissions.bootstrapManager('owner');
+    await permissions.grant('fin-1', 'pricing_policy.edit', { kind: 'STAFF', id: 'owner' });
+    await permissions.grant('cfo', 'pricing_policy.approve', { kind: 'STAFF', id: 'owner' });
     await expect(core.db.insert(schema.pricingPolicyVersions).values({ id: 'pp', version: 1, status: 'DRAFT', document: {}, createdBy: 'fin-1', updatedBy: 'fin-1' })).resolves.toBeDefined();
     expect(await dbError(core.db.execute(sql`UPDATE core.pricing_policy_versions SET status = 'APPROVED' WHERE id = 'pp'`))).toMatch(/approved_by/);
-    await core.db.execute(sql`UPDATE core.pricing_policy_versions SET status = 'APPROVED', approved_by = 'cfo', approved_at = now() WHERE id = 'pp'`);
+    await core.db.execute(sql`UPDATE core.pricing_policy_versions SET status = 'APPROVED', approved_by = 'cfo', approved_at = now(), approval_mode = 'FOUR_EYES' WHERE id = 'pp'`);
     expect(await dbError(core.db.execute(sql`UPDATE core.pricing_policy_versions SET document = '{"x":1}' WHERE id = 'pp'`))).toMatch(/immutable/);
     await core.db.execute(sql`UPDATE core.pricing_policy_versions SET status = 'RETIRED' WHERE id = 'pp'`);
     expect(await dbError(core.db.execute(sql`DELETE FROM core.pricing_policy_versions WHERE id = 'pp'`))).toMatch(/cannot be deleted/);

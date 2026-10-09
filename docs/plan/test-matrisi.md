@@ -34,7 +34,7 @@ Ortam etiketi: **mock** = etiketli test dublörü, **db** = gerçek PostgreSQL 1
 | T26 | Tedarikçiler başarılı, capture hatası | ✅ | `orchestrator.test.ts` | mock | — |
 | T27 | Tam/kısmi iptal/iade | ◐ | `policy.test.ts` (çift iade yok) | mock | Müşteri iptal/iade komutları (P15) |
 | T28 | Restart/Redis kaybı | ✅ | `apps/worker/test/relay.int.test.ts` | db | Üretim yedek/restore kanıtı (T35) |
-| T29 | Rol/kayıt erişimi | ⛔ | — | — | P05 |
+| T29 | Rol/kayıt erişimi | ◐ | `packages/db/test/permission.int.test.ts` (izin verme/geri alma, son yönetici, DB tetikleyicileri), `policy.int.test.ts` (izinsiz düzenleme/onay reddi, SELF onay), `packages/contracts/test/permissions.test.ts` | db | Kayıt kapsamı (record scope), ekran ve giriş (P05) |
 | T30 | CMS/MFA/Local API | ⛔ | — | — | P05/P06 |
 | T31 | Log/belge/secret | ◐ | `config.test.ts` (secret değeri hata mesajında yok, redaction) | mock | Log redaction middleware, signed URL (P05/P15) |
 | T32 | Legacy/SEO import | ⛔ | — | — | P17 + içerik/URL envanteri |

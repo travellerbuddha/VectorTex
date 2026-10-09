@@ -534,6 +534,8 @@ export const pricingPolicyVersions = core.table(
     status: policyStatusEnum('status').notNull(),
     approvedBy: text('approved_by'),
     approvedAt: ts('approved_at'),
+    /** FOUR_EYES = approved by someone else; SELF = author approved alone with `pricing_policy.approve_own` (ADR-0007). */
+    approvalMode: text('approval_mode', { enum: ['FOUR_EYES', 'SELF'] }),
     document: jsonb('document').notNull(),
     createdBy: text('created_by').notNull(),
     updatedBy: text('updated_by').notNull(),
@@ -545,8 +547,12 @@ export const pricingPolicyVersions = core.table(
     primaryKey({ columns: [t.id, t.version] }),
     // Exactly one active (APPROVED) version per policy id.
     uniqueIndex('pricing_policy_versions_one_approved_uq').on(t.id).where(sql`status = 'APPROVED'`),
-    // Four-eyes: whoever created or last edited a version cannot approve it.
-    check('pricing_policy_versions_four_eyes', sql`approved_by IS NULL OR (approved_by <> created_by AND approved_by <> updated_by)`),
+    // Every approval states its mode; a FOUR_EYES approver is neither the author nor the last editor. Whether the
+    // approver held the needed permission is checked by the policy permission trigger (migration 0004).
+    check(
+      'pricing_policy_versions_approval_mode',
+      sql`(approved_by IS NULL) = (approval_mode IS NULL) AND (approval_mode IS NULL OR approval_mode IN ('FOUR_EYES', 'SELF')) AND (approval_mode IS DISTINCT FROM 'FOUR_EYES' OR (approved_by <> created_by AND approved_by <> updated_by))`,
+    ),
   ],
 );
 
@@ -558,6 +564,8 @@ export const riskPolicyVersions = core.table(
     status: policyStatusEnum('status').notNull(),
     approvedBy: text('approved_by'),
     approvedAt: ts('approved_at'),
+    /** FOUR_EYES = approved by someone else; SELF = author approved alone with `risk_policy.approve_own` (ADR-0007). */
+    approvalMode: text('approval_mode', { enum: ['FOUR_EYES', 'SELF'] }),
     document: jsonb('document').notNull(),
     createdBy: text('created_by').notNull(),
     updatedBy: text('updated_by').notNull(),
@@ -569,8 +577,47 @@ export const riskPolicyVersions = core.table(
     primaryKey({ columns: [t.id, t.version] }),
     // Exactly one active (APPROVED) version per policy id.
     uniqueIndex('risk_policy_versions_one_approved_uq').on(t.id).where(sql`status = 'APPROVED'`),
-    // Four-eyes: whoever created or last edited a version cannot approve it.
-    check('risk_policy_versions_four_eyes', sql`approved_by IS NULL OR (approved_by <> created_by AND approved_by <> updated_by)`),
+    // Every approval states its mode; a FOUR_EYES approver is neither the author nor the last editor. Whether the
+    // approver held the needed permission is checked by the policy permission trigger (migration 0004).
+    check(
+      'risk_policy_versions_approval_mode',
+      sql`(approved_by IS NULL) = (approval_mode IS NULL) AND (approval_mode IS NULL OR approval_mode IN ('FOUR_EYES', 'SELF')) AND (approval_mode IS DISTINCT FROM 'FOUR_EYES' OR (approved_by <> created_by AND approved_by <> updated_by))`,
+    ),
+  ],
+);
+
+// ------------------------------------------------------------------ staff permissions (ADR-0007)
+
+/** Permission catalog, seeded by migration from `PERMISSIONS` (packages/contracts/src/permissions.ts). */
+export const permissions = core.table('permissions', {
+  code: text('code').primaryKey(),
+  descriptionTr: text('description_tr').notNull(),
+  descriptionEn: text('description_en').notNull(),
+});
+
+/**
+ * Who holds which permission. Rows are never deleted: a revoke records who and when, so the history is the audit
+ * trail of the permissions screen. Grants and revokes need `permissions.manage` (DB trigger).
+ */
+export const staffPermissionGrants = core.table(
+  'staff_permission_grants',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    staffId: text('staff_id').notNull(),
+    permission: text('permission')
+      .notNull()
+      .references(() => permissions.code),
+    grantedBy: text('granted_by').notNull(),
+    grantedAt: ts('granted_at').notNull().defaultNow(),
+    note: text('note'),
+    revokedBy: text('revoked_by'),
+    revokedAt: ts('revoked_at'),
+    revokeNote: text('revoke_note'),
+  },
+  (t) => [
+    uniqueIndex('staff_permission_grants_active_uq').on(t.staffId, t.permission).where(sql`revoked_at IS NULL`),
+    index('staff_permission_grants_staff_idx').on(t.staffId),
+    check('staff_permission_grants_revoke_pair', sql`(revoked_at IS NULL) = (revoked_by IS NULL)`),
   ],
 );
 

@@ -1,7 +1,8 @@
 import { and, desc, eq, max, sql } from 'drizzle-orm';
-import { DomainError, riskPolicyDocumentSchema, type RiskPolicyVersion, type StaffActor, type StaffRole } from '@texholiday/contracts';
+import { DomainError, riskPolicyDocumentSchema, type Permission, type RiskPolicyVersion, type StaffActor } from '@texholiday/contracts';
 import { pricingPolicyDocumentSchema, type PricingPolicyVersion } from '@texholiday/pricing';
 import type { CoreDb } from './client';
+import { activePermissions } from './permission-repository';
 import { auditLogs, pricingPolicyVersions, riskPolicyVersions } from './schema';
 
 export type PolicyKind = 'PRICING' | 'RISK';
@@ -9,9 +10,11 @@ export type PolicyKind = 'PRICING' | 'RISK';
 const TABLE = { PRICING: pricingPolicyVersions, RISK: riskPolicyVersions } as const;
 const SCHEMA = { PRICING: pricingPolicyDocumentSchema, RISK: riskPolicyDocumentSchema } as const;
 
-/** Who may edit drafts and who may approve them (§16 roles). */
-const EDITORS: readonly StaffRole[] = ['FINANCE', 'OWNER_ADMIN'];
-const APPROVERS: readonly StaffRole[] = ['FINANCE_APPROVER'];
+/** Permissions per policy kind (ADR-0007); assigned to people on the permissions screen. */
+const PERMISSION = {
+  PRICING: { edit: 'pricing_policy.edit', approve: 'pricing_policy.approve', approveOwn: 'pricing_policy.approve_own' },
+  RISK: { edit: 'risk_policy.edit', approve: 'risk_policy.approve', approveOwn: 'risk_policy.approve_own' },
+} as const satisfies Record<PolicyKind, Record<'edit' | 'approve' | 'approveOwn', Permission>>;
 
 export interface PolicyValidationIssue {
   path: string;
@@ -36,18 +39,19 @@ export interface PolicyVersionRow {
   updatedBy: string;
   approvedBy: string | null;
   approvedAt: string | null;
+  approvalMode: 'FOUR_EYES' | 'SELF' | null;
   changeNote: string | null;
   updatedAt: string;
 }
 
 const forbidden = (message: string) => new DomainError('FORBIDDEN', message, { httpStatus: 403 });
-const hasRole = (actor: StaffActor, roles: readonly StaffRole[]) => actor.roles.some((r) => roles.includes(r));
 
 /**
  * Business-editable pricing and risk policies (G06). Values are entered by authorized staff, never shipped as
- * defaults. Every change is a versioned DRAFT; a different person with FINANCE_APPROVER approves it; the
- * previously active version is retired in the same transaction. Approved versions are immutable (DB trigger),
- * and quotes keep the version they were priced with.
+ * defaults. Every change is a versioned DRAFT. Another person holding `<kind>.approve` approves it (FOUR_EYES);
+ * the author may approve alone only if they were given `<kind>.approve_own` (SELF, ADR-0007). The previously active
+ * version is retired in the same transaction. Approved versions are immutable (DB trigger), and quotes keep the
+ * version they were priced with. Authority comes from the person's active grants, never from the caller.
  */
 export class PolicyRepository {
   constructor(private readonly db: CoreDb) {}
@@ -64,9 +68,15 @@ export class PolicyRepository {
     await tx.insert(auditLogs).values({ entityType: `policy:${kind}`, entityId: `${id}@${version}`, action, actor: actor.id, detail });
   }
 
+  private async require(kind: PolicyKind, actor: StaffActor, action: 'edit' | 'approve'): Promise<Set<Permission>> {
+    const held = await activePermissions(this.db, actor.id);
+    if (!held.has(PERMISSION[kind][action])) throw forbidden(`Missing permission ${PERMISSION[kind][action]}`);
+    return held;
+  }
+
   /** Starts a new DRAFT version (optionally copying the active one so users only change what they need). */
   async createDraft(kind: PolicyKind, id: string, document: unknown, actor: StaffActor, changeNote: string | null = null): Promise<{ id: string; version: number }> {
-    if (!hasRole(actor, EDITORS)) throw forbidden('Only finance staff can edit policies');
+    await this.require(kind, actor, 'edit');
     if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(id)) throw new PolicyValidationError([{ path: 'id', message: 'lowercase letters, digits and dashes' }]);
     const doc = this.validate(kind, document);
     const table = TABLE[kind];
@@ -81,7 +91,7 @@ export class PolicyRepository {
   }
 
   async updateDraft(kind: PolicyKind, id: string, version: number, document: unknown, actor: StaffActor, changeNote: string | null = null): Promise<void> {
-    if (!hasRole(actor, EDITORS)) throw forbidden('Only finance staff can edit policies');
+    await this.require(kind, actor, 'edit');
     const doc = this.validate(kind, document);
     const table = TABLE[kind];
     await this.db.transaction(async (tx) => {
@@ -95,28 +105,37 @@ export class PolicyRepository {
     });
   }
 
-  /** Four-eyes approval; the previously active version is retired atomically. */
-  async approve(kind: PolicyKind, id: string, version: number, actor: StaffActor, note: string | null = null): Promise<void> {
-    if (!hasRole(actor, APPROVERS)) throw forbidden('Only a finance approver can approve policies');
+  /**
+   * Approves a DRAFT; the previously active version is retired atomically. Someone else's draft needs
+   * `<kind>.approve` (FOUR_EYES); the author's or last editor's own draft needs `<kind>.approve_own` (SELF).
+   */
+  async approve(kind: PolicyKind, id: string, version: number, actor: StaffActor, note: string | null = null): Promise<{ approvalMode: 'FOUR_EYES' | 'SELF' }> {
+    const held = await activePermissions(this.db, actor.id);
     const table = TABLE[kind];
-    await this.db.transaction(async (tx) => {
+    return this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`policy:${kind}:${id}`}))`);
       const [draft] = await tx.select().from(table).where(and(eq(table.id, id), eq(table.version, version)));
       if (!draft || draft.status !== 'DRAFT') throw new DomainError('VERSION_CONFLICT', 'Only a DRAFT version can be approved', { httpStatus: 409 });
-      if (draft.createdBy === actor.id || draft.updatedBy === actor.id) throw forbidden('The author or last editor cannot approve the same version');
+      const own = draft.createdBy === actor.id || draft.updatedBy === actor.id;
+      const needed = own ? PERMISSION[kind].approveOwn : PERMISSION[kind].approve;
+      if (!held.has(needed)) {
+        throw forbidden(own ? `The author or last editor needs ${needed} to approve alone; otherwise another approver must approve` : `Missing permission ${needed}`);
+      }
+      const approvalMode = own ? 'SELF' : 'FOUR_EYES';
       this.validate(kind, draft.document);
       await tx.update(table).set({ status: 'RETIRED' }).where(and(eq(table.id, id), eq(table.status, 'APPROVED')));
       await tx
         .update(table)
-        .set({ status: 'APPROVED', approvedBy: actor.id, approvedAt: sql`now()` as unknown as string })
+        .set({ status: 'APPROVED', approvedBy: actor.id, approvedAt: sql`now()` as unknown as string, approvalMode })
         .where(and(eq(table.id, id), eq(table.version, version)));
-      await this.audit(tx as unknown as CoreDb, kind, id, version, 'policy.approved', actor, { note });
+      await this.audit(tx as unknown as CoreDb, kind, id, version, 'policy.approved', actor, { note, approvalMode, permission: needed });
+      return { approvalMode };
     });
   }
 
   /** Stops using a policy. With no approved version, routes depending on it close (no fallback values). */
   async retire(kind: PolicyKind, id: string, version: number, actor: StaffActor, note: string | null = null): Promise<void> {
-    if (!hasRole(actor, APPROVERS)) throw forbidden('Only a finance approver can retire policies');
+    await this.require(kind, actor, 'approve');
     const table = TABLE[kind];
     await this.db.transaction(async (tx) => {
       const rows = await tx
