@@ -16,6 +16,8 @@
     "ioredis": "5.11.1"
   },
   "devDependencies": {
-    "tsx": "4.20.6"
+    "tsx": "4.20.6",
+    "drizzle-orm": "0.45.2",
+    "pg": "8.20.0"
   }
 }

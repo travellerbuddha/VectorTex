@@ -90,6 +90,8 @@ export interface PaymentState {
 }
 
 export interface TaskState {
+  /** Assigned by the store when persisted. */
+  id?: string;
   reason: OperationTaskReason;
   itemId: string | null;
   status: 'OPEN' | 'RESOLVED';
@@ -111,6 +113,8 @@ export interface AuditEntry {
 }
 
 export interface SupplierLoss {
+  /** Assigned by the store when persisted. */
+  id?: string;
   itemId: string;
   amount: Money;
   reason: string;
