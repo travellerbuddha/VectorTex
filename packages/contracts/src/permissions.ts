@@ -33,6 +33,22 @@ export const PERMISSIONS = {
     tr: 'Kendi hazırladığı risk politikasını tek başına onaylama (iki kişili onay aranmaz)',
     en: 'Approve own risk policy changes alone (no second approver)',
   },
+  'staff.manage': {
+    tr: 'Personel hesabı açma (davet), kapatma, şifre ve MFA sıfırlama',
+    en: 'Invite and disable staff accounts, reset their password and MFA',
+  },
+  'orders.view': {
+    tr: 'Siparişleri, misafir bilgilerini ve operasyon görevlerini görüntüleme',
+    en: 'View orders, guest details and operation tasks',
+  },
+  'orders.view_financials': {
+    tr: 'Siparişlerde tedarikçi maliyeti, komisyon ve marjı görüntüleme',
+    en: 'View supplier cost, commission and margin on orders',
+  },
+  'tasks.manage': {
+    tr: 'Operasyon görevlerini üstlenme ve gerekçeyle kapatma',
+    en: 'Take operation tasks and close them with a resolution',
+  },
 } as const satisfies Record<string, { tr: string; en: string }>;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -52,16 +68,16 @@ export type StaffRole = (typeof STAFF_ROLES)[number];
  * (content: P06, operations/refunds: P15).
  */
 export const ROLE_PRESETS: Readonly<Record<StaffRole, readonly Permission[]>> = {
-  OWNER_ADMIN: ['permissions.manage', 'pricing_policy.edit', 'risk_policy.edit'],
-  FINANCE: ['pricing_policy.edit', 'risk_policy.edit'],
-  FINANCE_APPROVER: ['pricing_policy.approve', 'risk_policy.approve'],
+  OWNER_ADMIN: ['permissions.manage', 'staff.manage', 'pricing_policy.edit', 'risk_policy.edit', 'orders.view', 'orders.view_financials', 'tasks.manage'],
+  FINANCE: ['pricing_policy.edit', 'risk_policy.edit', 'orders.view', 'orders.view_financials'],
+  FINANCE_APPROVER: ['pricing_policy.approve', 'risk_policy.approve', 'orders.view', 'orders.view_financials'],
   CONTENT_EDITOR: [],
-  OPERATIONS: [],
-  VIEWER: [],
+  OPERATIONS: ['orders.view', 'tasks.manage'],
+  VIEWER: ['orders.view'],
 };
 
 /**
- * An authenticated staff member (identity from the admin login, P05). Authority is never taken from the caller:
+ * An authenticated staff member (identity from the /yonetim sign-in with MFA, ADR-0010). Authority is never taken from the caller:
  * repositories read the person's active grants from core.staff_permission_grants.
  */
 export interface StaffActor {

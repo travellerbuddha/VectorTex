@@ -654,6 +654,81 @@ export const staffPermissionGrants = core.table(
   ],
 );
 
+// ------------------------------------------------------------------ staff identity (ADR-0010)
+
+/**
+ * Staff accounts of /yonetim. Separate from customers (§16). Passwords are scrypt hashes; the TOTP secret is sealed
+ * with AES-256-GCM (STAFF_MFA_KEY) and is never readable from the database alone. Authority comes only from
+ * core.staff_permission_grants (ADR-0007), whose staff_id is this table's id.
+ */
+export const staffUsers = core.table(
+  'staff_users',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: text('email').notNull(),
+    displayName: text('display_name').notNull(),
+    status: text('status', { enum: ['INVITED', 'ACTIVE', 'DISABLED'] }).notNull(),
+    passwordHash: text('password_hash'),
+    mfaSecret: text('mfa_secret'),
+    mfaEnrolledAt: ts('mfa_enrolled_at'),
+    /** Last accepted TOTP time step: a code is accepted once (replay protection). */
+    mfaLastStep: integer('mfa_last_step'),
+    failedAttempts: integer('failed_attempts').notNull().default(0),
+    lockedUntil: ts('locked_until'),
+    lastLoginAt: ts('last_login_at'),
+    createdBy: text('created_by').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('staff_users_email_uq').on(t.email),
+    check('staff_users_email_normalized', sql`email = lower(btrim(email)) AND position('@' in email) > 1`),
+    check('staff_users_active_has_password', sql`status <> 'ACTIVE' OR password_hash IS NOT NULL`),
+    check('staff_users_mfa_pair', sql`(mfa_secret IS NULL) = (mfa_enrolled_at IS NULL)`),
+  ],
+);
+
+/** Signed-in sessions. Only a SHA-256 of the cookie token is stored. `stage` is ACTIVE only after MFA. */
+export const staffSessions = core.table(
+  'staff_sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    staffId: uuid('staff_id')
+      .notNull()
+      .references(() => staffUsers.id),
+    tokenHash: text('token_hash').notNull(),
+    stage: text('stage', { enum: ['MFA_REQUIRED', 'MFA_ENROLL', 'ACTIVE'] }).notNull(),
+    /** TOTP secret offered during enrollment (sealed), until the first code confirms it. */
+    pendingMfaSecret: text('pending_mfa_secret'),
+    mfaFailures: integer('mfa_failures').notNull().default(0),
+    userAgent: text('user_agent'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    lastSeenAt: ts('last_seen_at').notNull().defaultNow(),
+    expiresAt: ts('expires_at').notNull(),
+    revokedAt: ts('revoked_at'),
+    revokeReason: text('revoke_reason'),
+  },
+  (t) => [uniqueIndex('staff_sessions_token_uq').on(t.tokenHash), index('staff_sessions_staff_idx').on(t.staffId)],
+);
+
+/** One-time links for the first password (invite) or a password reset; only a SHA-256 of the token is stored. */
+export const staffSetupTokens = core.table(
+  'staff_setup_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    staffId: uuid('staff_id')
+      .notNull()
+      .references(() => staffUsers.id),
+    tokenHash: text('token_hash').notNull(),
+    purpose: text('purpose', { enum: ['INVITE', 'PASSWORD_RESET'] }).notNull(),
+    expiresAt: ts('expires_at').notNull(),
+    usedAt: ts('used_at'),
+    createdBy: text('created_by').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('staff_setup_tokens_token_uq').on(t.tokenHash), index('staff_setup_tokens_staff_idx').on(t.staffId)],
+);
+
 export const fxRateSnapshots = core.table('fx_rate_snapshots', {
   id: uuid('id').primaryKey().defaultRandom(),
   base: ccy('base').notNull(),

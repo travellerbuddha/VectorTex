@@ -21,6 +21,8 @@ const RULES = {
   connectors: { allowWorkspace: ['contracts', 'pricing'], forbidden: [/^pg$/, /^drizzle-orm/] },
   // Application services compose the layers; no queue client and no payment gateway shortcuts here.
   booking: { allowWorkspace: ['contracts', 'domain', 'pricing', 'db', 'connectors'], forbidden: [/^bullmq/, /^ioredis/] },
+  // Staff panel services: no provider connectors, gateways or queues (commands go through the outbox, ADR-0004).
+  admin: { allowWorkspace: ['contracts', 'db', 'pricing'], forbidden: [/^bullmq/, /^ioredis/] },
 };
 const GLOBAL_FORBIDDEN = [/^iyzipay$/, /^liteapi-node-sdk$/];
 

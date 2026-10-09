@@ -50,6 +50,13 @@
       "when": 1791552490884,
       "tag": "0006_booking_flow",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791580112278,
+      "tag": "0007_staff_identity",
+      "breakpoints": true
     }
   ]
 }

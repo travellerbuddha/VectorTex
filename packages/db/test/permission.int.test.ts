@@ -41,7 +41,7 @@ describe('staff permissions', () => {
     expect(await repo.grantRole(finance.id, 'FINANCE', owner)).toEqual({ granted: [...ROLE_PRESETS.FINANCE] });
     expect(await repo.grant(finance.id, 'pricing_policy.approve_own', owner, 'owner decision')).toEqual({ granted: true });
     expect(await repo.grant(finance.id, 'pricing_policy.approve_own', owner)).toEqual({ granted: false }); // already active
-    expect(await repo.permissionsOf(finance.id)).toEqual(new Set(['pricing_policy.edit', 'risk_policy.edit', 'pricing_policy.approve_own']));
+    expect(await repo.permissionsOf(finance.id)).toEqual(new Set([...ROLE_PRESETS.FINANCE, 'pricing_policy.approve_own']));
     await expect(repo.grant('staff-other', 'pricing_policy.edit', finance)).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(
       await dbError(core.db.execute(sql`INSERT INTO core.staff_permission_grants (staff_id, permission, granted_by) VALUES ('staff-other', 'pricing_policy.edit', 'staff-finance-1')`)),
@@ -66,7 +66,9 @@ describe('staff permissions', () => {
     await repo.grant(finance.id, 'pricing_policy.approve_own', owner);
     expect((await repo.grants({ staffId: finance.id })).filter((g) => g.permission === 'pricing_policy.approve_own')).toHaveLength(2);
     const audit = await core.db.execute<{ action: string }>(sql`SELECT action FROM core.audit_logs WHERE entity_type = 'staff_permissions' AND entity_id = ${finance.id} ORDER BY id`);
-    expect(audit.rows.map((r) => r.action)).toEqual(['permission.granted', 'permission.granted', 'permission.granted', 'permission.revoked', 'permission.granted']);
+    // One grant per preset permission, the explicit self-approval grant, its revoke and the re-grant.
+    const grantsBefore = ROLE_PRESETS.FINANCE.length + 1;
+    expect(audit.rows.map((r) => r.action)).toEqual([...Array(grantsBefore).fill('permission.granted'), 'permission.revoked', 'permission.granted']);
   });
 
   it('the last permissions manager cannot be revoked (no lock-out); with two managers one may leave', async () => {

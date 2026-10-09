@@ -1,0 +1,22 @@
+{
+  "name": "@texholiday/admin",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Staff panel services (/yonetim): staff sign-in with MFA, staff accounts, permissions, policies, orders and tasks.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@texholiday/contracts": "workspace:*",
+    "@texholiday/db": "workspace:*",
+    "@texholiday/pricing": "workspace:*",
+    "drizzle-orm": "0.45.2"
+  },
+  "scripts": {
+    "staff:bootstrap": "tsx src/bootstrap-owner.ts"
+  },
+  "devDependencies": {
+    "tsx": "4.20.6"
+  }
+}

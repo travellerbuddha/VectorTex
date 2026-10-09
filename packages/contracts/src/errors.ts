@@ -13,7 +13,11 @@ export type ApiErrorCode =
   | 'CONTRACT_NOT_PINNED'
   | 'POLICY_NOT_APPROVED'
   /** The provider did not answer usably; nothing changed, the request can be retried. */
-  | 'PROVIDER_UNAVAILABLE';
+  | 'PROVIDER_UNAVAILABLE'
+  /** Staff sign-in missing, expired or not completed (MFA); never says which part was wrong (ADR-0010). */
+  | 'UNAUTHENTICATED'
+  /** Too many attempts from this client; retry later. */
+  | 'RATE_LIMITED';
 
 export class DomainError extends Error {
   readonly code: ApiErrorCode;

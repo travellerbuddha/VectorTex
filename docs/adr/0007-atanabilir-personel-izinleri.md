@@ -37,7 +37,7 @@ Fiyat ve risk politikaları yalnız `FINANCE_APPROVER` rolüyle ve iki kişili o
    - `approve_own` kimseye verilmezse iki kişili onay aynen sürer.
    - Mod, onaylanan sürüme ve denetim kaydına yazılır.
    - İzin geri alındığı anda geçersiz olur.
-4. **Yetki çağırandan alınmaz.** `StaffActor` yalnız kimlik taşır (giriş P05'te). Repository'ler kişinin aktif izinlerini `core.staff_permission_grants` tablosundan okur.
+4. **Yetki çağırandan alınmaz.** `StaffActor` yalnız kimlik taşır (giriş: ADR-0010, `core.staff_users`). Repository'ler kişinin aktif izinlerini `core.staff_permission_grants` tablosundan okur.
 5. **Veritabanı aynı kuralları uygular** (uygulama atlansa bile):
    - İzin verme ve geri alma yalnız `permissions.manage` sahibi tarafından yapılabilir.
    - İzin kayıtları silinmez; geri alma bir kez, kimin ve ne zaman yaptığıyla kaydedilir.
