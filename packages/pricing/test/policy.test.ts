@@ -253,6 +253,14 @@ describe('G06 editable fees and FX policy', () => {
     if (!bad.success) expect(bad.error.issues.map((i) => i.path.join('.'))).toEqual(expect.arrayContaining(['rules.0.basisPoints', 'serviceFees.0.amounts.XXX']));
   });
 
+  it('ADR-0009: below-SSP provider-managed offers stay hidden unless the policy explicitly shows them', () => {
+    const base = { rounding: 'HALF_EVEN', rules: [], serviceFees: [], fx: null, allowBelowSspInOpaquePackage: false };
+    const absent = pricingPolicyDocumentSchema.parse(base);
+    expect(absent.allowBelowSspProviderManaged).toBe(false); // policies stored before ADR-0009 keep hiding
+    expect(pricingPolicyDocumentSchema.parse({ ...base, allowBelowSspProviderManaged: true }).allowBelowSspProviderManaged).toBe(true);
+    expect(pricingPolicyDocumentSchema.safeParse({ ...base, allowBelowSspProviderManaged: 'yes' }).success).toBe(false);
+  });
+
   it('ADR-0006: an own-gateway API margin is accepted only for products whose provider documents a margin field', () => {
     const doc = (productType: 'HOTEL' | 'FLIGHT' | 'EXPERIENCE' | 'TRANSFER') =>
       pricingPolicyDocumentSchema.safeParse({

@@ -48,6 +48,11 @@ export interface PricingPolicyVersion {
   fx: FxPolicy | null;
   /** Whether opaque packages may undercut a supplier's suggested selling price. Defaults to false. */
   allowBelowSspInOpaquePackage: boolean;
+  /**
+   * ADR-0009: whether public provider-managed offers below the suggested selling price are shown (true) or hidden
+   * (false/absent). Own-gateway prices are still raised to the SSP (`applySspFloor`).
+   */
+  allowBelowSspProviderManaged?: boolean;
 }
 
 /** A fee line shown to the customer. Fees exist only where we collect the money (OWN_GATEWAY). */

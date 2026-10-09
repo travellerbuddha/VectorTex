@@ -26,7 +26,7 @@
 - **Kesin red:** Sipariş iptal edilir ve bir operasyon görevi açılır (`PROVIDER_PAYMENT_HOLD`). Müşteriye, kartındaki provizyonun Nuitee tarafından 1–2 iş günü içinde kaldırılacağı söylenir.
 - **Fiyat değişirse:** Ön rezervasyonda fiyat veya koşul değişmişse ödeme oturumu hiç açılmaz; yeni teklif ve yeni kabul gerekir (K15).
 - **Fiyatlandırma:** Nuitee fiyatı + onaylı politika marjı (API marjı).
-  - Kamuya açık fiyat SSP'nin altındaysa teklif gösterilmez, çünkü Nuitee tahsil ettiği için fiyatı yerelde yükseltemeyiz.
+  - Kamuya açık fiyat SSP'nin altındaysa teklif varsayılan olarak gösterilmez, çünkü Nuitee tahsil ettiği için fiyatı yerelde yükseltemeyiz. İşletme kararıyla onaylı politika bu teklifleri gösterebilir (ADR-0009, `allowBelowSspProviderManaged`). Her iki durumda da SSP karşılaştırması teklifte kaydedilir.
   - Sandbox'ta SSP yapay ve her marjda fiyatın üstünde. Sitenin sandbox'ta denenebilmesi için `SANDBOX_SKIP_RATE_PARITY=true` var; yalnız `PROVIDER_ENV=sandbox` iken kabul edilir.
   - Nuitee ödemesi (`NUITEE_PAY`) olmayan teklifler gösterilmez.
 

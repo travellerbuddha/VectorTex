@@ -39,6 +39,11 @@ export const pricingPolicyDocumentSchema = z
     serviceFees: z.array(feeRule).max(32),
     fx: z.object({ source: z.string().trim().min(1).max(120), maxRateAgeSeconds: z.number().int().min(60).max(7 * 86_400), rounding: roundingMode }).nullable(),
     allowBelowSspInOpaquePackage: z.boolean(),
+    /**
+     * ADR-0009: show public offers below the hotel's suggested selling price when the provider collects the payment
+     * (we cannot raise the price there). A business decision with rate-violation risk; absent = false (hidden).
+     */
+    allowBelowSspProviderManaged: z.boolean().default(false),
   })
   .superRefine((doc, ctx) => {
     const seen = new Set<string>();

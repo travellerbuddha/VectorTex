@@ -52,6 +52,8 @@ interface StoredOffer {
   cancellation: { timezone: string; refundable: boolean; steps: Array<{ from: string; penalty: MoneyJson }>; providerText: string | null };
   occupancyNumbers: number[];
   room: { name: string | null; boardType: string | null; boardName: string | null };
+  /** Rate parity record (ADR-0009): the hotel's suggested selling price and whether our price is below it. */
+  rateParity: { suggestedSellingPrice: MoneyJson | null; belowSuggestedPrice: boolean };
 }
 
 interface StoredResults {
@@ -246,10 +248,12 @@ export class BookingApp {
       hidden.notPriced += 1;
       return null;
     }
-    // Public prices may not undercut the hotel's suggested selling price (rate parity); with the provider collecting
-    // the payment we cannot raise the price locally, so such offers are not shown publicly.
+    // Rate parity: with the provider collecting the payment we cannot raise the price to the hotel's suggested
+    // selling price. Below-SSP offers are hidden unless the approved policy says to show them (ADR-0009); either
+    // way the comparison is recorded on the offer and, once selected, on the quote.
     const ssp = offer.suggestedSellingPrice;
-    if (this.deps.settings.enforceRateParity && ssp && (ssp.currency !== sell.currency || sell.minor < ssp.minor)) {
+    const belowSuggestedPrice = ssp !== null && (ssp.currency !== sell.currency || sell.minor < ssp.minor);
+    if (belowSuggestedPrice && this.deps.settings.enforceRateParity && policy.allowBelowSspProviderManaged !== true) {
       hidden.belowSuggestedPrice += 1;
       return null;
     }
@@ -263,6 +267,7 @@ export class BookingApp {
       cancellation: { ...offer.cancellation, steps: offer.cancellation.steps.map((s) => ({ from: s.from, penalty: toJson(s.penalty) })) },
       occupancyNumbers: [...offer.occupancyNumbers],
       room: offer.room,
+      rateParity: { suggestedSellingPrice: ssp ? toJson(ssp) : null, belowSuggestedPrice },
     };
   }
 
@@ -363,6 +368,8 @@ export class BookingApp {
       rooms: c.occupancies.filter((o) => offer.occupancyNumbers.includes(o.occupancyNumber)),
       occupancyNumbers: offer.occupancyNumbers,
       capabilityId: session.results.capabilityId,
+      // Older search sessions (before ADR-0009) carry no parity record.
+      rateParity: offer.rateParity ?? null,
     };
     const travelers = option.rooms.flatMap((r) => [
       ...Array.from({ length: r.adults }, (_, i) => ({ travelerId: `r${r.occupancyNumber}a${i + 1}`, type: 'ADULT' as const, age: null })),

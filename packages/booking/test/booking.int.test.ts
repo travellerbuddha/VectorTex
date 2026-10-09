@@ -36,12 +36,12 @@ const owner: StaffActor = { kind: 'STAFF', id: 'owner' };
 const finance: StaffActor = { kind: 'STAFF', id: 'finance' };
 const approver: StaffActor = { kind: 'STAFF', id: 'approver' };
 
-async function approvePricing(bp: number) {
+async function approvePricing(bp: number, extra: Record<string, unknown> = {}) {
   const policies = new PolicyRepository(core.db);
   const v = await policies.createDraft(
     'PRICING',
     'b2c',
-    { rounding: 'HALF_EVEN', rules: [{ productType: 'HOTEL', paymentMode: 'PROVIDER_MANAGED', application: 'PROVIDER_API', kind: 'PERCENT_OF_NET', basisPoints: bp }], serviceFees: [], fx: null, allowBelowSspInOpaquePackage: false },
+    { rounding: 'HALF_EVEN', rules: [{ productType: 'HOTEL', paymentMode: 'PROVIDER_MANAGED', application: 'PROVIDER_API', kind: 'PERCENT_OF_NET', basisPoints: bp }], serviceFees: [], fx: null, allowBelowSspInOpaquePackage: false, ...extra },
     finance,
   );
   await policies.approve('PRICING', 'b2c', v.version, approver);
@@ -180,5 +180,21 @@ describe('hotel booking application flow (provider-managed payment, ADR-0008)', 
     await approvePricing(1200);
     await expect(app.selectOffer(r.sessionId, r.hotels[0]!.offers[0]!.key)).rejects.toMatchObject({ code: 'QUOTE_CHANGED' });
     await expect(app.selectOffer(r.sessionId, '999')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('ADR-0009: an approved policy may show below-SSP offers; the quote records the suggested price and the gap', async () => {
+    await approvePricing(1000, { allowBelowSspProviderManaged: true });
+    const r = await app.searchHotels(searchInput());
+    expect(r.hidden.belowSuggestedPrice).toBe(0);
+    const h2 = r.hotels.find((h) => h.hotelId === 'MOCK-H2')!;
+    const suite = h2.offers.find((o) => o.roomName === 'MOCK Suite')!;
+    expect(suite).toBeDefined();
+    const quote = await app.selectOffer(r.sessionId, suite.key);
+    const rows = await core.db.execute<{ parity: { suggestedSellingPrice: { currency: string; minor: string }; belowSuggestedPrice: boolean } }>(
+      sql`SELECT option->'rateParity' AS parity FROM core.quote_versions WHERE id = ${quote.quoteVersionId}`,
+    );
+    // MOCK Suite: 200.00 EUR net/night x 3 + 10% = 660.00 EUR sold; suggested 200.00 x 3 x 1.9 = 1140.00 EUR.
+    expect(rows.rows[0]!.parity).toEqual({ suggestedSellingPrice: { currency: 'EUR', minor: '114000' }, belowSuggestedPrice: true });
+    expect(quote.total).toEqual({ currency: 'EUR', minor: '66000' });
   });
 });
