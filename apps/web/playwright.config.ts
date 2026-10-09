@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
-import { E2E_STAFF_MFA_KEY } from './e2e/keys';
+import { E2E_PAYLOAD_SECRET, E2E_STAFF_MFA_KEY } from './e2e/keys';
 
 /**
  * End-to-end tests of the customer hotel flow in the MOCK environment (MockHotelConnector, no provider involved).
@@ -37,7 +37,9 @@ export default defineConfig({
       APP_ENV: 'development',
       PROVIDER_ENV: 'mock',
       ALLOW_MOCK_ADAPTERS: 'true',
-      PAYLOAD_ENABLED: 'false',
+      PAYLOAD_ENABLED: 'true',
+      PAYLOAD_SECRET: E2E_PAYLOAD_SECRET,
+      CMS_MEDIA_DIR: join(tmpdir(), 'texholiday-e2e-media'),
       DATABASE_URL: process.env.TEST_DATABASE_URL ?? '',
       REDIS_URL: process.env.TEST_REDIS_URL ?? 'redis://127.0.0.1:6379/15',
       ORDER_ACCESS_SECRET: 'e2e-only-secret-0123456789abcdef-xyz',

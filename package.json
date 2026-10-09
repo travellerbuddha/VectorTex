@@ -25,7 +25,8 @@
     "web:dev": "pnpm --filter @texholiday/web dev",
     "web:e2e": "pnpm --filter @texholiday/web build && pnpm --filter @texholiday/web e2e",
     "staff:bootstrap": "pnpm --filter @texholiday/admin staff:bootstrap",
-    "web:e2e:sandbox": "pnpm --filter @texholiday/web build && pnpm --filter @texholiday/web e2e:sandbox"
+    "web:e2e:sandbox": "pnpm --filter @texholiday/web build && pnpm --filter @texholiday/web e2e:sandbox",
+    "cms:migrate": "pnpm --filter @texholiday/web cms:migrate"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

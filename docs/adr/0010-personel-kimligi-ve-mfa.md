@@ -73,5 +73,6 @@
   - Girişte doğrulama kodu yerine kurtarma kodu kullanılabilir. Her kod bir kez çalışır. Yanlış kod, yanlış doğrulama kodu gibi kilit sayacına eklenir.
   - Yeni kodlar oluşturulunca kullanılmamış eskiler geçersiz olur. Yönetici MFA'yı sıfırlarsa kullanılmamış kodlar da silinir.
   - Kodu olmayan ya da 2 veya daha az kodu kalan kişiye ana sayfada uyarı gösterilir.
+- **İçerik yönetimi (P06):** Payload CMS (`/yonetim/icerik`) ayrı bir şifre kullanmaz. CMS'e girmek için aynı aktif panel oturumu (şifre + MFA) ve `content.edit` / `content.publish` izinlerinden biri gerekir. İzinler her istekte yeniden okunur; bir izin geri alınınca CMS erişimi hemen biter (ADR-0003).
 - **WebAuthn/passkey (değerlendirme):** Ertelendi. Passkey'ler alan adına (RP ID) bağlanır: canlı alan adı kesinleşmeden kayıt alınırsa alan adı değişince herkes yeniden kayıt olmak zorunda kalır. Ayrıca sunucu kütüphanesi sürüm politikasına (ADR-0001) göre seçilmelidir. Telefon kaybı durumunu şimdilik kurtarma kodları karşılıyor. Canlı alan adı netleşince passkey, doğrulama uygulamasına ek ikinci adım olarak eklenecek.
 - Kanıt: RFC 4226 ve RFC 6238 test vektörleri (`packages/admin/test/crypto.test.ts`); PostgreSQL senaryoları (`staff-auth.int.test.ts`): davet, kurulum, MFA, tekrar kullanılan kod, kilitlenme, oturum süresi, MFA sıfırlama, kapatma kuralları ve denetim kaydında gizli bilgi olmaması.

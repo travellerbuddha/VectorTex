@@ -71,6 +71,13 @@
       "when": 1791585625796,
       "tag": "0009_staff_recovery_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791586706631,
+      "tag": "0010_content_permissions",
+      "breakpoints": true
     }
   ]
 }

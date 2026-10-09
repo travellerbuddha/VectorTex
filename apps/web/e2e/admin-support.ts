@@ -14,7 +14,9 @@ export const statusIn = (page: Page) => page.locator('#admin-main').getByRole('s
  * Signs in one of the e2e panel accounts (admin, finance, approver; see global setup). A TOTP code works once per
  * account and only one step ahead is accepted, so a second sign-in of the same account within a step waits for it.
  */
-export async function signIn(page: Page, key: 'admin' | 'finance' | 'approver'): Promise<void> {
+export type E2eAccount = 'admin' | 'finance' | 'approver' | 'editor';
+
+export async function signIn(page: Page, key: E2eAccount): Promise<void> {
   await page.goto('/yonetim/giris');
   await page.getByLabel('E-posta').fill(`${key}@e2e.test`);
   await page.getByLabel('Şifre').fill(E2E_ADMIN_PASSWORD);
@@ -30,7 +32,7 @@ export async function signIn(page: Page, key: 'admin' | 'finance' | 'approver'):
  * accepted, so a second code within a step waits for the next one. The last step is kept in a file (global setup):
  * Playwright restarts the worker after a failed test, losing process state.
  */
-export async function nextCode(page: Page, key: 'admin' | 'finance' | 'approver'): Promise<string> {
+export async function nextCode(page: Page, key: E2eAccount): Promise<string> {
   const secret = process.env[`E2E_SECRET_${key}`]!;
   const file = process.env.E2E_STEP_FILE!;
   const read = () => JSON.parse(readFileSync(file, 'utf8')) as Record<string, number>;

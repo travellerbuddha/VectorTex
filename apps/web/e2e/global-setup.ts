@@ -1,10 +1,11 @@
+import { execFileSync } from 'node:child_process';
 import { rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import pg from 'pg';
 import { adminSettingsFromEnv, base32Decode, hotp, StaffAuthService, totpStep } from '@texholiday/admin';
 import { createCoreDatabase, migrateCore, PermissionRepository, PolicyRepository } from '@texholiday/db';
-import { E2E_ADMIN_PASSWORD, E2E_STAFF_MFA_KEY } from './keys';
+import { E2E_ADMIN_PASSWORD, E2E_PAYLOAD_SECRET, E2E_STAFF_MFA_KEY } from './keys';
 
 /**
  * Fresh core schema + an approved TEST pricing policy (10% provider API margin) + /yonetim accounts. These are test
@@ -18,8 +19,15 @@ export default async function globalSetup() {
   const admin = new pg.Client({ connectionString: url });
   await admin.connect();
   await admin.query('DROP SCHEMA IF EXISTS core CASCADE');
+  await admin.query('DROP SCHEMA IF EXISTS cms CASCADE');
   await admin.end();
   await migrateCore(url);
+  // The CMS schema comes from its committed migrations, as in production (pnpm cms:migrate).
+  execFileSync('npx', ['payload', 'migrate'], {
+    cwd: new URL('..', import.meta.url).pathname,
+    env: { ...process.env, DATABASE_URL: url, PAYLOAD_SECRET: E2E_PAYLOAD_SECRET, PAYLOAD_CONFIG_PATH: 'src/payload.config.ts', APP_ENV: 'test' },
+    stdio: 'pipe',
+  });
   if (process.env.E2E_MAIL_DIR) rmSync(process.env.E2E_MAIL_DIR, { recursive: true, force: true });
   // Last TOTP step used per account, shared across worker restarts (a code is accepted once per account).
   process.env.E2E_STEP_FILE = join(tmpdir(), `texholiday-e2e-steps-${process.pid}.json`);
@@ -33,17 +41,20 @@ export default async function globalSetup() {
     process.env['E2E_SETUP_TOKEN_mobile-320'] = (await auth.invite(owner, { email: 'mobile@e2e.test', displayName: 'E2E Mobile' })).token;
     const perms = new PermissionRepository(db);
     // Fully set-up panel accounts (password + enrolled authenticator) for the admin tests; secrets via env.
-    const account = async (key: string, email: string, displayName: string, role: 'OWNER_ADMIN' | 'FINANCE' | 'FINANCE_APPROVER') => {
+    const account = async (key: string, email: string, displayName: string, role: 'OWNER_ADMIN' | 'FINANCE' | 'FINANCE_APPROVER' | null) => {
       const inv = await auth.invite(owner, { email, displayName });
       const setup = await auth.completeSetup(inv.token, E2E_ADMIN_PASSWORD);
       const { secret } = await auth.beginEnrollment(setup.token);
       await auth.completeEnrollment(setup.token, hotp(base32Decode(secret), totpStep(new Date())));
-      await perms.grantRole(inv.staffId, role, owner);
+      if (role) await perms.grantRole(inv.staffId, role, owner);
       process.env[`E2E_SECRET_${key}`] = secret;
+      return inv.staffId;
     };
     await account('admin', 'admin@e2e.test', 'E2E Admin', 'OWNER_ADMIN');
     await account('finance', 'finance@e2e.test', 'E2E Finans', 'FINANCE');
     await account('approver', 'approver@e2e.test', 'E2E Onaycı', 'FINANCE_APPROVER');
+    // Content editor without the right to publish (P06).
+    await perms.grant(await account('editor', 'editor@e2e.test', 'E2E Editör', null), 'content.edit', owner);
     await perms.grantRole('e2e-finance', 'FINANCE', owner);
     await perms.grantRole('e2e-approver', 'FINANCE_APPROVER', owner);
     const policies = new PolicyRepository(db);

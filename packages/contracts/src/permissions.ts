@@ -57,6 +57,14 @@ export const PERMISSIONS = {
     tr: 'Sağlayıcının müşteriye yaptığı iadeyi doğruladıktan sonra siparişe kaydetme',
     en: 'Record a refund the provider made to the customer, after verifying it',
   },
+  'content.edit': {
+    tr: 'Site içeriği (sayfa, destinasyon, yazı, SSS, kampanya, menü, görsel) taslağı oluşturma ve düzenleme',
+    en: 'Create and edit site content drafts (pages, destinations, posts, FAQs, campaigns, menus, images)',
+  },
+  'content.publish': {
+    tr: 'Site içeriğini yayınlama, yayından kaldırma ve silme',
+    en: 'Publish, unpublish and delete site content',
+  },
 } as const satisfies Record<string, { tr: string; en: string }>;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -72,8 +80,7 @@ export type StaffRole = (typeof STAFF_ROLES)[number];
 
 /**
  * Role presets: the permissions a role assignment grants. Self-approval (`*.approve_own`) is never part of a preset;
- * it is granted to a person explicitly. Roles without permissions here get theirs with the features they cover
- * (content: P06, operations/refunds: P15).
+ * it is granted to a person explicitly.
  */
 export const ROLE_PRESETS: Readonly<Record<StaffRole, readonly Permission[]>> = {
   OWNER_ADMIN: [
@@ -86,10 +93,12 @@ export const ROLE_PRESETS: Readonly<Record<StaffRole, readonly Permission[]>> = 
     'tasks.manage',
     'orders.cancel',
     'orders.record_refund',
+    'content.edit',
+    'content.publish',
   ],
   FINANCE: ['pricing_policy.edit', 'risk_policy.edit', 'orders.view', 'orders.view_financials', 'orders.record_refund'],
   FINANCE_APPROVER: ['pricing_policy.approve', 'risk_policy.approve', 'orders.view', 'orders.view_financials'],
-  CONTENT_EDITOR: [],
+  CONTENT_EDITOR: ['content.edit', 'content.publish'],
   OPERATIONS: ['orders.view', 'tasks.manage', 'orders.cancel'],
   VIEWER: ['orders.view'],
 };

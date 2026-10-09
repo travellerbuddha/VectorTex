@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { withPayload } from '@payloadcms/next/withPayload';
 
 /**
  * Content Security Policy. The Nuitee payment component (payment-wrapper.liteapi.travel) renders a Stripe-based
@@ -19,7 +20,7 @@ const csp = [
 
 const config: NextConfig = {
   // Workspace packages ship TypeScript sources.
-  transpilePackages: ['@texholiday/booking', '@texholiday/config', '@texholiday/connectors', '@texholiday/contracts', '@texholiday/db', '@texholiday/domain', '@texholiday/pricing'],
+  transpilePackages: ['@texholiday/admin', '@texholiday/booking', '@texholiday/config', '@texholiday/connectors', '@texholiday/contracts', '@texholiday/db', '@texholiday/domain', '@texholiday/pricing'],
   serverExternalPackages: ['pg'],
   poweredByHeader: false,
   async redirects() {
@@ -40,4 +41,5 @@ const config: NextConfig = {
   },
 };
 
-export default config;
+// Payload CMS (P06): admin at /yonetim/icerik, REST API at /api/cms.
+export default withPayload(config);
