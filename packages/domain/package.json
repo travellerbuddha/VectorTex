@@ -1,0 +1,14 @@
+{
+  "name": "@texholiday/domain",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "State machines, payment routing, quote rules and the package orchestrator. No provider or DB imports.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@texholiday/contracts": "workspace:*",
+    "@texholiday/pricing": "workspace:*"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "@texholiday/payments",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Owned payment gateway adapters (iyzico first) and the gateway registry.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@texholiday/contracts": "workspace:*",
+    "@texholiday/pricing": "workspace:*",
+    "zod": "4.6.5"
+  }
+}

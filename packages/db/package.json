@@ -1,0 +1,26 @@
+{
+  "name": "@texholiday/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Drizzle core schema, migrations, repositories, outbox/inbox, idempotency.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@texholiday/contracts": "workspace:*",
+    "@texholiday/domain": "workspace:*",
+    "@texholiday/pricing": "workspace:*",
+    "drizzle-orm": "0.45.2",
+    "pg": "8.20.0"
+  },
+  "scripts": {
+    "generate": "drizzle-kit generate --config drizzle.config.ts",
+    "migrate": "tsx src/migrate.ts"
+  },
+  "devDependencies": {
+    "drizzle-kit": "0.31.7",
+    "@types/pg": "8.20.0",
+    "tsx": "4.20.6"
+  }
+}

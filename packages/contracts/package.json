@@ -1,0 +1,14 @@
+{
+  "name": "@texholiday/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared types, capability matrix, source lock and port interfaces (connectors, gateways, settlement).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@texholiday/pricing": "workspace:*",
+    "zod": "4.6.5"
+  }
+}

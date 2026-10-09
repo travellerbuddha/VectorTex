@@ -1,0 +1,15 @@
+{
+  "name": "@texholiday/connectors",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Product-specific supplier connectors (Nuitee hotel/flight/experiences, Welcome Pickups transfer).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@texholiday/contracts": "workspace:*",
+    "@texholiday/pricing": "workspace:*",
+    "zod": "4.6.5"
+  }
+}

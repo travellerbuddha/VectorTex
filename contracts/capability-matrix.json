@@ -1,0 +1,521 @@
+{
+  "schemaVersion": 1,
+  "asOf": "2026-10-09",
+  "verificationBoundary": "Derived from docs/spec/SAGLAYICI_ODEME_YETENEK_MATRISI.json (planning baseline, public documentation reviewed 2026-10-08/09 by the business). No account action, sandbox or production test has been run from this repository. Provider documentation hosts were unreachable from the build environment on 2026-10-09 (see docs/r0/R0-kanit-raporu.md).",
+  "supplierCapabilities": [
+    {
+      "id": "nuitee.hotel.provider_managed",
+      "providerId": "nuitee",
+      "productType": "HOTEL",
+      "kind": "PROVIDER_MANAGED_CUSTOMER_PAYMENT",
+      "fundingMethods": [
+        "PROVIDER_MANAGED"
+      ],
+      "documentationStatus": "DOCUMENTED",
+      "accountStatus": "UNVERIFIED",
+      "sandboxStatus": "NOT_RUN",
+      "productionStatus": "NOT_RUN",
+      "enabledForProduction": false,
+      "chargeCurrencies": {
+        "EUR": "UNVERIFIED",
+        "USD": "UNVERIFIED",
+        "GBP": "UNVERIFIED"
+      },
+      "supportsApiMargin": true,
+      "requiredSources": [
+        "nuitee-guide-user-payment",
+        "nuitee-openapi-booking",
+        "nuitee-openapi-search"
+      ],
+      "activationConditions": [
+        "Account and currency support verified",
+        "Prebook and transaction linkage persisted"
+      ],
+      "blocksGate": "G01",
+      "forbiddenWorkarounds": [],
+      "evidence": [
+        {
+          "source": "https://docs.liteapi.travel/docs/user-payment",
+          "verifiedAt": "2026-10-08",
+          "environment": "documentation",
+          "reference": "baseline-matrix-v1.0",
+          "summary": "Business research: usePaymentSdk prebook returns secretKey + transactionId for the payment SDK."
+        }
+      ]
+    },
+    {
+      "id": "nuitee.hotel.own_gateway.account_card",
+      "providerId": "nuitee",
+      "productType": "HOTEL",
+      "kind": "OWN_GATEWAY_WITH_ACCOUNT_CARD",
+      "fundingMethods": [
+        "ACCOUNT_CARD"
+      ],
+      "documentationStatus": "DOCUMENTED",
+      "accountStatus": "UNVERIFIED",
+      "sandboxStatus": "NOT_RUN",
+      "productionStatus": "NOT_RUN",
+      "enabledForProduction": false,
+      "chargeCurrencies": {
+        "TRY": "UNVERIFIED",
+        "EUR": "UNVERIFIED",
+        "USD": "UNVERIFIED",
+        "GBP": "UNVERIFIED"
+      },
+      "supportsApiMargin": false,
+      "requiredSources": [
+        "nuitee-guide-account-credit-card",
+        "nuitee-openapi-booking",
+        "nuitee-openapi-search"
+      ],
+      "activationConditions": [
+        "Production account card configured",
+        "Book using documented ACC_CREDIT_CARD",
+        "Customer gateway independent of supplier payment"
+      ],
+      "blocksGate": "G01",
+      "forbiddenWorkarounds": [],
+      "evidence": [
+        {
+          "source": "https://docs.liteapi.travel/docs/account-credit-card",
+          "verifiedAt": "2026-10-09",
+          "environment": "documentation",
+          "reference": "baseline-matrix-v1.0",
+          "summary": "Business research: book with ACC_CREDIT_CARD; enterprise credit line not required."
+        }
+      ]
+    },
+    {
+      "id": "nuitee.hotel.own_gateway.credit_line",
+      "providerId": "nuitee",
+      "productType": "HOTEL",
+      "kind": "OWN_GATEWAY_WITH_CREDIT_LINE",
+      "fundingMethods": [
+        "CREDIT_LINE"
+      ],
+      "documentationStatus": "DOCUMENTED",
+      "accountStatus": "UNVERIFIED",
+      "sandboxStatus": "NOT_SUPPORTED",
+      "productionStatus": "NOT_RUN",
+      "enabledForProduction": false,
+      "chargeCurrencies": {
+        "TRY": "UNVERIFIED",
+        "EUR": "UNVERIFIED",
+        "USD": "UNVERIFIED",
+        "GBP": "UNVERIFIED"
+      },
+      "supportsApiMargin": false,
+      "requiredSources": [
+        "nuitee-guide-credit-line",
+        "nuitee-openapi-booking",
+        "nuitee-openapi-search"
+      ],
+      "activationConditions": [
+        "Signed and enabled credit-line contract",
+        "Approved controlled production pilot"
+      ],
+      "blocksGate": "G01",
+      "forbiddenWorkarounds": [
+        "Real CREDIT booking outside an approved production pilot"
+      ],
+      "evidence": [
+        {
+          "source": "https://docs.liteapi.travel/docs/credit-line",
+          "verifiedAt": "2026-10-09",
+          "environment": "documentation",
+          "reference": "baseline-matrix-v1.0",
+          "summary": "Business research: CREDIT method not supported in sandbox."
+        }
+      ]
+    },
+    {
+      "id": "nuitee.flight.provider_managed",
+      "providerId": "nuitee",
+      "productType": "FLIGHT",
+      "kind": "PROVIDER_MANAGED_CUSTOMER_PAYMENT",
+      "fundingMethods": [
+        "PROVIDER_MANAGED"
+      ],
+      "documentationStatus": "DOCUMENTED",
+      "accountStatus": "UNVERIFIED",
+      "sandboxStatus": "NOT_RUN",
+      "productionStatus": "NOT_RUN",
+      "enabledForProduction": false,
+      "chargeCurrencies": {
+        "EUR": "UNVERIFIED",
+        "USD": "UNVERIFIED",
+        "GBP": "UNVERIFIED"
+      },
+      "supportsApiMargin": false,
+      "requiredSources": [
+        "nuitee-openapi-flights"
+      ],
+      "activationConditions": [
+        "Flight production access",
+        "Correct prebook and latest payment references"
+      ],
+      "blocksGate": "G02",
+      "forbiddenWorkarounds": [],
+      "evidence": [
+        {
+          "source": "https://docs.liteapi.travel/openapi/openapiflights.json",
+          "verifiedAt": "2026-10-09",
+          "environment": "documentation",
+          "reference": "baseline-matrix-v1.0",
+          "summary": "Business research: flights prebook/bookings with provider payment."
+        }
+      ]
+    },
+    {
+      "id": "nuitee.flight.own_gateway.independent_funding",
+      "providerId": "nuitee",
+      "productType": "FLIGHT",
+      "kind": "OWN_GATEWAY_INDEPENDENT_FUNDING",
+      "fundingMethods": [],
+      "documentationStatus": "DOCUMENTED",
+      "accountStatus": "UNVERIFIED",
+      "sandboxStatus": "NOT_RUN",
+      "productionStatus": "NOT_RUN",
+      "enabledForProduction": false,
+      "chargeCurrencies": {
+        "TRY": "UNVERIFIED",
+        "EUR": "UNVERIFIED",
+        "USD": "UNVERIFIED",
+        "GBP": "UNVERIFIED"
+      },
+      "supportsApiMargin": false,
+      "requiredSources": [
+        "nuitee-ref-flight-prebooks",
+        "nuitee-openapi-flights"
+      ],
+      "activationConditions": [
+        "Payment bypass and actual prebook eligibility verified",
+        "Allowed funding method works for both prebook and booking",
+        "Do not infer eligibility solely from booking enums",
+        "Do not treat WL/CMI THIRD_PARTY token as a generic external-gateway receipt"
+      ],
+      "blocksGate": "G02",
+      "forbiddenWorkarounds": [
+        "THIRD_PARTY JWT as generic gateway receipt"
+      ],
+      "evidence": [
+        {
+          "source": "https://docs.liteapi.travel/reference/post_flights-prebooks",
+          "verifiedAt": "2026-10-09",
+          "environment": "documentation",
+          "reference": "baseline-matrix-v1.0",
+          "summary": "Business research: booking enums list several methods; prebook guide sets bypass/credit conditions. Funding method not yet proven."
+        }
+      ]
+    },
+    {
+      "id": "nuitee.experience.provider_managed",
+      "providerId": "nuitee",
+      "productType": "EXPERIENCE",
+      "kind": "PROVIDER_MANAGED_CUSTOMER_PAYMENT",
+      "fundingMethods": [
+        "PROVIDER_MANAGED"
+      ],
+      "documentationStatus": "DOCUMENTED",
+      "accountStatus": "UNVERIFIED",
+      "sandboxStatus": "NOT_RUN",
+      "productionStatus": "NOT_RUN",
+      "enabledForProduction": false,
+      "chargeCurrencies": {
+        "EUR": "UNVERIFIED",
+        "USD": "UNVERIFIED",
+        "GBP": "UNVERIFIED"
+      },
+      "supportsApiMargin": false,
+      "requiredSources": [
+        "nuitee-openapi-experiences",
+        "nuitee-guide-experiences-flow",
+        "nuitee-guide-experiences-async"
+      ],
+      "activationConditions": [
+        "Experiences production access",
+        "Current Phase 1 usePaymentSdk true and TRANSACTION_ID flow",
+        "Async confirmation and voucher tracking"
+      ],
+      "blocksGate": "G03",
+      "forbiddenWorkarounds": [],
+      "evidence": [
+        {
+          "source": "https://docs.liteapi.travel/openapi/api-experiences.json",
+          "verifiedAt": "2026-10-09",
+          "environment": "documentation",
+          "reference": "baseline-matrix-v1.0",
+          "summary": "Business research: Phase 1 requires usePaymentSdk true and TRANSACTION_ID."
+        }
+      ]
+    },
+    {
+      "id": "nuitee.experience.own_gateway.independent_funding",
+      "providerId": "nuitee",
+      "productType": "EXPERIENCE",
+      "kind": "OWN_GATEWAY_INDEPENDENT_FUNDING",
+      "fundingMethods": [],
+      "documentationStatus": "NOT_DOCUMENTED",
+      "accountStatus": "UNVERIFIED",
+      "sandboxStatus": "NOT_RUN",
+      "productionStatus": "NOT_RUN",
+      "enabledForProduction": false,
+      "chargeCurrencies": {},
+      "supportsApiMargin": false,
+      "requiredSources": [
+        "nuitee-openapi-experiences"
+      ],
+      "activationConditions": [
+        "New documented Nuitee funding contract/API flow",
+        "Account enablement",
+        "Contract tests and approved production pilot"
+      ],
+      "blocksGate": "G03",
+      "forbiddenWorkarounds": [
+        "Substitute iyzico transaction ID for Nuitee transaction ID",
+        "Copy hotel CREDIT enum into Experiences requests",
+        "Second customer charge",
+        "Alternative experience supplier without new user decision"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "welcome.transfer.own_gateway.credit_account",
+      "providerId": "welcome_pickups",
+      "productType": "TRANSFER",
+      "kind": "OWN_GATEWAY_WITH_CREDIT_ACCOUNT",
+      "fundingMethods": [
+        "CREDIT_LINE"
+      ],
+      "documentationStatus": "DOCUMENTED",
+      "accountStatus": "UNVERIFIED",
+      "sandboxStatus": "NOT_RUN",
+      "productionStatus": "NOT_RUN",
+      "enabledForProduction": false,
+      "chargeCurrencies": {
+        "TRY": "UNVERIFIED",
+        "EUR": "UNVERIFIED",
+        "USD": "UNVERIFIED",
+        "GBP": "UNVERIFIED"
+      },
+      "supportsApiMargin": false,
+      "requiredSources": [
+        "welcome-api-docs",
+        "welcome-launch-production"
+      ],
+      "activationConditions": [
+        "Credit account approval",
+        "Staging validation",
+        "Welcome production audit and key",
+        "Authenticated webhooks and reference lookup"
+      ],
+      "blocksGate": "G04",
+      "forbiddenWorkarounds": [],
+      "evidence": [
+        {
+          "source": "https://welcomepickups.gitbook.io/api-docs",
+          "verifiedAt": "2026-10-09",
+          "environment": "documentation",
+          "reference": "baseline-matrix-v1.0",
+          "summary": "Business research: credit-account partner API with staging and production audit."
+        }
+      ]
+    },
+    {
+      "id": "welcome.transfer.nuitee_managed_payment",
+      "providerId": "welcome_pickups",
+      "productType": "TRANSFER",
+      "kind": "NUITEE_MANAGED_CUSTOMER_PAYMENT_FOR_WELCOME",
+      "fundingMethods": [],
+      "documentationStatus": "NOT_DOCUMENTED",
+      "accountStatus": "UNVERIFIED",
+      "sandboxStatus": "NOT_RUN",
+      "productionStatus": "NOT_RUN",
+      "enabledForProduction": false,
+      "chargeCurrencies": {},
+      "supportsApiMargin": false,
+      "requiredSources": [],
+      "activationConditions": [
+        "Not an enabled route in this plan"
+      ],
+      "blocksGate": null,
+      "forbiddenWorkarounds": [],
+      "evidence": []
+    }
+  ],
+  "gateways": [
+    {
+      "gatewayId": "iyzico",
+      "accountStatus": "UNVERIFIED",
+      "enabledForProduction": false,
+      "merchantPreauthStatus": "UNVERIFIED",
+      "webhookV3ActivationStatus": "UNVERIFIED",
+      "operations": {
+        "AUTHORIZE": {
+          "documentationStatus": "DOCUMENTED",
+          "sandboxStatus": "NOT_RUN",
+          "productionStatus": "NOT_RUN"
+        },
+        "CAPTURE": {
+          "documentationStatus": "DOCUMENTED",
+          "sandboxStatus": "NOT_RUN",
+          "productionStatus": "NOT_RUN"
+        },
+        "RETRIEVE": {
+          "documentationStatus": "DOCUMENTED",
+          "sandboxStatus": "NOT_RUN",
+          "productionStatus": "NOT_RUN"
+        },
+        "VOID": {
+          "documentationStatus": "DOCUMENTED",
+          "sandboxStatus": "NOT_RUN",
+          "productionStatus": "NOT_RUN"
+        },
+        "REFUND_FULL": {
+          "documentationStatus": "DOCUMENTED",
+          "sandboxStatus": "NOT_RUN",
+          "productionStatus": "NOT_RUN"
+        },
+        "REFUND_PARTIAL": {
+          "documentationStatus": "DOCUMENTED",
+          "sandboxStatus": "NOT_RUN",
+          "productionStatus": "NOT_RUN"
+        },
+        "VERIFIED_NOTIFICATION": {
+          "documentationStatus": "DOCUMENTED",
+          "sandboxStatus": "NOT_RUN",
+          "productionStatus": "NOT_RUN"
+        }
+      },
+      "chargeCurrencies": {
+        "TRY": "UNVERIFIED",
+        "EUR": "UNVERIFIED",
+        "USD": "UNVERIFIED",
+        "GBP": "UNVERIFIED"
+      },
+      "requiredSources": [
+        "iyzico-cf-preauth",
+        "iyzico-capture",
+        "iyzico-cf-retrieve",
+        "iyzico-webhook",
+        "iyzico-response-signature",
+        "iyzico-cancel-refund"
+      ],
+      "evidence": [
+        {
+          "source": "https://registry.npmjs.org/iyzipay/-/iyzipay-2.0.70.tgz",
+          "verifiedAt": "2026-10-09",
+          "environment": "documentation",
+          "reference": "sha512-zbhgt3I3DYzjeliaVGz9hV3/fyJxSeRKd7w+1pPRXSWfXkSaRSxFklbHYFYGUUhrtHi8yIJdPcvQETrqOuigEw==",
+          "summary": "Official client 2.0.70: CF preauth initialize, CF retrieve, postauth, cancel, refund and response-signature field orders. The webhook V3 signature field order is not in the client and docs.iyzico.com was unreachable, so the adapter declares VERIFIED_NOTIFICATION unsupported (fail-closed) until iyzico-webhook is pinned."
+        }
+      ]
+    }
+  ],
+  "launchGates": [
+    {
+      "id": "G01",
+      "title": "Otel",
+      "status": "NOT_PASSED",
+      "requires": [
+        "nuitee.hotel.provider_managed",
+        "nuitee.hotel.own_gateway.account_card|nuitee.hotel.own_gateway.credit_line",
+        "cancellation-tracking"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "G02",
+      "title": "Uçak",
+      "status": "NOT_PASSED",
+      "requires": [
+        "nuitee.flight.own_gateway.independent_funding",
+        "ticketing",
+        "service-model"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "G03",
+      "title": "Experiences",
+      "status": "NOT_PASSED",
+      "requires": [
+        "nuitee.experience.own_gateway.independent_funding",
+        "approved-pilot"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "G04",
+      "title": "Welcome",
+      "status": "NOT_PASSED",
+      "requires": [
+        "welcome.transfer.own_gateway.credit_account",
+        "welcome-audit",
+        "webhook",
+        "tracking"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "G05",
+      "title": "Kendi gateway",
+      "status": "NOT_PASSED",
+      "requires": [
+        "iyzico:AUTHORIZE,CAPTURE,RETRIEVE,VOID,REFUND_FULL,REFUND_PARTIAL,VERIFIED_NOTIFICATION",
+        "iyzico:currencies",
+        "fraud-verification"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "G06",
+      "title": "Finans/hukuk",
+      "status": "NOT_PASSED",
+      "requires": [
+        "approved-pricing-policy",
+        "approved-risk-policy",
+        "fx-source",
+        "contracts",
+        "data-transfer",
+        "invoicing"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "G07",
+      "title": "Geçiş",
+      "status": "NOT_PASSED",
+      "requires": [
+        "url-content-rights",
+        "legacy-booking-access",
+        "verified-customer-data"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "G08",
+      "title": "Kalite/operasyon",
+      "status": "NOT_PASSED",
+      "requires": [
+        "T01-T36",
+        "no-critical-open",
+        "support-owners",
+        "restore-evidence"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "G09",
+      "title": "Yayın",
+      "status": "NOT_PASSED",
+      "requires": [
+        "business-acceptance",
+        "controlled-pilot",
+        "rollback",
+        "all-four-products"
+      ],
+      "evidence": []
+    }
+  ]
+}

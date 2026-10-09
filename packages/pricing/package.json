@@ -1,0 +1,13 @@
+{
+  "name": "@texholiday/pricing",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Money (integer minor units), Decimal arithmetic, FX snapshots, deterministic allocation, pricing policy.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "decimal.js": "10.6.0"
+  }
+}

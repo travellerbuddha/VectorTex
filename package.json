@@ -1,0 +1,29 @@
+{
+  "name": "texholiday",
+  "private": true,
+  "version": "0.0.0",
+  "description": "TexHoliday booking platform: Next.js + Payload web app, core booking/finance domain and worker.",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.12.0 <23"
+  },
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "boundaries": "node scripts/check-boundaries.mjs",
+    "lint": "pnpm boundaries && pnpm typecheck",
+    "test": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:all": "vitest run",
+    "db:generate": "pnpm --filter @texholiday/db generate",
+    "db:migrate": "pnpm --filter @texholiday/db migrate",
+    "contracts:pin": "node scripts/pin-contracts.mjs",
+    "contracts:check": "node scripts/pin-contracts.mjs --check",
+    "worker": "pnpm --filter @texholiday/worker start"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}
