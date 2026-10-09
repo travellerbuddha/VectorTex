@@ -19,11 +19,13 @@
     "db:migrate": "pnpm --filter @texholiday/db migrate",
     "contracts:pin": "node scripts/pin-contracts.mjs",
     "contracts:check": "node scripts/pin-contracts.mjs --check",
-    "worker": "pnpm --filter @texholiday/worker start"
+    "worker": "pnpm --filter @texholiday/worker start",
+    "contracts:types": "node scripts/generate-provider-types.mjs"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
     "typescript": "5.9.3",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "openapi-typescript": "7.13.0"
   }
 }

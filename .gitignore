@@ -10,3 +10,4 @@ coverage/
 contracts/sources/*.upstream
 playwright-report/
 test-results/
+packages/connectors/src/generated/

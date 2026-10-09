@@ -74,3 +74,9 @@ export function instantToZonedLocal(instant: Date, timeZone: string): string {
   });
   return dtf.format(instant).replace(' ', 'T');
 }
+
+/** False when the wall-clock time falls into a DST gap (it never happens in that zone). */
+export function localTimeExists(local: string, timeZone: string): boolean {
+  const instant = zonedLocalToInstant(local, timeZone, 'earlier');
+  return instantToZonedLocal(instant, timeZone) === local.slice(0, 16);
+}

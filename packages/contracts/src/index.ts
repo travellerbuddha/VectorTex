@@ -8,3 +8,4 @@ export * from './ports/connectors';
 export * from './ports/settlement';
 export * from './ports/provider-managed';
 export * from './http';
+export * from './time';

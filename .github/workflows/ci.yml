@@ -1,0 +1,48 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: texholiday
+          POSTGRES_PASSWORD: texholiday_ci
+          POSTGRES_DB: texholiday_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U texholiday" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://texholiday:texholiday_ci@localhost:5432/texholiday_test
+      TEST_REDIS_URL: redis://localhost:6379/15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Architecture boundaries (ADR-0001)
+        run: pnpm boundaries
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Contract lock integrity
+        run: pnpm contracts:check
+      - name: Unit tests
+        run: pnpm test
+      - name: Integration tests (PostgreSQL 16, Redis 7)
+        run: pnpm test:integration

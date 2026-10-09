@@ -1,0 +1,84 @@
+# R0 kanıt raporu — 9 Ekim 2026
+
+Kapsam: başlangıç promptunun "İlk yapacağın işler" 1–7. Bu rapor yalnız bu repodan ve bu build ortamından yapılabilenleri kaydeder. Hiçbir sağlayıcı hesabına giriş yapılmadı; hiçbir sandbox/production rezervasyon veya ödeme denemesi yapılmadı.
+
+## 1. Repo ve mevcut durum
+
+- `travellerbuddha/VectorTex` deposu tamamen boştu (commit yok, AGENTS/CLAUDE dosyası yok). Korunacak kullanıcı değişikliği yoktu.
+- Çalışma dalı `claude/wizardly-cori-878nca` uzak depodaki **tek** dal olduğu için GitHub'da varsayılan dal oldu. PR açmak için ayrı bir taban dalı (ör. `main`) gerekir; izin olmadan başka dala push yapılmadı.
+
+## 2. Erişim kontrolü (secret değerleri yazdırılmadan)
+
+| Kontrol | Sonuç |
+|---|---|
+| Sağlayıcı env değişkenleri (`NUITEE_*`, `IYZICO_*`, `WELCOME_*`, `PAYLOAD_*`, `DATABASE_URL`, `REDIS_URL`) | **Yok.** Ortamda yalnız ilgisiz AWS değişkenleri var (değerleri okunmadı). |
+| `docs.liteapi.travel`, `welcomepickups.gitbook.io`, `docs.iyzico.com`, `payloadcms.com` | **Erişilemedi** — ortam ağ politikası CONNECT 403 (curl ve WebFetch). |
+| `github.com` / `api.github.com` | 403. `raw.githubusercontent.com` erişilebilir. |
+| npm registry | Erişilebilir (sürüm keşfi ve resmî istemci paketleri buradan). |
+| Yerel PostgreSQL 16 / Redis 7 | Çalıştırıldı; entegrasyon testleri bunlarla koşuldu. |
+
+Fail-fast doğrulandı: production'da boş/placeholder secret ile worker başlamıyor ve hata mesajında yalnız değişken adı var (`packages/config/test/config.test.ts`, elle smoke test). Gerçek görünümlü secret'larla bile kaynak sözleşmeleri kilitli olmadığı için production worker `iyzico cannot run: required provider contracts are not pinned` ile duruyor.
+
+## 3. Resmî dokümanların sabitlenmesi
+
+`contracts/sources.lock.json` 23 birincil kaynağı listeler; hepsi `UNREACHABLE` (tarih + hata ile). Hiçbiri tahminle doldurulmadı. Erişim açıldığında:
+
+```bash
+pnpm contracts:pin     # gövdeleri indirir, SHA-256 ile kilitler (contracts/sources/)
+pnpm contracts:types   # yalnız kilitli OpenAPI'lerden TS tipleri üretir
+pnpm contracts:check   # CI: kilitli gövdelerin hash'i değişmedi mi
+```
+
+İkincil kanıt (integrity hash'li, yalnız destekleyici):
+
+| Kaynak | Kullanım |
+|---|---|
+| `iyzipay@2.0.70` (sha512-zbhgt3…uigEw==) resmî Node istemcisi | Endpoint yolları, IYZWSv2 yetkilendirme, endpoint'e özgü yanıt imzası alan sıraları, para formatı |
+| `liteapi-node-sdk@4.3.2` (sha512-xiTKk4…59KrZHPg==) | Otel temel URL/yol teyidi (`/hotels/rates`, `/rates/prebook`, `/rates/book`, `/bookings?clientReference=`); güncel ödeme enum'larını **içermiyor** (Mart 2025) |
+
+Ortamı açmak için: Claude Code cloud ortamı → Network access → Allowed domains'e `docs.liteapi.travel`, `welcomepickups.gitbook.io`, `docs.iyzico.com`, `payloadcms.com` (ve isteğe bağlı `github.com`) ekleyin. Ayrıntı: https://code.claude.com/docs/en/cloud-environments#network-access
+
+## 4. Sürüm kilidi (Payload uyumluluğu)
+
+npm `peerDependencies` beyanlarından (ADR-0001): Node 22 LTS, Payload/@payloadcms/* 3.90.2, Next 16.3.8 (`@payloadcms/next` peer `>=16.3.3 <17`), React 19.2.8, Drizzle ORM 0.45.2 / kit 0.31.7 (Payload ile aynı), pg 8.20.0, BullMQ 5.81.5, Zod 4.6.5, Vitest 4.1.11, TypeScript 5.9.3. payloadcms.com uyumluluk sayfası erişilemediği için npm beyanı esas alındı; sayfa erişilince ADR-0001'e eklenecek.
+
+## 5. Yetenek kanıtları (documentation / account / sandbox / production ayrı)
+
+Makine kaynağı: `contracts/capability-matrix.json`. Bugün **hiçbir hesap durumu ENABLED değil, hiçbir sandbox/production testi koşulmadı**; bu yüzden routing kodu production'da hiçbir rota açmıyor (`routing.test.ts` "R0 state" testi).
+
+| Yetenek | documentation | account | sandbox | production | Kanıtlamak için gereken tam girdi |
+|---|---|---|---|---|---|
+| Nuitee otel — Nuitee yönetimli ödeme | DOCUMENTED (iş araştırması 8–9 Ekim) | UNVERIFIED | NOT_RUN | NOT_RUN | Sandbox API anahtarı; hesap para birimleri (EUR/USD/GBP); kilitli `user-payment` + `api-booking.json` |
+| Nuitee otel — kendi gateway + hesap kartı (ACC_CREDIT_CARD) | DOCUMENTED | UNVERIFIED | NOT_RUN | NOT_RUN | Nuitee panelinde production hesap kartının tanımlı olduğuna dair kanıt/yazılı teyit; sandbox'ta ACC_CREDIT_CARD book testi |
+| Nuitee otel — sözleşmeli CREDIT | DOCUMENTED | UNVERIFIED | NOT_SUPPORTED | NOT_RUN | İmzalı kredi limiti sözleşmesi; yalnız onaylı production pilotunda test (sandbox desteklemiyor) |
+| Nuitee uçak — yönetimli ödeme | DOCUMENTED | UNVERIFIED | NOT_RUN | NOT_RUN | Uçak ürünü erişim onayı; `openapiflights.json` |
+| Nuitee uçak — bağımsız funding | DOCUMENTED (koşullu) | UNVERIFIED | NOT_RUN | NOT_RUN | Prebook bypass koşulunun hesabımızda açık olduğu + seçilen funding yönteminin hem prebook hem booking'de kabul edildiğine dair Nuitee yazılı cevabı ve sandbox kanıtı. Booking enum'u tek başına kanıt değil; THIRD_PARTY/CMI JWT genel gateway değildir |
+| Nuitee Experiences — yönetimli ödeme | DOCUMENTED (Phase 1: usePaymentSdk:true + TRANSACTION_ID) | UNVERIFIED | NOT_RUN | NOT_RUN | Experiences erişimi; `api-experiences.json`; async onay/voucher rehberi |
+| Nuitee Experiences — bağımsız funding | **NOT_DOCUMENTED** | UNVERIFIED | NOT_RUN | NOT_RUN | Nuitee'nin yeni ödeme sözleşmesini belgelemesi + hesapta açması. **G03 dış kapısı** |
+| Welcome — kendi gateway + kredi hesabı | DOCUMENTED | UNVERIFIED | NOT_RUN | NOT_RUN | Kredi hesabı onayı, staging anahtarı, production audit planı |
+| iyzico — AUTHORIZE/CAPTURE/RETRIEVE/VOID/REFUND | DOCUMENTED (+ resmî istemci) | UNVERIFIED | NOT_RUN | NOT_RUN | Sandbox API/secret; merchant'ta ön provizyon açık mı; TRY/EUR/USD/GBP tahsilat/settlement |
+| iyzico — V3 webhook | DOCUMENTED | UNVERIFIED | NOT_RUN | NOT_RUN | Webhook aktivasyonu + `X-Iyz-Signature-V3` alan sırasının dokümandan kilitlenmesi (istemcide yok). O zamana kadar webhook reddedilir, durum `retrieve` ile sorgulanır |
+
+## 6. Doküman kilitlenince teyit edilecek açık noktalar
+
+Bunlar kodda **varsayılmadı**; belirsiz durumda adapter `UNKNOWN`/`CAPABILITY_NOT_AVAILABLE` döner:
+
+1. iyzico `phase` değerleri (`PRE_AUTH`/`POST_AUTH`) ve `fraudStatus` kodları (1/0/-1). Bilinmeyen değer → REVIEW / UNKNOWN.
+2. iyzico ön provizyonun geçerlilik süresi (risk politikası güvenlik payı buna göre seçilecek).
+3. iyzico `retrieve` yanıtında cancel/refund durumunun görünüp görünmediği (aksi halde kayıp void/refund yanıtı operasyon görevine düşer).
+4. iyzico v1 `/payment/refund` (kalem işlem bazlı, şartnamenin istediği) ile `/v2/payment/refund` (ödeme bazlı) tercihi.
+5. iyzico yabancı müşteri kimlik/pasaport politikası (merchant sözleşmesi). Bugün `REFUSE`: TC kimlik yoksa ödeme başlamaz; sahte TC yok.
+6. Nuitee otel prebook'un envanter tuttuğu mu (HELD) yoksa yalnız doğrulama mı (PREPARED); varsayılan PREPARED.
+7. Nuitee `maxRates` alanının güncel şemada olup olmadığı (rehber/şema çelişkisi kaydı).
+8. Nuitee duplicate `4005` yanıtının lookup ile çözüm akışı.
+9. Welcome `quote-requests` / `quote_requests` yol adı, firm/estimate alanı, webhook kimlik doğrulama biçimi.
+
+## 7. İşletme girdileri (G06 — uydurulmadı)
+
+Marj/servis bedeli/vergi; kur kaynağı ve yuvarlama modu; risk politikası (provizyon güvenlik payı, sipariş başına tedarikçi maruziyet limiti, funding tercih sırası, bilinmeyen async süreli ürün satılsın mı); taksit politikası (bugün `[1]`: paidPrice = price); yabancı kimlik politikası. Bunlar `core.pricing_policy_versions` / `core.risk_policy_versions` tablolarına onaylı kayıt olarak girer; onaylı kayıt yoksa ilgili rota açılmaz ve worker sipariş ilerletmez.
+
+## 8. Sonuç
+
+- R0 dış kapıları açık değil: G01–G09 hepsi NOT_PASSED; G03 Nuitee'nin yeni ödeme yolunu belgelemesine bağlı.
+- Bağımsız geliştirme P02'den itibaren yapıldı (bkz. `docs/plan/is-paketleri.md`, `docs/plan/test-matrisi.md`).
+- Bir sonraki adım için gereken erişimler: yukarıdaki dört alan adına ağ izni; Nuitee sandbox anahtarı; iyzico sandbox API/secret; Welcome staging anahtarı; işletmeden G06 değerleri.

@@ -13,11 +13,12 @@
     "@texholiday/db": "workspace:*",
     "@texholiday/domain": "workspace:*",
     "bullmq": "5.81.5",
-    "ioredis": "5.11.1"
+    "ioredis": "5.11.1",
+    "@texholiday/payments": "workspace:*",
+    "drizzle-orm": "0.45.2"
   },
   "devDependencies": {
     "tsx": "4.20.6",
-    "drizzle-orm": "0.45.2",
     "pg": "8.20.0"
   }
 }
