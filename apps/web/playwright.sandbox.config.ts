@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
+import { E2E_STAFF_MFA_KEY } from './e2e/keys';
 
 /**
  * Opt-in Nuitee SANDBOX evidence runs (never CI): the real payment component, paid with Stripe's public test card.
@@ -50,6 +51,7 @@ export default defineConfig({
       DATABASE_URL: process.env.TEST_DATABASE_URL ?? '',
       REDIS_URL: process.env.TEST_REDIS_URL ?? 'redis://127.0.0.1:6379/15',
       ORDER_ACCESS_SECRET: 'sandbox-e2e-only-secret-0123456789abcdef',
+      STAFF_MFA_KEY: E2E_STAFF_MFA_KEY,
       TERMS_VERSION: 'sandbox-e2e-terms-1',
       POLICY_ID: 'b2c',
       SALE_CURRENCIES: process.env.SANDBOX_SITE_CURRENCIES ?? 'EUR',

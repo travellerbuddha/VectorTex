@@ -13,6 +13,7 @@
     "e2e:sandbox": "NODE_USE_ENV_PROXY=1 playwright test -c playwright.sandbox.config.ts"
   },
   "dependencies": {
+    "@texholiday/admin": "workspace:*",
     "@texholiday/booking": "workspace:*",
     "@texholiday/config": "workspace:*",
     "@texholiday/connectors": "workspace:*",
@@ -20,12 +21,14 @@
     "@texholiday/db": "workspace:*",
     "@texholiday/pricing": "workspace:*",
     "next": "16.3.8",
+    "qrcode": "1.5.4",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",
     "@types/pg": "8.20.0",
+    "@types/qrcode": "1.5.5",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.7",
     "pg": "8.20.0"

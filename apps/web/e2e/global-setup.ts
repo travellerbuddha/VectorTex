@@ -1,9 +1,13 @@
 import pg from 'pg';
+import { adminSettingsFromEnv, StaffAuthService } from '@texholiday/admin';
 import { createCoreDatabase, migrateCore, PermissionRepository, PolicyRepository } from '@texholiday/db';
+import { E2E_STAFF_MFA_KEY } from './keys';
 
 /**
- * Fresh core schema + an approved TEST pricing policy (10% provider API margin). These are test inputs only:
- * real margins are entered and approved by finance users (G06).
+ * Fresh core schema + an approved TEST pricing policy (10% provider API margin) + /yonetim accounts. These are test
+ * inputs only: real margins are entered and approved by finance users (G06).
+ * Setup links for the admin tests (one account per Playwright project, links are single-use) are passed to the
+ * tests through E2E_SETUP_TOKEN_<project>.
  */
 export default async function globalSetup() {
   const url = process.env.TEST_DATABASE_URL;
@@ -15,10 +19,14 @@ export default async function globalSetup() {
   await migrateCore(url);
   const { db, close } = createCoreDatabase(url, { max: 2 });
   try {
+    const auth = new StaffAuthService(db, adminSettingsFromEnv({ STAFF_MFA_KEY: E2E_STAFF_MFA_KEY }));
+    const boot = await auth.bootstrapOwner({ email: 'owner@e2e.test', displayName: 'E2E Owner' });
+    const owner = { kind: 'STAFF' as const, id: boot.staffId };
+    process.env['E2E_SETUP_TOKEN_desktop'] = boot.token;
+    process.env['E2E_SETUP_TOKEN_mobile-320'] = (await auth.invite(owner, { email: 'mobile@e2e.test', displayName: 'E2E Mobile' })).token;
     const perms = new PermissionRepository(db);
-    await perms.bootstrapManager('e2e-owner');
-    await perms.grantRole('e2e-finance', 'FINANCE', { kind: 'STAFF', id: 'e2e-owner' });
-    await perms.grantRole('e2e-approver', 'FINANCE_APPROVER', { kind: 'STAFF', id: 'e2e-owner' });
+    await perms.grantRole('e2e-finance', 'FINANCE', owner);
+    await perms.grantRole('e2e-approver', 'FINANCE_APPROVER', owner);
     const policies = new PolicyRepository(db);
     const v = await policies.createDraft(
       'PRICING',

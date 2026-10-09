@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
+import { E2E_STAFF_MFA_KEY } from './e2e/keys';
 
 /**
  * End-to-end tests of the customer hotel flow in the MOCK environment (MockHotelConnector, no provider involved).
@@ -35,6 +36,7 @@ export default defineConfig({
       DATABASE_URL: process.env.TEST_DATABASE_URL ?? '',
       REDIS_URL: process.env.TEST_REDIS_URL ?? 'redis://127.0.0.1:6379/15',
       ORDER_ACCESS_SECRET: 'e2e-only-secret-0123456789abcdef-xyz',
+      STAFF_MFA_KEY: E2E_STAFF_MFA_KEY,
       TERMS_VERSION: 'e2e-terms-1',
       POLICY_ID: 'b2c',
       NEXT_TELEMETRY_DISABLED: '1',

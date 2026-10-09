@@ -2,9 +2,9 @@ import { BookingApp, bookingSettingsFromEnv, type BookingSettings } from '@texho
 import { loadConfig } from '@texholiday/config';
 import { MockHotelConnector, NuiteeHotelConnector } from '@texholiday/connectors';
 import { parseCapabilityMatrix, parseSourceLock, type HotelConnector } from '@texholiday/contracts';
-import { createCoreDatabase } from '@texholiday/db';
 import matrixJson from '../../../../contracts/capability-matrix.json';
 import lockJson from '../../../../contracts/sources.lock.json';
+import { coreDatabase } from './core';
 
 export interface Booking {
   app: BookingApp;
@@ -29,7 +29,7 @@ export function booking(): Promise<Booking> {
 async function create(): Promise<Booking> {
   const config = loadConfig(process.env);
   const settings = bookingSettingsFromEnv(process.env, config.providerEnvironment, process.env.POLICY_ID ?? 'b2c');
-  const core = createCoreDatabase(config.database.url, { applicationName: 'texholiday-web' });
+  const core = coreDatabase();
   const mock = config.providerEnvironment === 'mock' ? new MockHotelConnector() : null;
   let hotels: HotelConnector;
   if (mock) hotels = mock;
