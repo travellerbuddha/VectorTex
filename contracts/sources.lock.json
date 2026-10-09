@@ -1,37 +1,630 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-09T09:30:00.000Z",
+  "updatedAt": "2026-10-09T10:37:44.917Z",
   "note": "PINNED means the body was fetched and hashed by scripts/pin-contracts.mjs. UNREACHABLE means it was not fetched; nothing in this repository may stand in for it. A pinned document is documentation evidence only: it never proves account permissions.",
   "sources": [
-    { "id": "nuitee-llms-index", "provider": "nuitee", "kind": "index", "url": "https://docs.liteapi.travel/llms.txt", "requiredFor": ["R0"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for docs.liteapi.travel" },
-    { "id": "nuitee-openapi-catalog", "provider": "nuitee", "kind": "index", "url": "https://docs.liteapi.travel/reference/openapi-specifications", "requiredFor": ["R0"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for docs.liteapi.travel" },
-    { "id": "nuitee-openapi-search", "provider": "nuitee", "kind": "openapi", "url": "https://docs.liteapi.travel/openapi/api-search.json", "requiredFor": ["connector:nuitee-hotel"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for docs.liteapi.travel" },
-    { "id": "nuitee-openapi-booking", "provider": "nuitee", "kind": "openapi", "url": "https://docs.liteapi.travel/openapi/api-booking.json", "requiredFor": ["connector:nuitee-hotel"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for docs.liteapi.travel" },
-    { "id": "nuitee-openapi-hotel-data", "provider": "nuitee", "kind": "openapi", "url": "https://docs.liteapi.travel/openapi/api-hotel-data.json", "requiredFor": ["connector:nuitee-hotel"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for docs.liteapi.travel" },
-    { "id": "nuitee-openapi-flights", "provider": "nuitee", "kind": "openapi", "url": "https://docs.liteapi.travel/openapi/openapiflights.json", "requiredFor": ["connector:nuitee-flight"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for docs.liteapi.travel" },
-    { "id": "nuitee-openapi-experiences", "provider": "nuitee", "kind": "openapi", "url": "https://docs.liteapi.travel/openapi/api-experiences.json", "requiredFor": ["connector:nuitee-experience"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for docs.liteapi.travel" },
-    { "id": "nuitee-guide-user-payment", "provider": "nuitee", "kind": "guide", "url": "https://docs.liteapi.travel/docs/user-payment", "requiredFor": ["flow:nuitee-provider-managed"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for docs.liteapi.travel" },
-    { "id": "nuitee-guide-account-credit-card", "provider": "nuitee", "kind": "guide", "url": "https://docs.liteapi.travel/docs/account-credit-card", "requiredFor": ["settlement:nuitee-account-card"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for docs.liteapi.travel" },
-    { "id": "nuitee-guide-credit-line", "provider": "nuitee", "kind": "guide", "url": "https://docs.liteapi.travel/docs/credit-line", "requiredFor": ["settlement:nuitee-credit-line"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for docs.liteapi.travel" },
-    { "id": "nuitee-guide-hotel-integration", "provider": "nuitee", "kind": "guide", "url": "https://docs.liteapi.travel/docs/hotel-integration-guide", "requiredFor": ["connector:nuitee-hotel"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for docs.liteapi.travel" },
-    { "id": "nuitee-ref-flight-prebooks", "provider": "nuitee", "kind": "guide", "url": "https://docs.liteapi.travel/reference/post_flights-prebooks", "requiredFor": ["connector:nuitee-flight", "settlement:nuitee-flight-independent"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for docs.liteapi.travel" },
-    { "id": "nuitee-guide-experiences-flow", "provider": "nuitee", "kind": "guide", "url": "https://docs.liteapi.travel/docs/build-an-experiences-booking-flow", "requiredFor": ["connector:nuitee-experience"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for docs.liteapi.travel" },
-    { "id": "nuitee-guide-experiences-async", "provider": "nuitee", "kind": "guide", "url": "https://docs.liteapi.travel/docs/experiences-async-confirmation-webhooks", "requiredFor": ["connector:nuitee-experience"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for docs.liteapi.travel" },
-    { "id": "welcome-api-docs", "provider": "welcome_pickups", "kind": "guide", "url": "https://welcomepickups.gitbook.io/api-docs", "requiredFor": ["connector:welcome-transfer"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for welcomepickups.gitbook.io" },
-    { "id": "welcome-launch-production", "provider": "welcome_pickups", "kind": "guide", "url": "https://welcomepickups.gitbook.io/api-docs/launch-from-staging-to-production.md", "requiredFor": ["connector:welcome-transfer"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for welcomepickups.gitbook.io" },
-    { "id": "iyzico-cf-preauth", "provider": "iyzico", "kind": "guide", "url": "https://docs.iyzico.com/odeme-metotlari/on-provizyon/on-provizyon-entegrasyonu/provizyon-baslatma/iyzico-odeme-formu-checkoutform.md", "requiredFor": ["gateway:iyzico"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for docs.iyzico.com" },
-    { "id": "iyzico-capture", "provider": "iyzico", "kind": "guide", "url": "https://docs.iyzico.com/odeme-metotlari/on-provizyon/on-provizyon-entegrasyonu/provizyon-kapama.md", "requiredFor": ["gateway:iyzico"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for docs.iyzico.com" },
-    { "id": "iyzico-cf-retrieve", "provider": "iyzico", "kind": "guide", "url": "https://docs.iyzico.com/odeme-metotlari/odeme-formu/cf-entegrasyonu/cf-sorgulama", "requiredFor": ["gateway:iyzico"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for docs.iyzico.com" },
-    { "id": "iyzico-webhook", "provider": "iyzico", "kind": "guide", "url": "https://docs.iyzico.com/ek-servisler/webhook", "requiredFor": ["gateway:iyzico:webhook-v3"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for docs.iyzico.com" },
-    { "id": "iyzico-response-signature", "provider": "iyzico", "kind": "guide", "url": "https://docs.iyzico.com/en/advanced/response-signature-validation", "requiredFor": ["gateway:iyzico"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for docs.iyzico.com" },
-    { "id": "iyzico-cancel-refund", "provider": "iyzico", "kind": "guide", "url": "https://docs.iyzico.com/ek-servisler/iptal-ve-iade.md", "requiredFor": ["gateway:iyzico"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for docs.iyzico.com" },
-    { "id": "payload-local-api", "provider": "payload", "kind": "guide", "url": "https://payloadcms.com/docs/local-api/overview", "requiredFor": ["cms"], "status": "UNREACHABLE", "lastAttemptAt": "2026-10-09T09:12:00.000Z", "lastError": "Build environment egress policy: CONNECT 403 for payloadcms.com" },
+    {
+      "id": "nuitee-llms-index",
+      "provider": "nuitee",
+      "kind": "index",
+      "url": "https://docs.liteapi.travel/llms.txt",
+      "requiredFor": [
+        "R0"
+      ],
+      "status": "PINNED",
+      "lastAttemptAt": "2026-10-09T10:36:46.091Z",
+      "lastError": null,
+      "sha256": "acbd213f8f39fb2388fdafbfe781af63167f138b75e42a724359551c2a20c0d6",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-llms-index.txt"
+    },
+    {
+      "id": "nuitee-openapi-catalog",
+      "provider": "nuitee",
+      "kind": "index",
+      "url": "https://docs.liteapi.travel/reference/openapi-specifications.md",
+      "requiredFor": [
+        "R0"
+      ],
+      "status": "PINNED",
+      "sha256": "19962dcf06d333cac84cd47d0bcb34d00619ac59a735a67b725aa4890d917c61",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-openapi-catalog.md",
+      "lastError": null
+    },
+    {
+      "id": "nuitee-openapi-search",
+      "provider": "nuitee",
+      "kind": "openapi",
+      "url": "https://docs.liteapi.travel/openapi/api-search.json",
+      "requiredFor": [
+        "connector:nuitee-hotel"
+      ],
+      "status": "PINNED",
+      "lastAttemptAt": "2026-10-09T10:36:46.091Z",
+      "lastError": null,
+      "sha256": "1766558ac0c2f2414c8331fe38d5bbaf546652f6ea673ca21362487d42afa879",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-openapi-search.json"
+    },
+    {
+      "id": "nuitee-openapi-booking",
+      "provider": "nuitee",
+      "kind": "openapi",
+      "url": "https://docs.liteapi.travel/openapi/api-booking.json",
+      "requiredFor": [
+        "connector:nuitee-hotel"
+      ],
+      "status": "PINNED",
+      "lastAttemptAt": "2026-10-09T10:36:46.091Z",
+      "lastError": null,
+      "sha256": "2fc71cf2f305b2d1f6cab369549dc44a90c516e31f6c77fd10ca508eba04eb1b",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-openapi-booking.json"
+    },
+    {
+      "id": "nuitee-openapi-hotel-data",
+      "provider": "nuitee",
+      "kind": "openapi",
+      "url": "https://docs.liteapi.travel/openapi/api-hotel-data.json",
+      "requiredFor": [
+        "connector:nuitee-hotel"
+      ],
+      "status": "PINNED",
+      "lastAttemptAt": "2026-10-09T10:36:46.091Z",
+      "lastError": null,
+      "sha256": "1561bf0040667e0d8e7171e0834c14ce60436ed696001088a98f63597448a2fb",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-openapi-hotel-data.json"
+    },
+    {
+      "id": "nuitee-openapi-flights",
+      "provider": "nuitee",
+      "kind": "openapi",
+      "url": "https://docs.liteapi.travel/openapi/openapiflights.json",
+      "requiredFor": [
+        "connector:nuitee-flight"
+      ],
+      "status": "PINNED",
+      "lastAttemptAt": "2026-10-09T10:36:46.091Z",
+      "lastError": null,
+      "sha256": "58f41981cfdb9477dcd42dd7f211f0b1c85787b03a4dfd3a22bdfc64ab2824c1",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-openapi-flights.json"
+    },
+    {
+      "id": "nuitee-openapi-experiences",
+      "provider": "nuitee",
+      "kind": "openapi",
+      "url": "https://docs.liteapi.travel/openapi/api-experiences.json",
+      "requiredFor": [
+        "connector:nuitee-experience"
+      ],
+      "status": "PINNED",
+      "lastAttemptAt": "2026-10-09T10:36:46.091Z",
+      "lastError": null,
+      "sha256": "e7b099f5c4064ab78aa2ef40ede6f038ddf880f1f8d3e73e6981a5ab4692da6b",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-openapi-experiences.json"
+    },
+    {
+      "id": "nuitee-guide-user-payment",
+      "provider": "nuitee",
+      "kind": "guide",
+      "url": "https://docs.liteapi.travel/docs/user-payment.md",
+      "requiredFor": [
+        "flow:nuitee-provider-managed"
+      ],
+      "status": "PINNED",
+      "sha256": "99feefb97b06fa7c985dee1509e38272ce480e1f3063bf2e6b9fb79dfd7af5fa",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-guide-user-payment.md",
+      "lastError": null
+    },
+    {
+      "id": "nuitee-guide-account-credit-card",
+      "provider": "nuitee",
+      "kind": "guide",
+      "url": "https://docs.liteapi.travel/docs/account-credit-card.md",
+      "requiredFor": [
+        "settlement:nuitee-account-card"
+      ],
+      "status": "PINNED",
+      "sha256": "432523fa721d613b5b301a2882fbee2738958109b7efef1fe7d5fafc2f152c0e",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-guide-account-credit-card.md",
+      "lastError": null
+    },
+    {
+      "id": "nuitee-guide-credit-line",
+      "provider": "nuitee",
+      "kind": "guide",
+      "url": "https://docs.liteapi.travel/docs/credit-line.md",
+      "requiredFor": [
+        "settlement:nuitee-credit-line"
+      ],
+      "status": "PINNED",
+      "sha256": "abb08897d41a31a693f0c7f6c05a8ca15ce8292536a5ec80cfde545b4e5eda55",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-guide-credit-line.md",
+      "lastError": null
+    },
+    {
+      "id": "nuitee-guide-hotel-integration",
+      "provider": "nuitee",
+      "kind": "guide",
+      "url": "https://docs.liteapi.travel/docs/hotel-integration-guide.md",
+      "requiredFor": [
+        "connector:nuitee-hotel"
+      ],
+      "status": "PINNED",
+      "sha256": "f0e3e8ac0043cffe4ddccdb1bdf6b1b792d9cd503782d8c6bc585d64f2bebd9e",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-guide-hotel-integration.md",
+      "lastError": null
+    },
+    {
+      "id": "nuitee-ref-flight-prebooks",
+      "provider": "nuitee",
+      "kind": "guide",
+      "url": "https://docs.liteapi.travel/reference/post_flights-prebooks.md",
+      "requiredFor": [
+        "connector:nuitee-flight",
+        "settlement:nuitee-flight-independent"
+      ],
+      "status": "PINNED",
+      "sha256": "7d06f53d0d9ca3759f22edbee06d06fc6943be46d572743020339a1acb4c56a0",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-ref-flight-prebooks.md",
+      "lastError": null
+    },
+    {
+      "id": "nuitee-guide-experiences-flow",
+      "provider": "nuitee",
+      "kind": "guide",
+      "url": "https://docs.liteapi.travel/docs/build-an-experiences-booking-flow.md",
+      "requiredFor": [
+        "connector:nuitee-experience"
+      ],
+      "status": "PINNED",
+      "sha256": "90e8c8c783ad9c31ed9ec8d28ec77f880e085532cf3a650ed69f4b96861d2379",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-guide-experiences-flow.md",
+      "lastError": null
+    },
+    {
+      "id": "nuitee-guide-experiences-async",
+      "provider": "nuitee",
+      "kind": "guide",
+      "url": "https://docs.liteapi.travel/docs/experiences-async-confirmation-webhooks.md",
+      "requiredFor": [
+        "connector:nuitee-experience"
+      ],
+      "status": "PINNED",
+      "sha256": "901cb1e661b7f0b2b85ec70641ae2d736ac8a152d7711c4991c49944e51104f9",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-guide-experiences-async.md",
+      "lastError": null
+    },
+    {
+      "id": "welcome-api-docs",
+      "provider": "welcome_pickups",
+      "kind": "guide",
+      "url": "https://welcomepickups.gitbook.io/api-docs/llms.txt",
+      "requiredFor": [
+        "connector:welcome-transfer"
+      ],
+      "status": "PINNED",
+      "sha256": "256bb77f893806016bca4fa0d47f6da09b7f7a42a4580ca371fe13af65a5c7de",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/welcome-api-docs.txt",
+      "lastError": null
+    },
+    {
+      "id": "welcome-launch-production",
+      "provider": "welcome_pickups",
+      "kind": "guide",
+      "url": "https://welcomepickups.gitbook.io/api-docs/launch-from-staging-to-production.md",
+      "requiredFor": [
+        "connector:welcome-transfer"
+      ],
+      "status": "PINNED",
+      "lastAttemptAt": "2026-10-09T10:36:46.091Z",
+      "lastError": null,
+      "sha256": "3c56b0ce752afaa91572f486b995a84b8c62f14477873659c9ba79a27e264ce2",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/welcome-launch-production.md"
+    },
+    {
+      "id": "iyzico-cf-preauth",
+      "provider": "iyzico",
+      "kind": "guide",
+      "url": "https://docs.iyzico.com/odeme-metotlari/on-provizyon/on-provizyon-entegrasyonu/provizyon-baslatma/iyzico-odeme-formu-checkoutform.md",
+      "requiredFor": [
+        "gateway:iyzico"
+      ],
+      "status": "PINNED",
+      "lastAttemptAt": "2026-10-09T10:36:46.091Z",
+      "lastError": null,
+      "sha256": "211f8507e5dae4cbcfd0039cf5587c6a6afd77276ba56ef839f5fcc51160ce66",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/iyzico-cf-preauth.md"
+    },
+    {
+      "id": "iyzico-capture",
+      "provider": "iyzico",
+      "kind": "guide",
+      "url": "https://docs.iyzico.com/odeme-metotlari/on-provizyon/on-provizyon-entegrasyonu/provizyon-kapama.md",
+      "requiredFor": [
+        "gateway:iyzico"
+      ],
+      "status": "PINNED",
+      "lastAttemptAt": "2026-10-09T10:36:46.091Z",
+      "lastError": null,
+      "sha256": "fc9a281279e1bd59b23dd2c605bf7dc81d70e1adbb0fc5c69608e01c1d79e97b",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/iyzico-capture.md"
+    },
+    {
+      "id": "iyzico-cf-retrieve",
+      "provider": "iyzico",
+      "kind": "guide",
+      "url": "https://docs.iyzico.com/odeme-metotlari/odeme-formu/cf-entegrasyonu/cf-sorgulama.md",
+      "requiredFor": [
+        "gateway:iyzico"
+      ],
+      "status": "PINNED",
+      "sha256": "a85c03f6f7ee1796d5d829a50ad3f1c120c881ba3c44474aed0476de8a622048",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/iyzico-cf-retrieve.md",
+      "lastError": null
+    },
+    {
+      "id": "iyzico-webhook",
+      "provider": "iyzico",
+      "kind": "guide",
+      "url": "https://docs.iyzico.com/ek-servisler/webhook.md",
+      "requiredFor": [
+        "gateway:iyzico:webhook-v3"
+      ],
+      "status": "PINNED",
+      "sha256": "9e84417037a180f328980c200766732bc15f162871590795fee885f7dbf3d0da",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/iyzico-webhook.md",
+      "lastError": null
+    },
+    {
+      "id": "iyzico-response-signature",
+      "provider": "iyzico",
+      "kind": "guide",
+      "url": "https://docs.iyzico.com/en/advanced/response-signature-validation.md",
+      "requiredFor": [
+        "gateway:iyzico"
+      ],
+      "status": "PINNED",
+      "sha256": "880766ad4a76e1c8340cfdda86d1ba2cda5084461258bb7ffb563170003d705e",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/iyzico-response-signature.md",
+      "lastError": null
+    },
+    {
+      "id": "iyzico-cancel-refund",
+      "provider": "iyzico",
+      "kind": "guide",
+      "url": "https://docs.iyzico.com/ek-servisler/iptal-ve-iade.md",
+      "requiredFor": [
+        "gateway:iyzico"
+      ],
+      "status": "PINNED",
+      "lastAttemptAt": "2026-10-09T10:36:46.091Z",
+      "lastError": null,
+      "sha256": "223c1eb528271330b2abaf86e5700e0b05e4e09e51976f06467be6ad402bedc0",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/iyzico-cancel-refund.md"
+    },
+    {
+      "id": "payload-local-api",
+      "provider": "payload",
+      "kind": "guide",
+      "url": "https://payloadcms.com/docs/local-api/overview",
+      "requiredFor": [
+        "cms"
+      ],
+      "status": "PINNED",
+      "lastAttemptAt": "2026-10-09T10:36:55.948Z",
+      "lastError": null,
+      "sha256": "50baf7831799d2abe52f2c2c24d02d2365d79cc8dd981993950946f863e283c7",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/payload-local-api.txt"
+    },
+    {
+      "id": "nuitee-guide-revenue-commission",
+      "provider": "nuitee",
+      "kind": "guide",
+      "url": "https://docs.liteapi.travel/docs/revenue-management-and-commission.md",
+      "requiredFor": [
+        "pricing"
+      ],
+      "status": "PINNED",
+      "sha256": "18ab8c31036115f163e0c760c5fa14069bdd9b61adebee0cdabb03185bb044f8",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-guide-revenue-commission.md",
+      "lastError": null
+    },
+    {
+      "id": "nuitee-guide-flight-experience",
+      "provider": "nuitee",
+      "kind": "guide",
+      "url": "https://docs.liteapi.travel/docs/build-a-flight-booking-experience.md",
+      "requiredFor": [
+        "connector:nuitee-flight"
+      ],
+      "status": "PINNED",
+      "sha256": "c027660d4fcbf9e855b061d6320ad7f4a1dde64da213d3fe741644c41c7b46c0",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-guide-flight-experience.md",
+      "lastError": null
+    },
+    {
+      "id": "nuitee-guide-flights-support-billing",
+      "provider": "nuitee",
+      "kind": "guide",
+      "url": "https://docs.liteapi.travel/docs/flights-support-billing-model.md",
+      "requiredFor": [
+        "connector:nuitee-flight"
+      ],
+      "status": "PINNED",
+      "sha256": "ecdb1f936b73a280b14b9ea490fe41ffa2d0474da8e20481bce74503ab40f2c7",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-guide-flights-support-billing.md",
+      "lastError": null
+    },
+    {
+      "id": "nuitee-ref-flight-prebook-services",
+      "provider": "nuitee",
+      "kind": "guide",
+      "url": "https://docs.liteapi.travel/reference/post_flights-prebooks-prebookid-services.md",
+      "requiredFor": [
+        "connector:nuitee-flight"
+      ],
+      "status": "PINNED",
+      "sha256": "4eba004732789185e22b24828dff992f8fe17aa9829e73a0ce3254ac2457abab",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-ref-flight-prebook-services.md",
+      "lastError": null
+    },
+    {
+      "id": "nuitee-guide-experiences-pricing",
+      "provider": "nuitee",
+      "kind": "guide",
+      "url": "https://docs.liteapi.travel/docs/experiences-pricing.md",
+      "requiredFor": [
+        "connector:nuitee-experience"
+      ],
+      "status": "PINNED",
+      "sha256": "0a3d3d7e051b4f3806b65a6e9037fb53e38db695ccdc7451ab803f53766090fa",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-guide-experiences-pricing.md",
+      "lastError": null
+    },
+    {
+      "id": "nuitee-guide-experiences-cancel",
+      "provider": "nuitee",
+      "kind": "guide",
+      "url": "https://docs.liteapi.travel/docs/experiences-cancel-refunds.md",
+      "requiredFor": [
+        "connector:nuitee-experience"
+      ],
+      "status": "PINNED",
+      "sha256": "b8884add221f53cfabb3f3d6195e1945c2718f1f865a5061c574df32cb70d056",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-guide-experiences-cancel.md",
+      "lastError": null
+    },
+    {
+      "id": "nuitee-guide-experiences-recipes",
+      "provider": "nuitee",
+      "kind": "guide",
+      "url": "https://docs.liteapi.travel/docs/experiences-booking-flow-recipes.md",
+      "requiredFor": [
+        "connector:nuitee-experience"
+      ],
+      "status": "PINNED",
+      "sha256": "3504fa3c321ce6bf5352edf148c0d39398fa30c99d933198108678cb78341635",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/nuitee-guide-experiences-recipes.md",
+      "lastError": null
+    },
+    {
+      "id": "welcome-getting-access",
+      "provider": "welcome_pickups",
+      "kind": "guide",
+      "url": "https://welcomepickups.gitbook.io/api-docs/getting-access-and-testing-our-api.md",
+      "requiredFor": [
+        "connector:welcome-transfer"
+      ],
+      "status": "PINNED",
+      "sha256": "5b3fedadc4e0747054f283c59417bbf7edd237ff89fded5b1616f25d11ce1c49",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/welcome-getting-access.md",
+      "lastError": null
+    },
+    {
+      "id": "welcome-api-reference",
+      "provider": "welcome_pickups",
+      "kind": "guide",
+      "url": "https://welcomepickups.gitbook.io/api-docs/reference/api-reference.md",
+      "requiredFor": [
+        "connector:welcome-transfer"
+      ],
+      "status": "PINNED",
+      "sha256": "210d60a307f71ca30af07399c9059c4bb2b4250645b9156817d2a7cc183baf49",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/welcome-api-reference.md",
+      "lastError": null
+    },
+    {
+      "id": "welcome-create-quote-request",
+      "provider": "welcome_pickups",
+      "kind": "guide",
+      "url": "https://welcomepickups.gitbook.io/api-docs/reference/api-reference/quote-requests/create-a-quote-request.md",
+      "requiredFor": [
+        "connector:welcome-transfer"
+      ],
+      "status": "PINNED",
+      "sha256": "fad179c0f9ecfa2e6df922c3a576f404fc3586b6b1456254d3b44e56db6f4f22",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/welcome-create-quote-request.md",
+      "lastError": null
+    },
+    {
+      "id": "welcome-show-quote-request",
+      "provider": "welcome_pickups",
+      "kind": "guide",
+      "url": "https://welcomepickups.gitbook.io/api-docs/reference/api-reference/quote-requests/show-a-quote-request.md",
+      "requiredFor": [
+        "connector:welcome-transfer"
+      ],
+      "status": "PINNED",
+      "sha256": "e29c56754b7c6fb1c12758f095365fa199cf4409618c76c24f603bbe5a8c6eb4",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/welcome-show-quote-request.md",
+      "lastError": null
+    },
+    {
+      "id": "welcome-show-quote",
+      "provider": "welcome_pickups",
+      "kind": "guide",
+      "url": "https://welcomepickups.gitbook.io/api-docs/reference/api-reference/quotes/show-a-quote.md",
+      "requiredFor": [
+        "connector:welcome-transfer"
+      ],
+      "status": "PINNED",
+      "sha256": "05a800dc62d0804b34bd4d86e1f27c04028027cf87e12d294ae80d6910685a5b",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/welcome-show-quote.md",
+      "lastError": null
+    },
+    {
+      "id": "welcome-create-transfer",
+      "provider": "welcome_pickups",
+      "kind": "guide",
+      "url": "https://welcomepickups.gitbook.io/api-docs/reference/api-reference/transfers/create-a-transfer.md",
+      "requiredFor": [
+        "connector:welcome-transfer"
+      ],
+      "status": "PINNED",
+      "sha256": "25f3ce7aa27a64c0993255a098b0510d1a7f4ed0076e1a457180c8d3ba60be05",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/welcome-create-transfer.md",
+      "lastError": null
+    },
+    {
+      "id": "welcome-list-transfers",
+      "provider": "welcome_pickups",
+      "kind": "guide",
+      "url": "https://welcomepickups.gitbook.io/api-docs/reference/api-reference/transfers/list-transfers.md",
+      "requiredFor": [
+        "connector:welcome-transfer"
+      ],
+      "status": "PINNED",
+      "sha256": "ea1fd7720873e0f2cd1a105edd0bdb29098710a282cc919054c3987f9bc38c96",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/welcome-list-transfers.md",
+      "lastError": null
+    },
+    {
+      "id": "welcome-show-transfer",
+      "provider": "welcome_pickups",
+      "kind": "guide",
+      "url": "https://welcomepickups.gitbook.io/api-docs/reference/api-reference/transfers/show-a-transfer.md",
+      "requiredFor": [
+        "connector:welcome-transfer"
+      ],
+      "status": "PINNED",
+      "sha256": "455b3a2bd3bdce84f5619a6049a6935d8fa661daf469842673a714f476a532f9",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/welcome-show-transfer.md",
+      "lastError": null
+    },
+    {
+      "id": "welcome-cancel-transfer",
+      "provider": "welcome_pickups",
+      "kind": "guide",
+      "url": "https://welcomepickups.gitbook.io/api-docs/reference/api-reference/transfers/cancel-a-transfer.md",
+      "requiredFor": [
+        "connector:welcome-transfer"
+      ],
+      "status": "PINNED",
+      "sha256": "f6a5c8fdf4a2853bb58fc9d76f75af038aaa0ba69c862ddb6ac3de3206b389f4",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/welcome-cancel-transfer.md",
+      "lastError": null
+    },
+    {
+      "id": "welcome-transfer-update",
+      "provider": "welcome_pickups",
+      "kind": "guide",
+      "url": "https://welcomepickups.gitbook.io/api-docs/reference/api-reference/transfers/transfer-update.md",
+      "requiredFor": [
+        "connector:welcome-transfer"
+      ],
+      "status": "PINNED",
+      "sha256": "bf3156fc937d421a4dfeb53bdc13c0b8607a2c44bee5b4aba4495154d1892579",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/welcome-transfer-update.md",
+      "lastError": null
+    },
+    {
+      "id": "welcome-webhooks",
+      "provider": "welcome_pickups",
+      "kind": "guide",
+      "url": "https://welcomepickups.gitbook.io/api-docs/reference/webhooks.md",
+      "requiredFor": [
+        "connector:welcome-transfer"
+      ],
+      "status": "PINNED",
+      "sha256": "d2d54b6905eccaa7f9c84e1e6ed4bc457f8a1594e8b444d87d3b6598f1b612c2",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/welcome-webhooks.md",
+      "lastError": null
+    },
+    {
+      "id": "welcome-operational-errors",
+      "provider": "welcome_pickups",
+      "kind": "guide",
+      "url": "https://welcomepickups.gitbook.io/api-docs/reference/operational-errors.md",
+      "requiredFor": [
+        "connector:welcome-transfer"
+      ],
+      "status": "PINNED",
+      "sha256": "7e6d357c2d042d4e95474b8846b9b1d6d9ee795c1b1f4bdee67f48859527fb49",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/welcome-operational-errors.md",
+      "lastError": null
+    },
+    {
+      "id": "welcome-recipes",
+      "provider": "welcome_pickups",
+      "kind": "guide",
+      "url": "https://welcomepickups.gitbook.io/api-docs/reference/recipes.md",
+      "requiredFor": [
+        "connector:welcome-transfer"
+      ],
+      "status": "PINNED",
+      "sha256": "9f11b90e77948bd77ca9242570c8bed0af420241c130a78006746740e83a6139",
+      "fetchedAt": "2026-10-09T10:37:44.917Z",
+      "storedAs": "contracts/sources/welcome-recipes.md",
+      "lastError": null
+    },
     {
       "id": "ref-npm-iyzipay",
       "provider": "iyzico",
       "kind": "npm-package",
       "url": "https://registry.npmjs.org/iyzipay/-/iyzipay-2.0.70.tgz",
-      "requiredFor": ["gateway:iyzico"],
+      "requiredFor": [
+        "gateway:iyzico"
+      ],
       "status": "PINNED",
       "fetchedAt": "2026-10-09T09:20:00.000Z",
       "integrity": "sha512-zbhgt3I3DYzjeliaVGz9hV3/fyJxSeRKd7w+1pPRXSWfXkSaRSxFklbHYFYGUUhrtHi8yIJdPcvQETrqOuigEw==",

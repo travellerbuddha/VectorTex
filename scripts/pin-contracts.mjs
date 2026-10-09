@@ -52,7 +52,8 @@ async function pin() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const body = Buffer.from(await res.arrayBuffer());
       const digest = sha256(body);
-      const storedAs = join('contracts', 'sources', `${src.id}${src.url.endsWith('.json') ? '.json' : '.txt'}`);
+      const ext = src.url.endsWith('.json') ? '.json' : src.url.endsWith('.md') ? '.md' : '.txt';
+      const storedAs = join('contracts', 'sources', `${src.id}${ext}`);
       if (src.status === 'PINNED' && src.sha256 && src.sha256 !== digest) {
         // A changed upstream contract is a review event, never a silent update.
         src.upstreamChangedAt = now;
