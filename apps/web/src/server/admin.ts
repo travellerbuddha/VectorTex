@@ -1,6 +1,7 @@
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { adminSettingsFromEnv, StaffAuthService, type AdminSettings, type StaffIdentity, type StaffSessionView } from '@texholiday/admin';
+import { adminSettingsFromEnv, OrdersQuery, StaffAuthService, type AdminSettings, type StaffIdentity, type StaffSessionView } from '@texholiday/admin';
+import { loadConfig } from '@texholiday/config';
 import type { Permission } from '@texholiday/contracts';
 import { PermissionRepository, PolicyRepository } from '@texholiday/db';
 import { coreDatabase } from './core';
@@ -9,6 +10,7 @@ export interface Admin {
   auth: StaffAuthService;
   permissions: PermissionRepository;
   policies: PolicyRepository;
+  orders: OrdersQuery;
   settings: AdminSettings;
 }
 
@@ -19,7 +21,15 @@ export function admin(): Admin {
   if (!holder.__texholidayAdmin) {
     const { db } = coreDatabase();
     const settings = adminSettingsFromEnv(process.env);
-    holder.__texholidayAdmin = { auth: new StaffAuthService(db, settings), permissions: new PermissionRepository(db), policies: new PolicyRepository(db), settings };
+    const environment = loadConfig(process.env).providerEnvironment;
+    holder.__texholidayAdmin = {
+      auth: new StaffAuthService(db, settings),
+      permissions: new PermissionRepository(db),
+      policies: new PolicyRepository(db),
+      // Operations screens show the orders of this deployment's provider environment only.
+      orders: new OrdersQuery(db, environment),
+      settings,
+    };
   }
   return holder.__texholidayAdmin;
 }
@@ -73,7 +83,7 @@ export const can = (staff: StaffIdentity, ...any: Permission[]) => any.some((p) 
  * Per-client limit on sign-in steps (on top of the per-account lockout, ADR-0010): `max` attempts per window.
  * In-process only; a multi-instance deployment adds the same limit at the load balancer.
  */
-export async function allowAttempt(bucket: string, max = 10, windowMs = 5 * 60_000): Promise<boolean> {
+export async function allowAttempt(bucket: string, max = admin().settings.ipAttemptsPerFiveMinutes, windowMs = 5 * 60_000): Promise<boolean> {
   const h = await headers();
   const ip = (h.get('x-forwarded-for') ?? '').split(',')[0]!.trim() || h.get('x-real-ip') || 'local';
   const key = `${bucket}:${ip}`;

@@ -52,6 +52,7 @@ export default defineConfig({
       REDIS_URL: process.env.TEST_REDIS_URL ?? 'redis://127.0.0.1:6379/15',
       ORDER_ACCESS_SECRET: 'sandbox-e2e-only-secret-0123456789abcdef',
       STAFF_MFA_KEY: E2E_STAFF_MFA_KEY,
+      STAFF_IP_ATTEMPTS_PER_5_MIN: '10000',
       TERMS_VERSION: 'sandbox-e2e-terms-1',
       POLICY_ID: 'b2c',
       SALE_CURRENCIES: process.env.SANDBOX_SITE_CURRENCIES ?? 'EUR',

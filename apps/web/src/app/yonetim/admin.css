@@ -431,3 +431,98 @@ label.check input {
   margin-top: 0.15rem;
   flex: none;
 }
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+.filters .grow {
+  flex: 1 1 260px;
+}
+.filters .field {
+  min-width: 160px;
+}
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+.tabs a {
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  text-decoration: none;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+.tabs a[aria-current='page'] {
+  background: var(--brand);
+  color: var(--brand-ink);
+  border-color: var(--brand);
+}
+.task-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.task {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--warn);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+.task.closed {
+  border-left-color: var(--ok);
+}
+.task-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: space-between;
+  align-items: center;
+}
+.task .hint {
+  background: #eef5fb;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+.task-actions {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.small-text {
+  font-size: 0.92rem;
+}
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.timeline li {
+  padding: 0.4rem 0;
+  border-bottom: 1px dashed var(--line);
+}
+.timeline time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  margin-right: 0.5rem;
+}
+.contents {
+  display: contents;
+}
+h3 {
+  font-size: 1.05rem;
+  margin: 0 0 0.5rem;
+}
+
+.stats {
+  margin-bottom: 1rem;
+}
+.stats strong {
+  font-size: 1.6rem;
+  margin-right: 0.5rem;
+}

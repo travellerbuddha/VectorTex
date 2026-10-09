@@ -69,7 +69,7 @@ describe('staff credential primitives (ADR-0010)', () => {
     expect(() => adminSettingsFromEnv({})).toThrow(/STAFF_MFA_KEY/);
     expect(() => adminSettingsFromEnv({ STAFF_MFA_KEY: Buffer.alloc(16).toString('base64') })).toThrow(/STAFF_MFA_KEY/);
     const s = adminSettingsFromEnv({ STAFF_MFA_KEY: Buffer.alloc(32, 1).toString('base64') });
-    expect(s).toMatchObject({ sessionIdleMinutes: 30, sessionMaxHours: 12, lockoutAttempts: 5, minPasswordLength: 12 });
+    expect(s).toMatchObject({ sessionIdleMinutes: 30, sessionMaxHours: 12, lockoutAttempts: 5, minPasswordLength: 12, ipAttemptsPerFiveMinutes: 30 });
     expect(() => adminSettingsFromEnv({ STAFF_MFA_KEY: Buffer.alloc(32, 1).toString('base64'), STAFF_LOCKOUT_ATTEMPTS: '100' })).toThrow();
   });
 });

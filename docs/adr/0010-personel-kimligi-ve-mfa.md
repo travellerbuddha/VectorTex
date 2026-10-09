@@ -31,7 +31,7 @@
    - Şifre ve kod hataları aynı sayaçta toplanır. Varsayılan 5 hatadan sonra hesap 15 dakika kilitlenir.
    - Hata mesajı tektir: e-postanın mı, şifrenin mi, kodun mu yanlış olduğu ya da hesabın kilitli olduğu söylenmez.
    - Bilinmeyen e-postada da şifre kontrolü kadar süre harcanır.
-   - Web katmanı ayrıca IP başına istek sınırı uygular.
+   - Web katmanı ayrıca IP başına istek sınırı uygular: varsayılan 5 dakikada 30 adım. Ofis çalışanlarının çoğu tek bir dış IP'yi paylaştığı için sınır geniş tutulur; tek hesabı hedefleyen denemeyi hesap kilidi durdurur. Sınır şimdilik süreç içinde tutulur; birden çok sunucuda aynı sınır yük dengeleyicide de uygulanmalıdır.
 5. **Oturum:**
    - Rastgele 256 bitlik belirteç `HttpOnly`, `SameSite=Strict` çerezde taşınır; canlıda `Secure` bayrağı da eklenir.
    - 30 dakika işlem yapılmazsa ve en fazla 12 saat sonra oturum kapanır.
@@ -64,7 +64,7 @@
 
 ## Sonuçlar
 
-- Teknik güvenlik değerleri (`STAFF_SESSION_IDLE_MINUTES`, `STAFF_SESSION_MAX_HOURS`, `STAFF_LOCKOUT_ATTEMPTS`, `STAFF_LOCKOUT_MINUTES`, `STAFF_SETUP_LINK_HOURS`, `STAFF_MIN_PASSWORD_LENGTH`) işletme girdisi değildir. Varsayılanları NIST SP 800-63B yaklaşımına göredir; sınırlar içinde sıkılaştırılabilir.
+- Teknik güvenlik değerleri (`STAFF_SESSION_IDLE_MINUTES`, `STAFF_SESSION_MAX_HOURS`, `STAFF_LOCKOUT_ATTEMPTS`, `STAFF_LOCKOUT_MINUTES`, `STAFF_SETUP_LINK_HOURS`, `STAFF_MIN_PASSWORD_LENGTH`, `STAFF_IP_ATTEMPTS_PER_5_MIN`) işletme girdisi değildir. Varsayılanları NIST SP 800-63B yaklaşımına göredir; sınırlar içinde sıkılaştırılabilir.
 - `STAFF_MFA_KEY` kaybolursa kayıtlı Authenticator anahtarları açılamaz. Bu durumda herkesin MFA'sı sıfırlanır ve uygulamalar yeniden kurulur. Anahtar secret manager'da yedeklenmelidir.
 - Kurtarma kodları, e-posta ile bağlantı gönderimi ve WebAuthn/passkey sonraki adımdır.
 - Kanıt: RFC 4226 ve RFC 6238 test vektörleri (`packages/admin/test/crypto.test.ts`); PostgreSQL senaryoları (`staff-auth.int.test.ts`): davet, kurulum, MFA, tekrar kullanılan kod, kilitlenme, oturum süresi, MFA sıfırlama, kapatma kuralları ve denetim kaydında gizli bilgi olmaması.

@@ -17,6 +17,11 @@ export interface AdminSettings {
   setupLinkHours: number;
   /** Shortest accepted password (no composition rules; NIST SP 800-63B). */
   minPasswordLength: number;
+  /**
+   * Sign-in steps accepted per client IP in 5 minutes. A whole office often shares one public IP, so this is a
+   * coarse brake against spraying many accounts; the per-account lockout stops guessing one account.
+   */
+  ipAttemptsPerFiveMinutes: number;
 }
 
 export function adminSettingsFromEnv(env: Record<string, string | undefined>): AdminSettings {
@@ -41,5 +46,6 @@ export function adminSettingsFromEnv(env: Record<string, string | undefined>): A
     lockoutMinutes: int('STAFF_LOCKOUT_MINUTES', 15, 1, 1440),
     setupLinkHours: int('STAFF_SETUP_LINK_HOURS', 72, 1, 168),
     minPasswordLength: int('STAFF_MIN_PASSWORD_LENGTH', 12, 12, 64),
+    ipAttemptsPerFiveMinutes: int('STAFF_IP_ATTEMPTS_PER_5_MIN', 30, 5, 10_000),
   };
 }

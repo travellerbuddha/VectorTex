@@ -37,6 +37,8 @@ export default defineConfig({
       REDIS_URL: process.env.TEST_REDIS_URL ?? 'redis://127.0.0.1:6379/15',
       ORDER_ACCESS_SECRET: 'e2e-only-secret-0123456789abcdef-xyz',
       STAFF_MFA_KEY: E2E_STAFF_MFA_KEY,
+      // Every test signs in from 127.0.0.1; the per-IP brake is tested separately.
+      STAFF_IP_ATTEMPTS_PER_5_MIN: '10000',
       TERMS_VERSION: 'e2e-terms-1',
       POLICY_ID: 'b2c',
       NEXT_TELEMETRY_DISABLED: '1',
