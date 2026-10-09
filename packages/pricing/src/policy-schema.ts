@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { currency } from './currency';
+import { API_MARGIN_PRODUCT_TYPES } from './policy';
 
 const roundingMode = z.enum(['HALF_EVEN', 'HALF_UP', 'HALF_DOWN', 'UP', 'DOWN', 'CEIL', 'FLOOR']);
 const productType = z.enum(['HOTEL', 'FLIGHT', 'EXPERIENCE', 'TRANSFER']);
@@ -45,7 +46,9 @@ export const pricingPolicyDocumentSchema = z
       const key = `${r.productType}/${r.paymentMode}`;
       if (seen.has(key)) ctx.addIssue({ code: 'custom', path: ['rules', i], message: `duplicate rule for ${key}` });
       seen.add(key);
-      if (r.paymentMode === 'OWN_GATEWAY' && r.application !== 'LOCAL') ctx.addIssue({ code: 'custom', path: ['rules', i], message: 'own-gateway margin must be LOCAL (net price + one local margin)' });
+      if (r.paymentMode === 'OWN_GATEWAY' && r.application === 'PROVIDER_API' && !API_MARGIN_PRODUCT_TYPES.includes(r.productType)) {
+        ctx.addIssue({ code: 'custom', path: ['rules', i], message: `${r.productType} has no documented provider margin field; its own-gateway margin must be LOCAL` });
+      }
       if (r.paymentMode === 'PROVIDER_MANAGED' && (r.application !== 'PROVIDER_API' || r.kind !== 'PERCENT_OF_NET')) {
         ctx.addIssue({ code: 'custom', path: ['rules', i], message: 'provider-managed margin must use the provider API percentage' });
       }

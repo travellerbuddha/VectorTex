@@ -379,6 +379,8 @@ export class PackageOrchestrator {
       audit(agg, 'booking.stale_state_ignored', ACTOR, now, { itemId, current: it.booking.status, reported: target });
       return;
     }
+    // Set before the status so a confirmation records the provider-reported commission.
+    if (state.providerCommission) it.booking.providerCommission = state.providerCommission;
     setBookingStatus(agg, itemId, target, cause, ACTOR, now);
     it.booking.providerBookingRef = state.providerBookingRef ?? it.booking.providerBookingRef;
     it.booking.pnr = state.pnr ?? it.booking.pnr;

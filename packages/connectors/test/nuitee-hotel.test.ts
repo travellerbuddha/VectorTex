@@ -71,7 +71,7 @@ describe('Nuitee hotel search (pinned search OpenAPI example)', () => {
     expect(JSON.parse(req.body!)).toMatchObject({ occupancies: [{ adults: 2, children: [] }], guestNationality: 'TR', currency: 'USD', margin: 0, timeout: 6 });
   });
 
-  it('sends the provider-managed margin as a percentage and caps batch size', async () => {
+  it('sends the policy margin (own gateway or provider-managed, ADR-0006) as a percentage and caps batch size', async () => {
     const { c, t } = connector([res(200, { data: [] })]);
     await c.searchRates({ ...criteria, margin: { basisPoints: 1050 } });
     expect(JSON.parse(t.requests[0]!.body!).margin).toBe(10.5);
@@ -127,6 +127,8 @@ describe('Nuitee hotel book: every documented error is classified (T19/T22)', ()
     const out = await book(c);
     expect(out).toMatchObject({ kind: 'SUCCEEDED', value: { status: 'CONFIRMED', providerBookingRef: 'ABC123', voucherReady: true } });
     expect(out.kind === 'SUCCEEDED' && out.value.supplierCost).toEqual(money('USD', 10000n));
+    // ADR-0006: the commission included in the price is reported for the receivable (example: price 100, commission 10).
+    expect(out.kind === 'SUCCEEDED' && out.value.providerCommission).toEqual(money('USD', 1000n));
     const body = JSON.parse(t.requests[0]!.body!);
     expect(body).toEqual({ prebookId: 'PRE123', clientReference: 'pb-item-1-1', holder, guests: [{ occupancyNumber: 1, firstName: 'Ada', lastName: 'Yilmaz', email: 'ada@example.test' }], payment: { method: 'ACC_CREDIT_CARD' } });
     expect(t.requests[0]!.url).toBe('https://book.liteapi.travel/v3.0/rates/book?timeout=120');

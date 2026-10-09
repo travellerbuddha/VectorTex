@@ -55,6 +55,8 @@ export interface BookingState {
   unknownOperation: BookingOperation | null;
   lookupAttempts: number;
   failureCode: string | null;
+  /** Commission the provider reported on the booking (PROVIDER_API margin, ADR-0006); null if not reported. */
+  providerCommission: Money | null;
 }
 
 export interface OrderItemState {
@@ -66,6 +68,8 @@ export interface OrderItemState {
   /** This item's share of the customer charge (recorded allocation, used for refunds). */
   chargeAllocation: Money;
   supplierCost: Money;
+  /** Commission the accepted quote expects the provider to pay out later; zero for LOCAL margins. */
+  expectedProviderCommission: Money;
   funding: { method: FundingMethod; capabilityId: string };
   connector: { holdSemantics: HoldSemantics; reversibilityRank: number; requiresIssuance: boolean; needsPrebook: boolean };
   booking: BookingState;
@@ -122,6 +126,14 @@ export interface SupplierLoss {
   reason: string;
 }
 
+/**
+ * Provider commission receivable changes (ADR-0006). A commission is only EXPECTED at booking confirmation; it is
+ * earned after the stay and paid out by the provider later (P15 reconciliation), and VOIDED if the booking is cancelled.
+ */
+export type CommissionChange =
+  | { itemId: string; kind: 'EXPECTED'; amount: Money; source: 'BOOKING' | 'QUOTE' }
+  | { itemId: string; kind: 'VOIDED' };
+
 export interface OrderAggregate {
   id: string;
   version: number;
@@ -137,6 +149,7 @@ export interface OrderAggregate {
   /** Appended during a mutation, persisted in the same transaction as the state change. */
   pendingEvents: PendingEvent[];
   pendingAudit: AuditEntry[];
+  pendingCommissions: CommissionChange[];
 }
 
 export function item(agg: OrderAggregate, itemId: string): OrderItemState {
@@ -166,7 +179,25 @@ export function setBookingStatus(agg: OrderAggregate, itemId: string, to: Bookin
   if (it.booking.status === to) return;
   bookingMachine.assertTransition(it.booking.status, to, cause);
   audit(agg, 'booking.status', actor, at, { itemId, from: it.booking.status, to });
+  const wasConfirmed = it.booking.status === 'CONFIRMED' || it.booking.status === 'ISSUED';
   it.booking.status = to;
+  if ((to === 'CONFIRMED' || to === 'ISSUED') && !wasConfirmed) expectCommission(agg, it, actor, at);
+  if (to === 'CANCELLED') agg.pendingCommissions.push({ itemId, kind: 'VOIDED' });
+}
+
+/**
+ * On confirmation, records the commission the provider will pay out. The provider-reported amount wins; a gap to
+ * the accepted quote is audited for finance (the customer price is unaffected).
+ */
+function expectCommission(agg: OrderAggregate, it: OrderItemState, actor: string, at: Date): void {
+  const reported = it.booking.providerCommission;
+  const expected = it.expectedProviderCommission;
+  const amount = reported ?? expected;
+  if (amount.minor === 0n && expected.minor === 0n) return;
+  if (reported && (reported.currency !== expected.currency || reported.minor !== expected.minor)) {
+    audit(agg, 'commission.differs_from_quote', actor, at, { itemId: it.id, expected: expected.minor.toString(), reported: reported.minor.toString(), currency: reported.currency });
+  }
+  if (amount.minor > 0n) agg.pendingCommissions.push({ itemId: it.id, kind: 'EXPECTED', amount, source: reported ? 'BOOKING' : 'QUOTE' });
 }
 
 export function setTicketing(agg: OrderAggregate, itemId: string, to: TicketingStatus, cause: TransitionCause, actor: string, at: Date): void {

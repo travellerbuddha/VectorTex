@@ -38,6 +38,8 @@ export interface SeedItem {
   rank: number;
   needsPrebook?: boolean;
   requiresIssuance?: boolean;
+  /** Commission included in the supplier cost (PROVIDER_API margin); default 0. */
+  commission?: bigint;
 }
 
 export const SEED_PACKAGE: SeedItem[] = [
@@ -62,6 +64,7 @@ export async function seedOrder(core: CoreDatabase, items: SeedItem[] = SEED_PAC
       option: { label: it.productType },
       travelers: [{ travelerId: 't1', type: 'ADULT', age: null }],
       supplierCost: money('EUR', (it.charge * 9n) / 10n),
+      providerCommission: money('EUR', it.commission ?? 0n),
       sell: money('EUR', it.charge),
       chargeNow: money('EUR', it.charge),
       fx: null,

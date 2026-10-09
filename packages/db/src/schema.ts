@@ -137,6 +137,8 @@ export const quoteVersions = core.table(
     travelers: jsonb('travelers').notNull(),
     supplierCostMinor: minor('supplier_cost_minor').notNull(),
     supplierCostCurrency: ccy('supplier_cost_currency').notNull(),
+    /** Provider commission included in the supplier cost (PROVIDER_API margin, ADR-0006); supplier cost currency. */
+    providerCommissionMinor: minor('provider_commission_minor').notNull().default(sql`0`),
     sellMinor: minor('sell_minor').notNull(),
     sellCurrency: ccy('sell_currency').notNull(),
     chargeNowMinor: minor('charge_now_minor').notNull(),
@@ -152,7 +154,10 @@ export const quoteVersions = core.table(
     termsVersion: text('terms_version'),
     createdAt: ts('created_at').notNull().defaultNow(),
   },
-  (t) => [uniqueIndex('quote_versions_quote_version_uq').on(t.quoteId, t.version)],
+  (t) => [
+    uniqueIndex('quote_versions_quote_version_uq').on(t.quoteId, t.version),
+    check('quote_versions_commission_within_cost', sql`provider_commission_minor >= 0 AND provider_commission_minor <= supplier_cost_minor`),
+  ],
 );
 
 export const checkoutSessions = core.table('checkout_sessions', {
@@ -260,9 +265,16 @@ export const providerBookings = core.table(
     unknownOperation: text('unknown_operation'),
     lookupAttempts: integer('lookup_attempts').notNull().default(0),
     failureCode: text('failure_code'),
+    /** Commission the provider reported on the booking (ADR-0006). */
+    providerCommissionMinor: minor('provider_commission_minor'),
+    providerCommissionCurrency: ccy('provider_commission_currency'),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
   (t) => [
+    check(
+      'provider_bookings_commission_pair',
+      sql`(provider_commission_minor IS NULL) = (provider_commission_currency IS NULL) AND (provider_commission_minor IS NULL OR provider_commission_minor >= 0)`,
+    ),
     uniqueIndex('provider_bookings_item_uq').on(t.orderItemId),
     // One client reference per booking intent, never reused (§8).
     uniqueIndex('provider_bookings_client_ref_uq').on(t.environment, t.clientReference),
@@ -364,6 +376,40 @@ export const supplierSettlements = core.table(
     createdAt: ts('created_at').notNull().defaultNow(),
   },
   (t) => [index('supplier_settlements_item_idx').on(t.orderItemId)],
+);
+
+/**
+ * Provider commission receivables (ADR-0006; spec §6: kept apart from customer money and supplier payables).
+ * EXPECTED at booking confirmation, EARNED after the stay, RECEIVED with the provider payout reference, VOIDED when
+ * the booking is cancelled. No ledger entry before EARNED: a confirmed booking is not an earned commission.
+ */
+export const providerCommissions = core.table(
+  'provider_commissions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orderItemId: uuid('order_item_id')
+      .notNull()
+      .references(() => orderItems.id),
+    providerId: text('provider_id').notNull(),
+    environment: environmentEnum('environment').notNull(),
+    paymentMode: paymentModeEnum('payment_mode').notNull(),
+    status: text('status', { enum: ['EXPECTED', 'EARNED', 'RECEIVED', 'VOIDED'] }).notNull(),
+    /** BOOKING = amount the provider reported on the booking; QUOTE = from the accepted quote (not reported). */
+    source: text('source', { enum: ['BOOKING', 'QUOTE'] }).notNull(),
+    amountMinor: minor('amount_minor').notNull(),
+    currency: ccy('currency').notNull(),
+    payoutReference: text('payout_reference'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('provider_commissions_item_uq').on(t.orderItemId),
+    index('provider_commissions_provider_status_idx').on(t.providerId, t.status),
+    check('provider_commissions_amount_positive', sql`amount_minor > 0`),
+    check('provider_commissions_status_valid', sql`status IN ('EXPECTED', 'EARNED', 'RECEIVED', 'VOIDED')`),
+    check('provider_commissions_source_valid', sql`source IN ('BOOKING', 'QUOTE')`),
+    check('provider_commissions_received_has_payout', sql`status <> 'RECEIVED' OR payout_reference IS NOT NULL`),
+  ],
 );
 
 /** Append-only double-entry style journal. Corrections are reversing entries (trigger blocks UPDATE/DELETE). */

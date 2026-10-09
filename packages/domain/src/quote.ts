@@ -16,6 +16,11 @@ export interface QuoteVersionSnapshot {
   option: Readonly<Record<string, unknown>>;
   travelers: readonly TravelerRef[];
   supplierCost: Money;
+  /**
+   * Commission the provider includes in `supplierCost` at our requested margin and pays out after the stay
+   * (PROVIDER_API, ADR-0006); zero for LOCAL margins. Same currency as `supplierCost`.
+   */
+  providerCommission: Money;
   sell: Money;
   /** Amount collected now, in the charge currency. Pay-at-property amounts are separate. */
   chargeNow: Money;

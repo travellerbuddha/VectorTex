@@ -7,7 +7,7 @@ Ortam etiketi: **mock** = etiketli test dublörü, **db** = gerçek PostgreSQL 1
 | ID | Senaryo | Durum | Kanıt (dosya) | Ortam | Eksik olan |
 |---|---|---|---|---|---|
 | T01 | Money/kur/yuvarlama | ✅ | `packages/pricing/test/money.test.ts`, `packages/db/test/invariants.int.test.ts` (dağılım tetikleyicisi) | mock, db | Onaylı kur kaynağı ve yuvarlama politikası (G06) |
-| T02 | Net, marj, SSP | ✅ | `packages/pricing/test/policy.test.ts` | mock | Onaylı marj/ücret değerleri (G06) |
+| T02 | Net, marj, SSP | ✅ | `packages/pricing/test/policy.test.ts` (LOCAL ve ADR-0006 API marjı: komisyon doğrulaması, yuvarlama toleransı, ürün kısıtı), `packages/db/test/commission.int.test.ts` (komisyon alacağı), Nuitee sandbox (%10 marj, `M9KFYzg0w`) | mock, db, sandbox | Onaylı marj/ücret değerleri (G06); komisyon payout mutabakatı (P15) |
 | T03 | Çok oda/çocuk/milliyet | ◐ | `packages/connectors/test/connectors.test.ts`, `nuitee-hotel.test.ts` (resmî OpenAPI örnekleri, çok odalı ceza toplama) | mock | Sandbox koşusu (API host izni) |
 | T04 | Quote değişimi/expiry | ✅ | `packages/domain/test/state-quote-time.test.ts`, `orchestrator.test.ts` (prebook fiyat değişimi, süresi dolmuş prebook) | mock | — |
 | T05 | İptal saat dilimi/DST | ✅ | `packages/domain/test/state-quote-time.test.ts` | mock | Sağlayıcı iptal politikası alan eşlemesi (spec kilidi) |

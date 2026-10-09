@@ -124,6 +124,20 @@ API host'larına ağ izni verildikten sonra `pnpm test:sandbox` (bkz. `packages/
 | İptal (`PUT /bookings/{id}`) | CANCELLED, ceza 0, tam iade | — |
 | Nuitee ödeme SDK'lı prebook (`usePaymentSdk:true`) | SUCCEEDED; `transactionId` + `secretKey` döndü | prebook `vKh3SHrTO` |
 
-**Çelişki — Nuitee'ye sorulmalı:** `margin: 0` ile (net fiyat) aranan teklifler prebook'ta 7 denemenin hepsinde HTTP 409 / kod 2001 ile reddedildi; %0,5, %1, %5, %10 marj ve hesap varsayılanı sorunsuz. Rehber net fiyatı merchant-of-record kullanımı için öneriyor. Şartnamedeki "kendi ödemede net fiyat + yerel marj" kuralı (K13/§6) bu yüzden şu an sandbox'ta uygulanamıyor; kod kuralı değiştirmeden net fiyat istemeye devam ediyor (yanlış fiyatla rezervasyon yapılmıyor). Hazır soru metni: `saglayici-sorulari.md`.
+**Çelişki:** `margin: 0` ile (net fiyat) aranan teklifler prebook'ta 7 denemenin hepsinde HTTP 409 / kod 2001 ile reddedildi; %0,5, %1, %5, %10, %12,5 marj ve hesap varsayılanı sorunsuz. Rehber net fiyatı merchant-of-record kullanımı için öneriyor. **Karar (9 Ekim 2026, işletme, B seçeneği): ADR-0006** — kendi ödememizde de otel marjı Nuitee API `margin` parametresiyle, onaylı fiyat politikasındaki orandan uygulanır; net + yerel marj yolu kodda korunur.
 
 Kod etkisi: 2001 artık prebook için kesin red (yeniden arama) olarak sınıflandırılıyor. Matris: `nuitee.hotel.own_gateway.account_card` → account ENABLED (sandbox anahtarı), sandbox PASSED; production NOT_RUN.
+
+### 10.1 ADR-0006 akışı — API marjıyla kendi ödeme (9 Ekim 2026)
+
+| Adım | Sonuç | Referans |
+|---|---|---|
+| Komisyon ölçümü (arama, %1 / %5 / %12,5, tek oda; %7 iki oda) | `commission` = istenen yüzde × net; en büyük sapma 0,15 baz puan (oda/gece yuvarlaması) | — |
+| Arama (%10 marj) | SUCCEEDED, 41 teklif | — |
+| Prebook | fiyat 1.521,09 EUR, komisyon 138,27 EUR (net 1.382,82); değişim yok | prebook `nmg5p6zMI` |
+| Fiyat çekirdeği (`computeSellPrice`, test politikası) | PROVIDER_API kabul; satış = tedarikçi tahsilatı = 1.521,09; beklenen komisyon 138,27 | — |
+| Book (`ACC_CREDIT_CARD`) | CONFIRMED; maliyet 1.521,09 EUR (komisyon dahil); rezervasyonda komisyon 138,27 EUR | booking `M9KFYzg0w` |
+| `clientReference` ile sorgu | CONFIRMED, komisyon 138,27 EUR | — |
+| İptal | CANCELLED, ceza 0, iade 1.521,09 EUR (komisyon dahil tam tutar) | — |
+
+Sandbox gizli test kartı kullanıldığı için kart ekstresi görülemez: kartın komisyon dahil tutarla yüklendiği yanıttaki `price` alanından ve dokümandan çıkarılmıştır. Komisyonun haftalık payout ile check-out sonrası ödenmesi yalnız doküman kanıtıdır (production'da doğrulanacak; soru metni `saglayici-sorulari.md`).

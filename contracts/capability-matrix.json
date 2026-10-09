@@ -116,7 +116,14 @@
           "verifiedAt": "2026-10-09",
           "environment": "sandbox",
           "reference": "probe:margin-0",
-          "summary": "CONFLICT with revenue guide: search results requested with margin 0 (net rates) were refused at prebook with HTTP 409 / code 2001 ('provider price exceeds locked selling price' / 'no availability found') in 7 attempts; margins 0.5%, 1%, 5%, 10% and the account default prebooked fine. Own-gateway pricing (net + local margin) is blocked until Nuitee clarifies."
+          "summary": "Search results requested with margin 0 (net rates) were refused at prebook with HTTP 409 / code 2001 in 7 attempts; margins 0.5%, 1%, 5%, 10%, 12.5% and the account default prebooked fine. Resolved by business decision ADR-0006: own-gateway hotels use the provider API margin from the approved pricing policy (net + local margin stays available if Nuitee enables margin 0)."
+        },
+        {
+          "source": "packages/connectors/test/nuitee-hotel.sandbox.test.ts",
+          "verifiedAt": "2026-10-09",
+          "environment": "sandbox",
+          "reference": "prebook:nmg5p6zMI booking:M9KFYzg0w",
+          "summary": "ADR-0006 chain with margin 10%: prebook price 1521.09 EUR with commission 138.27 EUR (net 1382.82); pricing core accepted the commission as the requested margin; book with ACC_CREDIT_CARD CONFIRMED, supplier cost 1521.09 EUR (commission included), booking reports commission 138.27 EUR; lookup CONFIRMED; cancel CANCELLED, penalty 0, refund 1521.09 EUR. Commission payout timing (weekly, after checkout) is documentation-only."
         }
       ]
     },

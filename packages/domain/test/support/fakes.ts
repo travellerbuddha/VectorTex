@@ -44,6 +44,7 @@ export function providerState(status: ProviderBookingState['status'], extra: Par
     voucherReady: status === 'CONFIRMED',
     holdExpiresAt: null,
     supplierCost: null,
+    providerCommission: null,
     ...extra,
   };
 }

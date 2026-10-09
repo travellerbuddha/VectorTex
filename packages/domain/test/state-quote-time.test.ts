@@ -55,6 +55,7 @@ const baseQuote = (over: Partial<QuoteVersionSnapshot> = {}): QuoteVersionSnapsh
   option: { room: 'Double', board: 'BB' },
   travelers: [{ travelerId: 't1', type: 'ADULT', age: null }],
   supplierCost: money('EUR', 9000n),
+  providerCommission: money('EUR', 0n),
   sell: money('EUR', 10000n),
   chargeNow: money('EUR', 10000n),
   fx: null,

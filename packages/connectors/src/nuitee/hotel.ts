@@ -226,6 +226,9 @@ export class NuiteeHotelConnector implements HotelConnector {
     if (!mapped || typeof data.bookingId !== 'string') return null;
     const amt = exactDecimal(parsed, data, 'price');
     const cost = amt !== null && typeof data.currency === 'string' ? fromMajor(amt, data.currency) : null;
+    // "The total commission amount associated with all rooms on the booking" (booking OpenAPI), same currency as price.
+    const commissionText = exactDecimal(parsed, data, 'commission');
+    const commission = commissionText !== null && typeof data.currency === 'string' ? fromMajor(commissionText, data.currency) : null;
     return {
       status: mapped,
       providerBookingRef: opaque(data.bookingId),
@@ -237,6 +240,7 @@ export class NuiteeHotelConnector implements HotelConnector {
       voucherReady: mapped === 'CONFIRMED',
       holdExpiresAt: null,
       supplierCost: cost,
+      providerCommission: commission,
     };
   }
 
@@ -258,7 +262,8 @@ export class NuiteeHotelConnector implements HotelConnector {
       checkin: criteria.checkin,
       checkout: criteria.checkout,
       timeout: this.cfg.searchTimeoutSeconds,
-      // Own payment works on net rates: margin 0 overrides any account default (revenue guide).
+      // Always explicit so the account default margin never applies: the approved pricing policy decides the
+      // percentage (ADR-0006); null = net rate for LOCAL pricing (margin 0, revenue guide).
       margin: criteria.margin ? new D(criteria.margin.basisPoints).div(100).toNumber() : 0,
     };
     const http = await this.send('searchRates', 'POST', `${this.cfg.searchBaseUrl}/hotels/rates`, body, this.cfg.searchTimeoutSeconds);
@@ -455,6 +460,7 @@ export class NuiteeHotelConnector implements HotelConnector {
         voucherReady: false,
         holdExpiresAt: null,
         supplierCost: null,
+        providerCommission: null,
         penalty: fee !== null ? fromMajor(fee, data.currency) : null,
         refundToUs: refund !== null ? fromMajor(refund, data.currency) : null,
       },

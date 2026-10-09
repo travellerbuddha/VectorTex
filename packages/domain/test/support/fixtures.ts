@@ -18,6 +18,8 @@ export interface ItemSpec {
   requiresIssuance?: boolean;
   holdSemantics?: OrderItemState['connector']['holdSemantics'];
   charge: bigint;
+  /** Commission the accepted quote expects from the provider (PROVIDER_API margin); default 0. */
+  commission?: bigint;
 }
 
 export const HOTEL: ItemSpec = { id: 'item-hotel', productType: 'HOTEL', rank: 10, needsPrebook: true, charge: 50000n };
@@ -43,6 +45,7 @@ export function makeOrder(opts: { items?: ItemSpec[]; payment?: PaymentStatus; s
       quoteVersionId: `qv-${s.id}`,
       chargeAllocation: money('EUR', s.charge),
       supplierCost: money('EUR', (s.charge * 9n) / 10n),
+      expectedProviderCommission: money('EUR', s.commission ?? 0n),
       funding: { method: 'ACCOUNT_CARD', capabilityId: `cap-${s.id}` },
       connector: {
         holdSemantics: s.holdSemantics ?? (s.needsPrebook ? 'PREBOOK_VALIDATION' : 'NONE'),
@@ -68,6 +71,7 @@ export function makeOrder(opts: { items?: ItemSpec[]; payment?: PaymentStatus; s
         unknownOperation: null,
         lookupAttempts: 0,
         failureCode: null,
+        providerCommission: null,
       },
     })),
     payment: {
@@ -90,5 +94,6 @@ export function makeOrder(opts: { items?: ItemSpec[]; payment?: PaymentStatus; s
     supplierLosses: [],
     pendingEvents: [],
     pendingAudit: [],
+    pendingCommissions: [],
   };
 }

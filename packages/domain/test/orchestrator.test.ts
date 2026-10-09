@@ -353,3 +353,32 @@ describe('T13 payment proof comes only from the gateway', () => {
     expect(Object.values(h.ports).every((p) => p.calls.length === 0)).toBe(true);
   });
 });
+
+describe('ADR-0006 provider commission receivable (API margin on our own gateway)', () => {
+  const HOTEL_API_MARGIN = { ...HOTEL, commission: 4500n };
+
+  it('a confirmed booking records the provider-reported commission as EXPECTED (not earned, no ledger)', async () => {
+    const h = harness(makeOrder({ items: [HOTEL_API_MARGIN, TRANSFER] }));
+    h.ports.HOTEL!.bookScript.push(ok(providerState('CONFIRMED', { providerCommission: money('EUR', 4490n) })));
+    await h.orchestrator.drive('ord-1');
+    expect(status(h.store).status).toBe('CONFIRMED');
+    expect(h.store.commissions).toEqual([{ orderId: 'ord-1', itemId: 'item-hotel', kind: 'EXPECTED', amount: money('EUR', 4490n), source: 'BOOKING' }]);
+    // The provider figure wins; the gap to the accepted quote is left for finance, the customer charge is unchanged.
+    expect(h.store.auditLog.filter((a) => a.action === 'commission.differs_from_quote')).toHaveLength(1);
+    expect(h.gateway.count('capture')).toBe(1);
+  });
+
+  it('falls back to the accepted quote when the provider does not report a commission; LOCAL items record none', async () => {
+    const h = harness(makeOrder({ items: [HOTEL_API_MARGIN, TRANSFER] }));
+    await h.orchestrator.drive('ord-1');
+    expect(h.store.commissions).toEqual([{ orderId: 'ord-1', itemId: 'item-hotel', kind: 'EXPECTED', amount: money('EUR', 4500n), source: 'QUOTE' }]);
+  });
+
+  it('a compensating cancellation voids the expected commission', async () => {
+    const h = harness(makeOrder({ items: [HOTEL_API_MARGIN, TRANSFER] }));
+    h.ports.TRANSFER!.bookScript.push(rejected());
+    await h.orchestrator.drive('ord-1', 100);
+    expect(bookingStatus(h.store, 'item-hotel')).toBe('CANCELLED');
+    expect(h.store.commissions.map((c) => `${c.itemId}:${c.kind}`)).toEqual(['item-hotel:EXPECTED', 'item-hotel:VOIDED']);
+  });
+});

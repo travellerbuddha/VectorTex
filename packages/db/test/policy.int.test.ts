@@ -75,15 +75,16 @@ describe('G06: business-editable pricing policy', () => {
 
   it('rejects inconsistent documents with field-level messages for the UI', async () => {
     const bad = pricingDoc(500);
-    (bad.rules[0] as Record<string, unknown>).application = 'PROVIDER_API';
-    (bad.rules[1] as Record<string, unknown>).basisPoints = 250_000;
+    // Provider-managed sales cannot add a local margin (the provider collects); typo-sized margins are refused.
+    (bad.rules[1] as Record<string, unknown>).application = 'LOCAL';
+    (bad.rules[0] as Record<string, unknown>).basisPoints = 250_000;
     try {
       await repo.createDraft('PRICING', 'b2c', bad, finance);
       expect.unreachable();
     } catch (err) {
       expect(err).toBeInstanceOf(PolicyValidationError);
       const paths = (err as PolicyValidationError).issues.map((i) => i.path);
-      expect(paths).toEqual(expect.arrayContaining(['rules.0', 'rules.1.basisPoints']));
+      expect(paths).toEqual(expect.arrayContaining(['rules.0.basisPoints', 'rules.1']));
     }
   });
 

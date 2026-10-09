@@ -36,6 +36,9 @@ export class QuoteRepository {
   }
 
   async addVersion(quoteId: string, v: NewQuoteVersion): Promise<string> {
+    if (v.providerCommission.currency !== v.supplierCost.currency) {
+      throw new DomainError('VALIDATION_FAILED', 'Provider commission must be in the supplier cost currency', { httpStatus: 422 });
+    }
     const [row] = await this.db
       .insert(quoteVersions)
       .values({
@@ -47,6 +50,7 @@ export class QuoteRepository {
         travelers: v.travelers,
         supplierCostMinor: v.supplierCost.minor,
         supplierCostCurrency: v.supplierCost.currency,
+        providerCommissionMinor: v.providerCommission.minor,
         sellMinor: v.sell.minor,
         sellCurrency: v.sell.currency,
         chargeNowMinor: v.chargeNow.minor,

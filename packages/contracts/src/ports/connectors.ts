@@ -59,6 +59,8 @@ export interface ProviderBookingState {
   voucherReady: boolean;
   holdExpiresAt: string | null;
   supplierCost: Money | null;
+  /** Commission the provider reports on this booking (paid out to us later, ADR-0006); null if not reported. */
+  providerCommission: Money | null;
 }
 
 /** How the supplier is paid for a booking. Each product exposes only the variants it documents. */

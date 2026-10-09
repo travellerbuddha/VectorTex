@@ -13,6 +13,8 @@ import {
   paymentAttempts,
   paymentItemTransactions,
   providerBookings,
+  providerCommissions,
+  quoteVersions,
   supplierSettlements,
 } from './schema';
 
@@ -37,6 +39,13 @@ export class DrizzleOrderStore implements OrderStore {
     const [attempt] = await this.db.select().from(paymentAttempts).where(eq(paymentAttempts.orderId, orderId)).orderBy(desc(paymentAttempts.createdAt)).limit(1);
     const itemTx = attempt ? await this.db.select().from(paymentItemTransactions).where(eq(paymentItemTransactions.paymentAttemptId, attempt.id)) : [];
     const tasks = await this.db.select().from(operationTasks).where(and(eq(operationTasks.orderId, orderId), eq(operationTasks.status, 'OPEN')));
+    const quoteIds = items.map((i) => i.quoteVersionId);
+    const quoteCommissions = quoteIds.length
+      ? await this.db
+          .select({ id: quoteVersions.id, minor: quoteVersions.providerCommissionMinor, currency: quoteVersions.supplierCostCurrency })
+          .from(quoteVersions)
+          .where(inArray(quoteVersions.id, quoteIds))
+      : [];
     const losses = itemIds.length
       ? await this.db.select().from(supplierSettlements).where(and(inArray(supplierSettlements.orderItemId, itemIds), eq(supplierSettlements.kind, 'PENALTY')))
       : [];
@@ -44,6 +53,8 @@ export class DrizzleOrderStore implements OrderStore {
     const itemStates: OrderItemState[] = items.map((i) => {
       const b = bookings.find((x) => x.orderItemId === i.id);
       if (!b) throw new Error(`Order item ${i.id} has no provider booking row`);
+      const qc = quoteCommissions.find((q) => q.id === i.quoteVersionId);
+      if (!qc) throw new Error(`Order item ${i.id} has no quote version row`);
       return {
         id: i.id,
         productType: i.productType,
@@ -52,6 +63,7 @@ export class DrizzleOrderStore implements OrderStore {
         quoteVersionId: i.quoteVersionId,
         chargeAllocation: money(i.chargeCurrency, i.chargeAllocationMinor),
         supplierCost: money(i.supplierCostCurrency, i.supplierCostMinor),
+        expectedProviderCommission: money(qc.currency, qc.minor),
         funding: { method: i.fundingMethod, capabilityId: i.fundingCapabilityId },
         connector: i.connectorMeta as ConnectorMeta,
         booking: {
@@ -72,6 +84,7 @@ export class DrizzleOrderStore implements OrderStore {
           unknownOperation: b.unknownOperation as OrderItemState['booking']['unknownOperation'],
           lookupAttempts: b.lookupAttempts,
           failureCode: b.failureCode,
+          providerCommission: b.providerCommissionMinor !== null && b.providerCommissionCurrency ? money(b.providerCommissionCurrency, b.providerCommissionMinor) : null,
         },
       };
     });
@@ -109,6 +122,7 @@ export class DrizzleOrderStore implements OrderStore {
       supplierLosses: losses.map((l) => ({ id: l.id, itemId: l.orderItemId, amount: money(l.currency, l.amountMinor), reason: l.reason ?? '' })),
       pendingEvents: [],
       pendingAudit: [],
+      pendingCommissions: [],
     };
   }
 
@@ -143,6 +157,8 @@ export class DrizzleOrderStore implements OrderStore {
             unknownOperation: b.unknownOperation,
             lookupAttempts: b.lookupAttempts,
             failureCode: b.failureCode,
+            providerCommissionMinor: b.providerCommission?.minor ?? null,
+            providerCommissionCurrency: b.providerCommission?.currency ?? null,
             updatedAt: new Date().toISOString(),
           })
           .where(eq(providerBookings.id, b.id));
@@ -208,6 +224,32 @@ export class DrizzleOrderStore implements OrderStore {
         ]);
       }
 
+      // Commission receivables (ADR-0006): idempotent, so a replayed confirmation or cancellation is a no-op.
+      for (const change of agg.pendingCommissions) {
+        const it = agg.items.find((i) => i.id === change.itemId);
+        if (!it) throw new Error(`Commission change for unknown item ${change.itemId}`);
+        if (change.kind === 'EXPECTED') {
+          await tx
+            .insert(providerCommissions)
+            .values({
+              orderItemId: it.id,
+              providerId: it.providerId,
+              environment: agg.environment,
+              paymentMode: agg.route.mode,
+              status: 'EXPECTED',
+              source: change.source,
+              amountMinor: change.amount.minor,
+              currency: change.amount.currency,
+            })
+            .onConflictDoNothing();
+        } else {
+          await tx
+            .update(providerCommissions)
+            .set({ status: 'VOIDED' })
+            .where(and(eq(providerCommissions.orderItemId, it.id), eq(providerCommissions.status, 'EXPECTED')));
+        }
+      }
+
       if (agg.pendingEvents.length > 0) {
         await tx.insert(outboxEvents).values(
           agg.pendingEvents.map((e) => ({
@@ -227,6 +269,7 @@ export class DrizzleOrderStore implements OrderStore {
     agg.version = nextVersion;
     agg.pendingEvents = [];
     agg.pendingAudit = [];
+    agg.pendingCommissions = [];
     return nextVersion;
   }
 }
