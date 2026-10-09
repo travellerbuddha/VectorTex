@@ -2,9 +2,11 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describeConfig, type AppConfig } from '@texholiday/config';
-import { DomainError, parseSourceLock, type SourceLock } from '@texholiday/contracts';
-import { DrizzleOrderStore, OutboxRepository, PolicyRepository, createCoreDatabase, type CoreDatabase } from '@texholiday/db';
-import { PackageOrchestrator, type ItemBookingPort, type OrchestrationPolicy, type OrderItemState } from '@texholiday/domain';
+import { NuiteeHotelProviderManagedPort } from '@texholiday/booking';
+import { NuiteeHotelConnector } from '@texholiday/connectors';
+import { DomainError, parseSourceLock, type HotelConnector, type SourceLock } from '@texholiday/contracts';
+import { CheckoutRepository, DrizzleOrderStore, OutboxRepository, PolicyRepository, QuoteRepository, createCoreDatabase, type CoreDatabase } from '@texholiday/db';
+import { PackageOrchestrator, ProviderManagedOrchestrator, type ItemBookingPort, type OrchestrationPolicy, type OrderItemState } from '@texholiday/domain';
 import { GatewayRegistry, IYZICO_REQUIRED_SOURCES, IyzicoGateway } from '@texholiday/payments';
 import type { EventHandler, Logger } from './relay';
 
@@ -67,7 +69,14 @@ export interface Runtime {
  * providers until their contracts are pinned and account-verified (P10–P13), so such orders fail loudly
  * (event retried, then DEAD + alert) instead of being processed by a guess.
  */
-export async function createRuntime(config: AppConfig, env: Record<string, string | undefined>, log: Logger, bookingPorts: ReadonlyMap<string, ItemBookingPort> = new Map()): Promise<Runtime> {
+export async function createRuntime(
+  config: AppConfig,
+  env: Record<string, string | undefined>,
+  log: Logger,
+  bookingPorts: ReadonlyMap<string, ItemBookingPort> = new Map(),
+  /** Hotel connector for provider-managed checkouts; tests pass the MOCK connector. */
+  hotelConnector: HotelConnector | null = null,
+): Promise<Runtime> {
   const tech = technicalSettings(env);
   const core = createCoreDatabase(config.database.url, { applicationName: 'texholiday-worker' });
   const lock = loadSourceLock();
@@ -89,7 +98,43 @@ export async function createRuntime(config: AppConfig, env: Record<string, strin
 
   const store = new DrizzleOrderStore(core.db);
   const policies = new PolicyRepository(core.db);
+  const hotels =
+    hotelConnector ??
+    (config.nuitee
+      ? new NuiteeHotelConnector({
+          apiKey: config.nuitee.apiKey,
+          environment: config.nuitee.keyEnvironment,
+          searchBaseUrl: config.nuitee.searchBaseUrl,
+          bookBaseUrl: config.nuitee.bookBaseUrl,
+          searchTimeoutSeconds: 6,
+          bookTimeoutSeconds: 120,
+        })
+      : null);
+  // Provider-managed checkouts (ADR-0008): finalize while the customer may have paid, abandon at the deadline.
+  const providerManaged = hotels
+    ? new ProviderManagedOrchestrator({
+        store,
+        port: new NuiteeHotelProviderManagedPort(hotels, new QuoteRepository(core.db), new CheckoutRepository(core.db)),
+        clock: () => new Date(),
+        workerId: env.WORKER_ID ?? `worker-${process.pid}`,
+        policy: {
+          intentLeaseSeconds: tech.intentLeaseSeconds,
+          finalizeRetrySeconds: (attempt) => Math.min(20 * 2 ** Math.max(0, attempt - 1), 300),
+          maxAutomaticLookups: tech.maxAutomaticLookups,
+        },
+      })
+    : null;
+  const pm = () => {
+    if (!providerManaged) throw new ConnectorUnavailableError('nuitee-hotel');
+    return providerManaged;
+  };
   const handlers: Record<string, EventHandler> = {
+    'order.provider_managed.finalize': async (payload) => {
+      await pm().finalize(String(payload.orderId), Number.isInteger(payload.attempt) ? Number(payload.attempt) : 1);
+    },
+    'order.provider_managed.lookup': async (payload) => {
+      await pm().finalize(String(payload.orderId), 1);
+    },
     'order.advance': async (payload) => {
       const orderId = String(payload.orderId);
       // Business-edited and approved in /yonetim (G06); read per event so an approved change applies at once.

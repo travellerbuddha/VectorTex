@@ -43,6 +43,13 @@
       "when": 1791552084545,
       "tag": "0005_provider_managed_payment",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791552490884,
+      "tag": "0006_booking_flow",
+      "breakpoints": true
     }
   ]
 }

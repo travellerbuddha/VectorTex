@@ -8,14 +8,16 @@
     "start": "tsx src/main.ts"
   },
   "dependencies": {
+    "@texholiday/booking": "workspace:*",
     "@texholiday/config": "workspace:*",
+    "@texholiday/connectors": "workspace:*",
     "@texholiday/contracts": "workspace:*",
     "@texholiday/db": "workspace:*",
     "@texholiday/domain": "workspace:*",
-    "bullmq": "5.81.5",
-    "ioredis": "5.11.1",
     "@texholiday/payments": "workspace:*",
-    "drizzle-orm": "0.45.2"
+    "bullmq": "5.81.5",
+    "drizzle-orm": "0.45.2",
+    "ioredis": "5.11.1"
   },
   "devDependencies": {
     "tsx": "4.20.6",

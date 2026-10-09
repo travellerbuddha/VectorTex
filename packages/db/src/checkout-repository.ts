@@ -1,9 +1,9 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import { DomainError, type FundingMethod, type HoldSemantics, type PaymentMode, type PaymentRoute, type ProductType, type ProviderEnvironment } from '@texholiday/contracts';
 import type { QuoteVersionSnapshot } from '@texholiday/domain';
-import { sum, toJson, type Money } from '@texholiday/pricing';
+import { fromJson, sum, toJson, type Money, type MoneyJson } from '@texholiday/pricing';
 import type { CoreDb } from './client';
-import { checkoutSessionQuotes, checkoutSessions, orderItems, orders, paymentAttempts, providerBookings, quoteVersions, quotes } from './schema';
+import { checkoutSessionQuotes, checkoutSessions, customers, orderItemGuests, orderItems, orders, paymentAttempts, providerBookings, quoteVersions, quotes } from './schema';
 
 const PG_UNIQUE_VIOLATION = '23505';
 
@@ -67,6 +67,42 @@ export class QuoteRepository {
     return row!.id;
   }
 
+  /** Loads a quote version snapshot (server-side source of truth for prices and conditions). */
+  async get(quoteVersionId: string): Promise<(QuoteVersionSnapshot & { environment: ProviderEnvironment }) | null> {
+    const [row] = await this.db
+      .select({ v: quoteVersions, q: quotes })
+      .from(quoteVersions)
+      .innerJoin(quotes, eq(quotes.id, quoteVersions.quoteId))
+      .where(eq(quoteVersions.id, quoteVersionId));
+    if (!row) return null;
+    const { v, q } = row;
+    const m = (minor: bigint, currency: string): Money => fromJson({ currency, minor: minor.toString() });
+    const cancellation = v.cancellation as { timezone: string; refundable: boolean; steps: Array<{ from: string; penalty: MoneyJson }>; providerText: string | null };
+    return {
+      id: v.id,
+      quoteId: v.quoteId,
+      version: v.version,
+      environment: v.environment,
+      productType: q.productType,
+      providerId: q.providerId,
+      offerRef: v.offerRef as QuoteVersionSnapshot['offerRef'],
+      option: v.option as Record<string, unknown>,
+      travelers: v.travelers as QuoteVersionSnapshot['travelers'],
+      supplierCost: m(v.supplierCostMinor, v.supplierCostCurrency),
+      providerCommission: m(v.providerCommissionMinor, v.supplierCostCurrency),
+      sell: m(v.sellMinor, v.sellCurrency),
+      chargeNow: m(v.chargeNowMinor, v.chargeCurrency),
+      fx: v.fx as QuoteVersionSnapshot['fx'],
+      fees: (v.fees as Array<{ code: string; amount: MoneyJson; includedInChargeNow: boolean }>).map((f) => ({ ...f, amount: fromJson(f.amount) })),
+      payAtProperty: (v.payAtProperty as MoneyJson[]).map(fromJson),
+      cancellation: { ...cancellation, steps: cancellation.steps.map((st) => ({ from: st.from, penalty: fromJson(st.penalty) })) },
+      expiresAt: new Date(v.expiresAt).toISOString(),
+      createdAt: new Date(v.createdAt).toISOString(),
+      pricingPolicy: { id: v.pricingPolicyId, version: v.pricingPolicyVersion },
+      acceptance: v.acceptedAt && v.termsVersion ? { acceptedAt: new Date(v.acceptedAt).toISOString(), termsVersion: v.termsVersion } : null,
+    };
+  }
+
   /** Records the customer's explicit acceptance once; the DB trigger refuses any later change. */
   async accept(quoteVersionId: string, termsVersion: string): Promise<void> {
     const rows = await this.db
@@ -87,6 +123,13 @@ export interface SubmitItem {
   supplierCost: Money;
   funding: { method: FundingMethod; capabilityId: string };
   connector: { holdSemantics: HoldSemantics; reversibilityRank: number; requiresIssuance: boolean; needsPrebook: boolean };
+  /** Booking contact and room lead guests for the provider (personal data). */
+  guests?: BookingGuests;
+}
+
+export interface BookingGuests {
+  holder: { firstName: string; lastName: string; email: string; phone: string };
+  roomGuests: ReadonlyArray<{ occupancyNumber: number; firstName: string; lastName: string; email: string }>;
 }
 
 export interface SubmitOrderInput {
@@ -163,6 +206,7 @@ export class CheckoutRepository {
             connectorMeta: it.connector,
           })
           .returning({ id: orderItems.id });
+        if (it.guests) await tx.insert(orderItemGuests).values({ orderItemId: row!.id, holder: it.guests.holder, roomGuests: it.guests.roomGuests });
         await tx.insert(providerBookings).values({
           orderItemId: row!.id,
           environment: input.environment,
@@ -180,6 +224,17 @@ export class CheckoutRepository {
       });
       return { checkoutSessionId, orderId, paymentAttemptId };
     });
+  }
+
+  /** Guest checkout: a customer identity without an account (§15: membership is never required). */
+  async createGuestCustomer(email: string, locale: 'tr' | 'en'): Promise<string> {
+    const [row] = await this.db.insert(customers).values({ kind: 'GUEST', email, locale }).returning({ id: customers.id });
+    return row!.id;
+  }
+
+  async guests(orderItemId: string): Promise<BookingGuests | null> {
+    const [row] = await this.db.select().from(orderItemGuests).where(eq(orderItemGuests.orderItemId, orderItemId));
+    return row ? { holder: row.holder as BookingGuests['holder'], roomGuests: row.roomGuests as BookingGuests['roomGuests'] } : null;
   }
 
   /** A new attempt (e.g. after a decline or a gateway change) is refused while another one is live (T21). */

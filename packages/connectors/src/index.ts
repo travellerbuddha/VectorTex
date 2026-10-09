@@ -3,3 +3,4 @@ export * from './nuitee/hotel-occupancy';
 export * from './nuitee/experience-participants';
 export * from './welcome/jsonapi';
 export * from './nuitee/hotel';
+export * from './mock/hotel';

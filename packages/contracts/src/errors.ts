@@ -11,7 +11,9 @@ export type ApiErrorCode =
   | 'NOT_FOUND'
   | 'VALIDATION_FAILED'
   | 'CONTRACT_NOT_PINNED'
-  | 'POLICY_NOT_APPROVED';
+  | 'POLICY_NOT_APPROVED'
+  /** The provider did not answer usably; nothing changed, the request can be retried. */
+  | 'PROVIDER_UNAVAILABLE';
 
 export class DomainError extends Error {
   readonly code: ApiErrorCode;

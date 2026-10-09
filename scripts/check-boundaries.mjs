@@ -19,6 +19,8 @@ const RULES = {
   db: { allowWorkspace: ['contracts', 'domain', 'pricing'], forbidden: [/^bullmq/] },
   payments: { allowWorkspace: ['contracts', 'pricing'], forbidden: [/^pg$/, /^drizzle-orm/] },
   connectors: { allowWorkspace: ['contracts', 'pricing'], forbidden: [/^pg$/, /^drizzle-orm/] },
+  // Application services compose the layers; no queue client and no payment gateway shortcuts here.
+  booking: { allowWorkspace: ['contracts', 'domain', 'pricing', 'db', 'connectors'], forbidden: [/^bullmq/, /^ioredis/] },
 };
 const GLOBAL_FORBIDDEN = [/^iyzipay$/, /^liteapi-node-sdk$/];
 

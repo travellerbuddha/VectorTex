@@ -9,6 +9,7 @@ import { NuiteeHotelConnector } from '../src/index';
 const sources = join(__dirname, '..', '..', '..', 'contracts', 'sources');
 const search = JSON.parse(readFileSync(join(sources, 'nuitee-openapi-search.json'), 'utf8'));
 const booking = JSON.parse(readFileSync(join(sources, 'nuitee-openapi-booking.json'), 'utf8'));
+const hotelData = JSON.parse(readFileSync(join(sources, 'nuitee-openapi-hotel-data.json'), 'utf8'));
 
 type Examples = Record<string, { value: unknown }>;
 const examples = (doc: Record<string, any>, path: string, method: string, code: string): Examples => {
@@ -82,6 +83,43 @@ describe('Nuitee hotel search (pinned search OpenAPI example)', () => {
   it('no availability (204/2001) is an empty result, not an error', async () => {
     const { c } = connector([{ kind: 'RESPONSE', response: { status: 204, headers: {}, body: '' }, durationMs: 1 }]);
     expect(await c.searchRates(criteria)).toMatchObject({ kind: 'SUCCEEDED', value: [] });
+  });
+});
+
+describe('Nuitee destination search and hotel content (pinned OpenAPI examples)', () => {
+  it('searches by place or country/city, returns hotel content and room/board details', async () => {
+    const ex = first(examples(search, '/hotels/rates', 'post', '200'));
+    const { c, t } = connector([res(200, ex), res(200, ex)]);
+    const { hotelIds: _ids, ...rest } = criteria;
+    const byPlace = await c.searchHotelRates({ ...rest, placeId: 'ChIJ-place', maxRatesPerHotel: 1, limit: 50 });
+    expect(JSON.parse(t.requests[0]!.body!)).toMatchObject({ placeId: 'ChIJ-place', maxRatesPerHotel: 1, limit: 50, margin: 0 });
+    expect(JSON.parse(t.requests[0]!.body!)).not.toHaveProperty('hotelIds');
+    expect(byPlace.kind).toBe('SUCCEEDED');
+    if (byPlace.kind !== 'SUCCEEDED') return;
+    expect(byPlace.value.hotels[0]).toMatchObject({ hotelId: 'lp1897', name: 'Hotel Example NYC', rating: 8.5 });
+    expect(byPlace.value.hotels[0]!.mainPhoto).toMatch(/^https:\/\//);
+    expect(byPlace.value.offers[0]!.room.name).toBeTruthy();
+    expect(byPlace.value.offers[0]!.paymentTypes.length).toBeGreaterThan(0);
+    await c.searchHotelRates({ ...rest, city: { countryCode: 'TR', cityName: 'Antalya' } });
+    expect(JSON.parse(t.requests[1]!.body!)).toMatchObject({ countryCode: 'TR', cityName: 'Antalya' });
+  });
+
+  it('needs exactly one search target and never shows non-https provider images', async () => {
+    const { c } = connector([res(200, { data: [], hotels: [{ id: 'h1', name: 'X', main_photo: 'http://insecure.example/x.jpg', thumbnail: 'javascript:alert(1)' }] })]);
+    expect((await c.searchHotelRates({ ...criteria, placeId: 'p' })).kind).toBe('CAPABILITY_NOT_AVAILABLE');
+    const { hotelIds: _ids, ...rest } = criteria;
+    expect((await c.searchHotelRates(rest)).kind).toBe('CAPABILITY_NOT_AVAILABLE');
+    const out = await c.searchHotelRates(criteria);
+    expect(out.kind === 'SUCCEEDED' && out.value.hotels[0]).toMatchObject({ hotelId: 'h1', mainPhoto: null, thumbnail: null });
+  });
+
+  it('maps place suggestions for destination autocomplete', async () => {
+    const ex = hotelData.paths['/data/places'].get.responses['200'].content['application/json'].example;
+    const { c, t } = connector([res(200, ex)]);
+    const out = await c.searchPlaces({ text: 'Antalya', language: 'tr' });
+    expect(t.requests[0]!.url).toBe('https://api.liteapi.travel/v3.0/data/places?textQuery=Antalya&language=tr');
+    expect(out.kind === 'SUCCEEDED' && out.value[0]).toEqual({ placeId: 'ChIJu1K2erNv5kcR6HyzBQieKJ0', name: 'Rome', address: '75017 París, Francia', types: expect.any(Array) });
+    expect((await c.searchPlaces({ text: 'a', language: 'tr' })).kind).toBe('CAPABILITY_NOT_AVAILABLE');
   });
 });
 

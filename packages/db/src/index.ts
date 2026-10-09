@@ -6,3 +6,4 @@ export * from './messaging';
 export * from './checkout-repository';
 export * from './policy-repository';
 export * from './permission-repository';
+export * from './search-repository';

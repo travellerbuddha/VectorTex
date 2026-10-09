@@ -122,6 +122,11 @@ export class IdempotencyRepository {
     return { state: 'IN_PROGRESS' };
   }
 
+  /** Frees a key whose request failed before any side effect, so the client may retry it. */
+  async release(scope: string, key: string): Promise<void> {
+    await this.db.delete(idempotencyKeys).where(and(eq(idempotencyKeys.scope, scope), eq(idempotencyKeys.key, key), eq(idempotencyKeys.status, 'IN_PROGRESS')));
+  }
+
   async complete(scope: string, key: string, status: number, body: unknown): Promise<void> {
     await this.db
       .update(idempotencyKeys)

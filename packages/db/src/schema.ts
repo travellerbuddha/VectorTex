@@ -110,6 +110,14 @@ export const searchSessions = core.table('search_sessions', {
   locale: text('locale').notNull(),
   displayCurrency: ccy('display_currency').notNull(),
   status: text('status', { enum: ['RUNNING', 'PARTIAL', 'COMPLETED', 'FAILED'] }).notNull(),
+  environment: environmentEnum('environment'),
+  /** Route preview chosen server-side for the search (payment mode decides the provider margin). */
+  route: jsonb('route'),
+  /**
+   * Server-side offer snapshots (provider offer ids, exact prices). The client only receives offer keys, so it can
+   * never choose a price by sending a provider offer id (§14).
+   */
+  results: jsonb('results'),
   createdAt: ts('created_at').notNull().defaultNow(),
   expiresAt: ts('expires_at').notNull(),
 });
@@ -240,6 +248,19 @@ export const orderItems = core.table(
   },
   (t) => [uniqueIndex('order_items_order_position_uq').on(t.orderId, t.position)],
 );
+
+/**
+ * Booking contact and room guests sent to the provider (personal data: restricted access, never logged, §17).
+ * One row per order item; the provider needs a holder and one lead guest per room.
+ */
+export const orderItemGuests = core.table('order_item_guests', {
+  orderItemId: uuid('order_item_id')
+    .primaryKey()
+    .references(() => orderItems.id),
+  holder: jsonb('holder').notNull(),
+  roomGuests: jsonb('room_guests').notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
 
 export const providerBookings = core.table(
   'provider_bookings',

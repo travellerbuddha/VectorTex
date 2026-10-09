@@ -95,13 +95,49 @@ export interface HotelOccupancy {
 }
 
 export interface HotelSearchCriteria {
-  hotelIds: readonly string[];
+  /** Exactly one target: hotel ids, a place id (from place search) or a country/city. */
+  hotelIds?: readonly string[];
+  placeId?: string;
+  city?: { countryCode: string; cityName: string };
   checkin: string;
   checkout: string;
   occupancies: readonly HotelOccupancy[];
   guestNationality: string;
   currency: string;
   margin: { basisPoints: number } | null;
+  /** Listing pages: cheapest N rates per hotel. */
+  maxRatesPerHotel?: number;
+  /** Maximum number of hotels. */
+  limit?: number;
+}
+
+/** Hotel content returned with a rates search (name, photo, address, rating). */
+export interface HotelSummary {
+  hotelId: string;
+  name: string;
+  mainPhoto: string | null;
+  thumbnail: string | null;
+  address: string | null;
+  city: string | null;
+  countryCode: string | null;
+  rating: number | null;
+  stars: number | null;
+}
+
+/** One room offer in a hotel search, with what the customer sees about the room. */
+export type HotelOffer = QuotedOffer & {
+  hotelId: string;
+  occupancyNumbers: readonly number[];
+  room: { name: string | null; boardType: string | null; boardName: string | null };
+  /** Provider payment types accepted for this offer (e.g. NUITEE_PAY, TRANSACTION_ID, ACC_CREDIT_CARD). */
+  paymentTypes: readonly string[];
+};
+
+export interface PlaceSuggestion {
+  placeId: string;
+  name: string;
+  address: string;
+  types: readonly string[];
 }
 
 export interface HotelRoomGuest {
@@ -111,7 +147,11 @@ export interface HotelRoomGuest {
 
 export interface HotelConnector {
   descriptor(): ConnectorDescriptor;
-  searchRates(criteria: HotelSearchCriteria): Promise<ExternalOutcome<readonly (QuotedOffer & { hotelId: string; occupancyNumbers: readonly number[] })[]>>;
+  searchRates(criteria: HotelSearchCriteria): Promise<ExternalOutcome<readonly HotelOffer[]>>;
+  /** Rates plus hotel content for listing pages. */
+  searchHotelRates(criteria: HotelSearchCriteria): Promise<ExternalOutcome<{ offers: readonly HotelOffer[]; hotels: readonly HotelSummary[] }>>;
+  /** Destination autocomplete. */
+  searchPlaces(input: { text: string; language: string }): Promise<ExternalOutcome<readonly PlaceSuggestion[]>>;
   prebook(input: { offerRef: OpaqueRef; usePaymentSdk: boolean; clientReference: string }): Promise<
     ExternalOutcome<{
       prebookRef: OpaqueRef;

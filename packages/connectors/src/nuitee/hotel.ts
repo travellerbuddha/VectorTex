@@ -9,8 +9,11 @@ import {
   type ExternalOutcome,
   type HotelConnector,
   type HotelFunding,
+  type HotelOffer,
   type HotelRoomGuest,
   type HotelSearchCriteria,
+  type HotelSummary,
+  type PlaceSuggestion,
   type HttpTransport,
   type OpaqueRef,
   type ProviderBookingState,
@@ -60,6 +63,18 @@ const BOOK_DEFINITIVE_CODES = new Set([4000, 4002, 4003, 4010, 4012]);
 const PREBOOK_DEFINITIVE_CODES = new Set([2001, 4002, 4016, 4040]);
 
 const CANCELLED_STATUSES = new Set(['CANCELLED', 'CANCELED', 'CANCELLED_WITH_CHARGES']);
+
+const str = (v: unknown): string | null => (typeof v === 'string' && v.trim().length > 0 ? v.trim() : null);
+/** Only https image URLs reach our pages (provider content is untrusted). */
+const safeUrl = (v: unknown): string | null => {
+  const s = str(v);
+  if (!s) return null;
+  try {
+    return new URL(s).protocol === 'https:' ? s : null;
+  } catch {
+    return null;
+  }
+};
 
 export class NuiteeHotelConnector implements HotelConnector {
   constructor(
@@ -182,7 +197,7 @@ export class NuiteeHotelConnector implements HotelConnector {
     return { timezone: 'UTC', refundable, steps, providerText: null };
   }
 
-  private offerFromRoomType(parsed: Parsed, roomType: Json): (QuotedOffer & { occupancyNumbers: number[] }) | null {
+  private offerFromRoomType(parsed: Parsed, roomType: Json): Omit<HotelOffer, 'hotelId'> | null {
     const price = this.priceObject(parsed, roomType.offerRetailRate);
     if (!price || typeof roomType.offerId !== 'string') return null;
     const rates = (roomType.rates as Json[] | undefined) ?? [];
@@ -217,6 +232,31 @@ export class NuiteeHotelConnector implements HotelConnector {
       cancellation,
       expiresAt: null,
       occupancyNumbers: rates.map((r) => Number(r.occupancyNumber)).filter(Number.isInteger),
+      room: {
+        name: str(roomType.name) ?? str(rates[0]?.name),
+        boardType: str(rates[0]?.boardType),
+        boardName: str(rates[0]?.boardName),
+      },
+      // Offer-level list when present, otherwise the union of the rates' payment types (examples carry them per rate).
+      paymentTypes: [...new Set((Array.isArray(roomType.paymentTypes) ? [roomType.paymentTypes] : rates.map((r) => r.paymentTypes)).flatMap((l) => (Array.isArray(l) ? (l as unknown[]) : [])).filter((x): x is string => typeof x === 'string'))],
+    };
+  }
+
+  private hotelSummary(h: Json): HotelSummary | null {
+    const id = str(h.id);
+    const name = str(h.name);
+    if (!id || !name) return null;
+    const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+    return {
+      hotelId: id,
+      name,
+      mainPhoto: safeUrl(h.main_photo),
+      thumbnail: safeUrl(h.thumbnail),
+      address: str(h.address),
+      city: str(h.city_name),
+      countryCode: str(h.country_code),
+      rating: num(h.rating),
+      stars: num(h.stars) ?? num(h.starRating),
     };
   }
 
@@ -250,12 +290,21 @@ export class NuiteeHotelConnector implements HotelConnector {
 
   // ------------------------------------------------------------------ operations
 
-  async searchRates(criteria: HotelSearchCriteria): Promise<ExternalOutcome<readonly (QuotedOffer & { hotelId: string; occupancyNumbers: readonly number[] })[]>> {
-    if (criteria.hotelIds.length === 0 || criteria.hotelIds.length > 200) {
+  async searchRates(criteria: HotelSearchCriteria): Promise<ExternalOutcome<readonly HotelOffer[]>> {
+    const out = await this.searchHotelRates(criteria);
+    return out.kind === 'SUCCEEDED' ? { kind: 'SUCCEEDED', value: out.value.offers, evidence: out.evidence } : out;
+  }
+
+  async searchHotelRates(criteria: HotelSearchCriteria): Promise<ExternalOutcome<{ offers: readonly HotelOffer[]; hotels: readonly HotelSummary[] }>> {
+    const targets = [criteria.hotelIds !== undefined, criteria.placeId !== undefined, criteria.city !== undefined].filter(Boolean).length;
+    if (targets !== 1) return notAvailable('SEARCH_TARGET', 'Search by exactly one of hotel ids, place id or country/city');
+    if (criteria.hotelIds && (criteria.hotelIds.length === 0 || criteria.hotelIds.length > 200)) {
       return notAvailable('HOTEL_IDS', 'Send between 1 and ~200 hotel ids per request (hotel-integration guide)');
     }
     const body: Json = {
-      hotelIds: [...criteria.hotelIds],
+      ...(criteria.hotelIds ? { hotelIds: [...criteria.hotelIds], includeHotelData: true } : {}),
+      ...(criteria.placeId ? { placeId: criteria.placeId } : {}),
+      ...(criteria.city ? { countryCode: criteria.city.countryCode, cityName: criteria.city.cityName } : {}),
       occupancies: [...criteria.occupancies].sort((a, b) => a.occupancyNumber - b.occupancyNumber).map((o) => ({ adults: o.adults, children: [...o.childAges] })),
       currency: criteria.currency,
       guestNationality: criteria.guestNationality,
@@ -265,15 +314,18 @@ export class NuiteeHotelConnector implements HotelConnector {
       // Always explicit so the account default margin never applies: the approved pricing policy decides the
       // percentage (ADR-0006); null = net rate for LOCAL pricing (margin 0, revenue guide).
       margin: criteria.margin ? new D(criteria.margin.basisPoints).div(100).toNumber() : 0,
+      ...(criteria.maxRatesPerHotel ? { maxRatesPerHotel: criteria.maxRatesPerHotel } : {}),
+      ...(criteria.limit ? { limit: criteria.limit } : {}),
     };
     const http = await this.send('searchRates', 'POST', `${this.cfg.searchBaseUrl}/hotels/rates`, body, this.cfg.searchTimeoutSeconds);
     if (!http.ok) return http.outcome;
-    if (http.status === 204) return { kind: 'SUCCEEDED', value: [], evidence: http.evidence };
+    const empty = { kind: 'SUCCEEDED' as const, value: { offers: [], hotels: [] }, evidence: http.evidence };
+    if (http.status === 204) return empty;
     const err = this.errorOf(http.json);
-    if (err) return err.code === 2001 ? { kind: 'SUCCEEDED', value: [], evidence: http.evidence } : { kind: 'REJECTED', code: `NUITEE_${err.code}`, message: err.message, evidence: http.evidence };
+    if (err) return err.code === 2001 ? empty : { kind: 'REJECTED', code: `NUITEE_${err.code}`, message: err.message, evidence: http.evidence };
     const data = (http.json as Json | null)?.data;
     if (!Array.isArray(data)) return this.unknown(http.evidence, 'MALFORMED_RESPONSE');
-    const offers: Array<QuotedOffer & { hotelId: string; occupancyNumbers: readonly number[] }> = [];
+    const offers: HotelOffer[] = [];
     for (const hotel of data as Json[]) {
       if (typeof hotel.hotelId !== 'string') continue;
       for (const rt of (hotel.roomTypes as Json[] | undefined) ?? []) {
@@ -282,7 +334,28 @@ export class NuiteeHotelConnector implements HotelConnector {
         if (offer) offers.push({ ...offer, hotelId: hotel.hotelId });
       }
     }
-    return { kind: 'SUCCEEDED', value: offers, evidence: http.evidence };
+    const rawHotels = (http.json as Json | null)?.hotels;
+    const hotels = (Array.isArray(rawHotels) ? (rawHotels as Json[]) : []).map((h) => this.hotelSummary(h)).filter((h): h is HotelSummary => h !== null);
+    return { kind: 'SUCCEEDED', value: { offers, hotels }, evidence: http.evidence };
+  }
+
+  async searchPlaces(input: { text: string; language: string }): Promise<ExternalOutcome<readonly PlaceSuggestion[]>> {
+    const text = input.text.trim();
+    if (text.length < 2 || text.length > 100) return notAvailable('PLACE_QUERY', 'Type 2-100 characters');
+    const url = `${this.cfg.searchBaseUrl}/data/places?textQuery=${encodeURIComponent(text)}&language=${encodeURIComponent(input.language)}`;
+    const http = await this.send('searchPlaces', 'GET', url, null, 10);
+    if (!http.ok) return http.outcome;
+    const data = (http.json as Json | null)?.data;
+    if (http.status === 204 || data === undefined || data === null) return { kind: 'SUCCEEDED', value: [], evidence: http.evidence };
+    if (!Array.isArray(data)) return this.unknown(http.evidence, 'MALFORMED_RESPONSE');
+    const places: PlaceSuggestion[] = [];
+    for (const p of data as Json[]) {
+      const placeId = str(p.placeId);
+      const name = str(p.displayName);
+      if (!placeId || !name) continue;
+      places.push({ placeId, name, address: str(p.formattedAddress) ?? '', types: Array.isArray(p.types) ? (p.types as unknown[]).filter((t): t is string => typeof t === 'string') : [] });
+    }
+    return { kind: 'SUCCEEDED', value: places, evidence: http.evidence };
   }
 
   async prebook(input: { offerRef: OpaqueRef; usePaymentSdk: boolean; clientReference: string }): Promise<

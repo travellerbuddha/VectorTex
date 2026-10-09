@@ -1,0 +1,63 @@
+import { notAvailable, type ExternalOutcome, type HotelConnector, type OpaqueRef, type ProviderBookingState, type ProviderManagedTransactionRef } from '@texholiday/contracts';
+import type { CheckoutRepository, QuoteRepository } from '@texholiday/db';
+import type { OrderAggregate, OrderItemState, ProviderManagedBookingPort, ProviderManagedPrebook, QuoteDifference } from '@texholiday/domain';
+import { equals } from '@texholiday/pricing';
+
+/**
+ * Binds the provider-managed orchestrator to the Nuitee hotel connector. Prices and offer ids always come from the
+ * stored, accepted quote; guests from the order (never from the request that triggers a step).
+ */
+export class NuiteeHotelProviderManagedPort implements ProviderManagedBookingPort {
+  constructor(
+    private readonly hotels: HotelConnector,
+    private readonly quotes: QuoteRepository,
+    private readonly checkout: CheckoutRepository,
+  ) {}
+
+  async prebookForPayment(agg: OrderAggregate, it: OrderItemState): Promise<ExternalOutcome<ProviderManagedPrebook>> {
+    const quote = await this.quotes.get(it.quoteVersionId);
+    if (!quote || quote.environment !== agg.environment) return notAvailable('QUOTE', 'Accepted quote not found for this environment');
+    const out = await this.hotels.prebook({ offerRef: quote.offerRef, usePaymentSdk: true, clientReference: `${it.booking.id}-pre` });
+    if (out.kind !== 'SUCCEEDED') return out;
+    const v = out.value;
+    if (!v.providerManagedTransaction || !v.paymentClientSecret) return { kind: 'UNKNOWN', reason: 'MALFORMED_RESPONSE', evidence: out.evidence };
+    const differences: QuoteDifference[] = [];
+    // The provider charges its prebook price: it must be exactly the accepted amount (K15).
+    if (v.changeFlags.price || !equals(v.offer.price, quote.chargeNow)) differences.push('CHARGE_AMOUNT');
+    if (v.changeFlags.cancellation) differences.push('CANCELLATION');
+    if (v.changeFlags.board) differences.push('OPTION');
+    return {
+      kind: 'SUCCEEDED',
+      value: { prebookRef: v.prebookRef, transactionId: v.providerManagedTransaction.transactionId, clientSecret: v.paymentClientSecret, differences },
+      evidence: out.evidence,
+    };
+  }
+
+  async book(agg: OrderAggregate, it: OrderItemState, clientReference: string, tx: { prebookRef: OpaqueRef; transactionId: OpaqueRef }): Promise<ExternalOutcome<ProviderBookingState>> {
+    const guests = await this.checkout.guests(it.id);
+    if (!guests) return notAvailable('GUESTS', 'Booking contact missing for the order item');
+    const transaction: ProviderManagedTransactionRef = {
+      __brand: 'ProviderManagedTransactionRef',
+      providerId: 'nuitee',
+      productType: 'HOTEL',
+      prebookRef: tx.prebookRef,
+      transactionId: tx.transactionId,
+      environment: agg.environment,
+    };
+    return this.hotels.book({
+      prebookRef: tx.prebookRef,
+      clientReference,
+      holder: guests.holder,
+      guests: guests.roomGuests.map((g) => ({ occupancyNumber: g.occupancyNumber, leadGuest: { firstName: g.firstName, lastName: g.lastName, email: g.email } })),
+      funding: { kind: 'PROVIDER_MANAGED', transaction },
+    });
+  }
+
+  async lookup(_agg: OrderAggregate, it: OrderItemState): Promise<ExternalOutcome<ProviderBookingState | null>> {
+    // No book call was ever sent under a reference: nothing can exist at the provider.
+    if (!it.booking.clientReference) {
+      return { kind: 'SUCCEEDED', value: null, evidence: { operation: 'lookup:no-reference', environment: _agg.environment, at: new Date().toISOString(), httpStatus: null, upstreamRequestId: null, durationMs: 0 } };
+    }
+    return this.hotels.lookupByClientReference(it.booking.clientReference);
+  }
+}
