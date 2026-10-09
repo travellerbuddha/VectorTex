@@ -46,3 +46,13 @@ jobs:
         run: pnpm test
       - name: Integration tests (PostgreSQL 16, Redis 7)
         run: pnpm test:integration
+      - name: Web typecheck and production build
+        run: |
+          pnpm --filter @texholiday/web typecheck
+          pnpm --filter @texholiday/web build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+      - name: Install Chromium for end-to-end tests
+        run: pnpm --filter @texholiday/web exec playwright install --with-deps chromium
+      - name: End-to-end hotel flow (MOCK provider, desktop + 320px)
+        run: pnpm --filter @texholiday/web e2e

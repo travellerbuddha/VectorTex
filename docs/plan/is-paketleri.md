@@ -5,7 +5,7 @@ Kaynak: şartname §18. Durum: ✅ tamam · ◐ kısmi · ⛔ dış blokaj · �
 | İş | Durum | Bu repoda olan | Eksik / blokaj |
 |---|---|---|---|
 | P00 Erişim/kanıt matrisi | ◐ | 45 kaynak SHA-256 ile kilitli; matris kanıtları hash referanslı; R0 raporu güncel | Hesap/yetki kanıtı yok; sağlayıcı API host'ları ağ politikasında kapalı |
-| P01 Ödeme/finansman PoC | ⛔ | Rota kuralları ve yetenek değerlendirmesi kodda (`selectPaymentRoutes`) | Nuitee/Welcome/iyzico sandbox anahtarları ve hesap yetkileri; Experiences bağımsız funding (G03) |
+| P01 Ödeme/finansman PoC | ◐ | Rota kuralları ve yetenek değerlendirmesi kodda (`selectPaymentRoutes`); Nuitee otel: hesap kartıyla sandbox zinciri geçti, ödeme SDK'lı prebook geçti | Nuitee/Welcome/iyzico sandbox anahtarları ve hesap yetkileri; Experiences bağımsız funding (G03) |
 | P02 Repo/altyapı | ◐ | pnpm monorepo, sürüm kilidi (ADR-0001), Zod config fail-fast, CI, DB, worker | Render altyapı tanımı, secret manager, `apps/web` (Next+Payload) iskeleti |
 | P03 Domain/DB | ✅ | Money, QuoteVersion, Order/Item, ayrı durum makineleri, Drizzle `core` şeması, migration'lar, DB değişmezlikleri | CustomerTransaction/SupplierSettlement için komut akışları P15 ile |
 | P04 Kalıcı işler | ✅ | Outbox (SKIP LOCKED, redrive, DEAD), Inbox, idempotency, intent/lease, BullMQ relay, Redis kaybı testi | — |
@@ -18,9 +18,9 @@ Kaynak: şartname §18. Durum: ✅ tamam · ◐ kısmi · ⛔ dış blokaj · �
 | P11 Nuitee uçak | ⛔ | Biletleme ayrımı orchestrator'da | `openapiflights.json`, uçak erişimi, prebook bypass teyidi |
 | P12 Nuitee Experiences | ⛔ | Katılımcı/soru doğrulaması; bağımsız ödeme rotası kapalı (G03) | `api-experiences.json`, async/voucher, G03 |
 | P13 Welcome transfer | ◐ | JSON:API hata ayrımı, referanslar, firm quote ve lokasyon/saat doğrulaması | Welcome dokümanı, staging anahtarı, kredi hesabı, audit |
-| P14 Paket orchestrator | ◐ | Tek tahsilat, sıralı onay, compensation, UNKNOWN, capture hatası, deadline; DB ile uçtan uca | Gerçek connector'lar; provider-managed tekil akış orkestrasyonu; G03 üretim şartı |
+| P14 Paket orchestrator | ◐ | Tek tahsilat, sıralı onay, compensation, UNKNOWN, capture hatası, deadline; DB ile uçtan uca. **Nuitee tahsilatlı tekil akış (ADR-0008)**: `ProviderManagedOrchestrator` (ödeme oturumu, dönüşte/işçide tamamlama, ödenmemişte aynı referansla yeniden deneme, kayıp yanıtta sorgu, süre aşımı, provizyon görevi) | Paketler kendi gateway'imizi bekliyor (iyzico sonra, ADR-0008); G03 üretim şartı |
 | P15 Operasyon/finans | ⬜ | Görev/audit/ledger altyapısı | Kuyruk/detay ekranları, iptal/iade komutları, mutabakat |
-| P16 Müşteri UX | ⬜ | — | TR/EN mobil akışlar, guest checkout, paket oluşturucu |
+| P16 Müşteri UX | ◐ | `apps/web` (Next 16.3.8): TR/EN otel akışı — yer önerili arama, sonuçlar (toplam önde, gecelik ortalama, iptal ve tesiste ödeme bilgisi), sunucu tarafı teklif, misafir bilgileriyle üyeliksiz ödeme, Nuitee ödeme bileşeni, dönüş/durum sayfaları; §14 API uçları; CSRF ve sipariş çerezi; Playwright uçtan uca testi (masaüstü + 320 px, MOCK) | Uçak, tur/aktivite, transfer, paket oluşturucu; e-posta bildirimleri; Payload içerik (P06); sandbox'ta gerçek ödeme bileşeni testi (ağ izni) |
 | P17 Geçiş/SEO | ⬜ | — | URL/içerik envanteri ve kullanım hakları |
 | P18 Kabul/pilot | ⬜ | — | T01–T36 tamamı + yetkili pilot |
 | P19 İlk canlı sürüm | ⛔ | — | G01–G09 |

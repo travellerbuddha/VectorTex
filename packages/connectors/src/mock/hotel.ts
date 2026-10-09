@@ -25,6 +25,8 @@ import { money, percentOf, add, type Money } from '@texholiday/pricing';
  */
 export class MockHotelConnector implements HotelConnector {
   private seq = 0;
+  /** Ids stay unique across restarts (like real provider ids), so stored orders never collide. */
+  private readonly run = Math.random().toString(36).slice(2, 8).toUpperCase();
   private readonly offers = new Map<string, { offer: QuotedOffer; hotelId: string }>();
   private readonly prebooks = new Map<string, { offerRef: string; transactionId: string | null; price: Money; commission: Money }>();
   private readonly paid = new Set<string>();
@@ -90,7 +92,7 @@ export class MockHotelConnector implements HotelConnector {
       const commission = percentOf(net, bp, 'HALF_EVEN');
       const price = add(net, commission);
       this.seq += 1;
-      const offerRef = opaque(`MOCK-OFFER-${this.seq}`);
+      const offerRef = opaque(`MOCK-OFFER-${this.run}-${this.seq}`);
       const checkin = Date.parse(`${criteria.checkin}T00:00:00Z`);
       const offer: HotelOffer = {
         offerRef,
@@ -131,8 +133,8 @@ export class MockHotelConnector implements HotelConnector {
     const found = this.offers.get(input.offerRef);
     if (!found) return { kind: 'REJECTED', code: 'NUITEE_4002', message: 'MOCK offer not found', evidence: this.evidence('prebook') };
     this.seq += 1;
-    const prebookRef = opaque(`MOCK-PRE-${this.seq}`);
-    const transactionId = input.usePaymentSdk ? `MOCK-TX-${this.seq}` : null;
+    const prebookRef = opaque(`MOCK-PRE-${this.run}-${this.seq}`);
+    const transactionId = input.usePaymentSdk ? `MOCK-TX-${this.run}-${this.seq}` : null;
     const priceChanged = this.nextPrebookPriceChange;
     this.nextPrebookPriceChange = false;
     const price = priceChanged ? add(found.offer.price, money(found.offer.price.currency, 100n)) : found.offer.price;
@@ -168,7 +170,7 @@ export class MockHotelConnector implements HotelConnector {
     this.seq += 1;
     const state: ProviderBookingState = {
       status: 'CONFIRMED',
-      providerBookingRef: opaque(`MOCK-BK-${this.seq}`),
+      providerBookingRef: opaque(`MOCK-BK-${this.run}-${this.seq}`),
       clientReference: input.clientReference,
       pnr: null,
       ticketNumbers: [],

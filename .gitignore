@@ -11,3 +11,4 @@ contracts/sources/*.upstream
 playwright-report/
 test-results/
 packages/connectors/src/generated/
+next-env.d.ts

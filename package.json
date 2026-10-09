@@ -11,7 +11,7 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "boundaries": "node scripts/check-boundaries.mjs",
-    "lint": "pnpm boundaries && pnpm typecheck",
+    "lint": "pnpm boundaries && pnpm typecheck && pnpm --filter @texholiday/web typecheck",
     "test": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "test:all": "vitest run",
@@ -21,7 +21,9 @@
     "contracts:check": "node scripts/pin-contracts.mjs --check",
     "worker": "pnpm --filter @texholiday/worker start",
     "contracts:types": "node scripts/generate-provider-types.mjs",
-    "test:sandbox": "NODE_USE_ENV_PROXY=1 vitest run --project sandbox"
+    "test:sandbox": "NODE_USE_ENV_PROXY=1 vitest run --project sandbox",
+    "web:dev": "pnpm --filter @texholiday/web dev",
+    "web:e2e": "pnpm --filter @texholiday/web build && pnpm --filter @texholiday/web e2e"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

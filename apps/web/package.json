@@ -1,0 +1,32 @@
+{
+  "name": "@texholiday/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Customer site and HTTP API (Next.js). Payload CMS and /yonetim join this app in P05/P06.",
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@texholiday/booking": "workspace:*",
+    "@texholiday/config": "workspace:*",
+    "@texholiday/connectors": "workspace:*",
+    "@texholiday/contracts": "workspace:*",
+    "@texholiday/db": "workspace:*",
+    "@texholiday/pricing": "workspace:*",
+    "next": "16.3.8",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@types/pg": "8.20.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "pg": "8.20.0"
+  }
+}

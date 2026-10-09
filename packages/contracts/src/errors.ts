@@ -30,6 +30,16 @@ export class DomainError extends Error {
   }
 }
 
+/**
+ * Structural check: bundlers may load this module more than once (e.g. Next.js pages vs route handlers), so
+ * `instanceof DomainError` is not reliable across bundles.
+ */
+export function isDomainError(err: unknown): err is DomainError {
+  if (err instanceof DomainError) return true;
+  const e = err as { code?: unknown; httpStatus?: unknown; retryable?: unknown } | null;
+  return !!e && typeof e === 'object' && typeof e.code === 'string' && typeof e.httpStatus === 'number' && typeof e.retryable === 'boolean';
+}
+
 export class CapabilityNotAvailableError extends DomainError {
   readonly reasons: readonly string[];
   constructor(message: string, reasons: readonly string[]) {

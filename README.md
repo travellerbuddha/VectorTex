@@ -23,7 +23,9 @@ packages/connectors  ürün bazlı sağlayıcı yardımcıları (sözleşme kili
 contracts/           capability-matrix.json, sources.lock.json (SHA-256 kilit)
 ```
 
-`apps/web` (Next.js 16.3.8 + Payload 3.90.2, `cms` şeması) bir sonraki aşamadır (P05/P06/P16).
+`apps/web` (Next.js 16.3.8): müşteri sitesi ve `/api/v1` uçları. Otel akışı Nuitee tahsilatlı ödemeyle çalışır (ADR-0008). Payload 3.90.2 (`cms` şeması) ve `/yonetim` P05/P06'da eklenecek.
+
+Yerelde MOCK sağlayıcıyla web: `APP_ENV=development PROVIDER_ENV=mock ALLOW_MOCK_ADAPTERS=true PAYLOAD_ENABLED=false DATABASE_URL=… ORDER_ACCESS_SECRET=… TERMS_VERSION=… pnpm web:dev`. Satış için onaylı bir fiyat politikası gerekir (varsayılan yok, G06). Uçtan uca test: `TEST_DATABASE_URL=… pnpm web:e2e`.
 
 ## Geliştirme
 

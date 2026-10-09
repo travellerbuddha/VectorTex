@@ -59,6 +59,7 @@ interface StoredResults {
   offers: StoredOffer[];
   pricingPolicy: { id: string; version: number };
   capabilityId: string;
+  hidden: HotelSearchView['hidden'];
 }
 
 export interface BookingAppDeps {
@@ -207,6 +208,7 @@ export class BookingApp {
       offers: stored,
       pricingPolicy: { id: policy.id, version: policy.version },
       capabilityId,
+      hidden,
     };
     const expiresAt = new Date(now.getTime() + this.deps.settings.searchTtlSeconds * 1000).toISOString();
     const sessionId = await this.searches.create({
@@ -299,6 +301,36 @@ export class BookingApp {
     }
     hotels.sort((a, b) => (BigInt(a.from.minor) < BigInt(b.from.minor) ? -1 : 1));
     return { sessionId, expiresAt, currency: input.currency, nights, paymentMode: 'PROVIDER_MANAGED', hotels, hidden };
+  }
+
+  /** Re-renders a stored search (GET /search-sessions/{id}); prices come from the stored snapshot only. */
+  async searchSession(sessionId: string): Promise<HotelSearchView> {
+    const session = await this.searches.get<StoredResults, HotelSearchInput>(sessionId);
+    if (!session || session.environment !== this.deps.settings.environment || session.productType !== 'HOTEL') throw notFound();
+    if (new Date(session.expiresAt).getTime() <= this.clock().getTime()) throw new QuoteError('QUOTE_EXPIRED', 'Search results expired; please search again');
+    return this.searchView(session.id, session.expiresAt, session.criteria, session.results, session.results.hidden);
+  }
+
+  /** Currencies a customer can pay in right now (an approved policy and an open route are needed). */
+  async availableCurrencies(): Promise<string[]> {
+    const policy = await this.policies.activePricing(this.deps.settings.policyId);
+    if (!policy) return [];
+    const open: string[] = [];
+    for (const c of this.deps.settings.currencies) {
+      try {
+        await this.route(c, policy);
+        open.push(c);
+      } catch (err) {
+        if (!(err instanceof CapabilityNotAvailableError)) throw err;
+      }
+    }
+    return open;
+  }
+
+  /** The search criteria behind a session, for pre-filling the form (no prices). */
+  async searchCriteria(sessionId: string): Promise<HotelSearchInput | null> {
+    const session = await this.searches.get<StoredResults, HotelSearchInput>(sessionId);
+    return session && session.environment === this.deps.settings.environment ? session.criteria : null;
   }
 
   // ------------------------------------------------------------------ quote
