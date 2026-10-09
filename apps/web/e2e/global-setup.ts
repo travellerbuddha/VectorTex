@@ -25,13 +25,18 @@ export default async function globalSetup() {
     process.env['E2E_SETUP_TOKEN_desktop'] = boot.token;
     process.env['E2E_SETUP_TOKEN_mobile-320'] = (await auth.invite(owner, { email: 'mobile@e2e.test', displayName: 'E2E Mobile' })).token;
     const perms = new PermissionRepository(db);
-    // A fully set-up administrator for the panel tests (password + enrolled authenticator, Owner/Admin preset).
-    const adm = await auth.invite(owner, { email: 'admin@e2e.test', displayName: 'E2E Admin' });
-    const setup = await auth.completeSetup(adm.token, E2E_ADMIN_PASSWORD);
-    const { secret } = await auth.beginEnrollment(setup.token);
-    await auth.completeEnrollment(setup.token, hotp(base32Decode(secret), totpStep(new Date())));
-    await perms.grantRole(adm.staffId, 'OWNER_ADMIN', owner);
-    process.env.E2E_ADMIN_SECRET = secret;
+    // Fully set-up panel accounts (password + enrolled authenticator) for the admin tests; secrets via env.
+    const account = async (key: string, email: string, displayName: string, role: 'OWNER_ADMIN' | 'FINANCE' | 'FINANCE_APPROVER') => {
+      const inv = await auth.invite(owner, { email, displayName });
+      const setup = await auth.completeSetup(inv.token, E2E_ADMIN_PASSWORD);
+      const { secret } = await auth.beginEnrollment(setup.token);
+      await auth.completeEnrollment(setup.token, hotp(base32Decode(secret), totpStep(new Date())));
+      await perms.grantRole(inv.staffId, role, owner);
+      process.env[`E2E_SECRET_${key}`] = secret;
+    };
+    await account('admin', 'admin@e2e.test', 'E2E Admin', 'OWNER_ADMIN');
+    await account('finance', 'finance@e2e.test', 'E2E Finans', 'FINANCE');
+    await account('approver', 'approver@e2e.test', 'E2E Onaycı', 'FINANCE_APPROVER');
     await perms.grantRole('e2e-finance', 'FINANCE', owner);
     await perms.grantRole('e2e-approver', 'FINANCE_APPROVER', owner);
     const policies = new PolicyRepository(db);

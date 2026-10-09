@@ -24,6 +24,9 @@ export function admin(): Admin {
   return holder.__texholidayAdmin;
 }
 
+/** The business policy set this deployment sells with (same as the booking application). */
+export const pricingPolicyId = () => process.env.POLICY_ID ?? 'b2c';
+
 export const STAFF_COOKIE = 'th_staff';
 export const ADMIN_LANG_COOKIE = 'th_admin_lang';
 
