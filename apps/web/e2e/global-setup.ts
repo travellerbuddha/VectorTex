@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import pg from 'pg';
@@ -20,6 +20,7 @@ export default async function globalSetup() {
   await admin.query('DROP SCHEMA IF EXISTS core CASCADE');
   await admin.end();
   await migrateCore(url);
+  if (process.env.E2E_MAIL_DIR) rmSync(process.env.E2E_MAIL_DIR, { recursive: true, force: true });
   // Last TOTP step used per account, shared across worker restarts (a code is accepted once per account).
   process.env.E2E_STEP_FILE = join(tmpdir(), `texholiday-e2e-steps-${process.pid}.json`);
   writeFileSync(process.env.E2E_STEP_FILE, '{}');

@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, type Page } from '@playwright/test';
 import { base32Decode, hotp, totpStep } from '@texholiday/admin';
 import { E2E_ADMIN_PASSWORD } from './keys';
@@ -46,4 +47,25 @@ export async function onboard(page: Page, link: string, password: string): Promi
   await page.getByRole('button', { name: 'Kurulumu tamamla' }).click();
   await expect(page).toHaveURL(/\/yonetim$/);
   return secret;
+}
+
+/** The setup link from the newest e-mail to `to` (MOCK mailer files, see playwright.config.ts). */
+export async function mailedLink(to: string): Promise<string> {
+  const dir = process.env.E2E_MAIL_DIR!;
+  let link: string | null = null;
+  await expect
+    .poll(
+      () => {
+        if (!existsSync(dir)) return null;
+        const mails = readdirSync(dir)
+          .sort()
+          .map((f) => JSON.parse(readFileSync(join(dir, f), 'utf8')) as { to: string; text: string })
+          .filter((m) => m.to === to);
+        link = mails.at(-1)?.text.match(/https?:\/\/\S+\/yonetim\/kurulum\/[A-Za-z0-9_-]+/)?.[0] ?? null;
+        return link;
+      },
+      { timeout: 10_000, message: `setup e-mail to ${to}` },
+    )
+    .not.toBeNull();
+  return link!;
 }

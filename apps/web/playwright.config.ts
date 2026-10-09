@@ -1,4 +1,6 @@
 import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 import { E2E_STAFF_MFA_KEY } from './e2e/keys';
 
@@ -7,6 +9,9 @@ import { E2E_STAFF_MFA_KEY } from './e2e/keys';
  * Needs TEST_DATABASE_URL (disposable; its core schema is dropped) and a built app (`next build`).
  */
 const port = Number(process.env.E2E_PORT ?? 3100);
+/** MOCK mailer output (setup-link e-mails), read by the admin tests; emptied by the global setup. */
+export const E2E_MAIL_DIR = process.env.E2E_MAIL_DIR ?? join(tmpdir(), 'texholiday-e2e-mail');
+process.env.E2E_MAIL_DIR = E2E_MAIL_DIR;
 // Use the preinstalled Chromium when present (cloud dev containers); CI installs Playwright's own browser.
 const preinstalled = process.env.PW_CHROMIUM_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const executablePath = existsSync(preinstalled) ? preinstalled : undefined;
@@ -37,6 +42,9 @@ export default defineConfig({
       REDIS_URL: process.env.TEST_REDIS_URL ?? 'redis://127.0.0.1:6379/15',
       ORDER_ACCESS_SECRET: 'e2e-only-secret-0123456789abcdef-xyz',
       STAFF_MFA_KEY: E2E_STAFF_MFA_KEY,
+      // Setup links go out by e-mail (MOCK mailer: JSON files); the tests open them from there.
+      MAIL_MOCK_DIR: E2E_MAIL_DIR,
+      PUBLIC_BASE_URL: `http://127.0.0.1:${port}`,
       // Every test signs in from 127.0.0.1; the per-IP brake is tested separately.
       STAFF_IP_ATTEMPTS_PER_5_MIN: '10000',
       TERMS_VERSION: 'e2e-terms-1',

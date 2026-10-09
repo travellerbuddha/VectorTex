@@ -1,6 +1,6 @@
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { adminSettingsFromEnv, OrdersQuery, StaffAuthService, type AdminSettings, type StaffIdentity, type StaffSessionView } from '@texholiday/admin';
+import { adminSettingsFromEnv, mailSettingsFromEnv, OrdersQuery, StaffAuthService, type AdminSettings, type MailSettings, type StaffIdentity, type StaffSessionView } from '@texholiday/admin';
 import { loadConfig } from '@texholiday/config';
 import type { Permission } from '@texholiday/contracts';
 import { PermissionRepository, PolicyRepository } from '@texholiday/db';
@@ -12,11 +12,13 @@ export interface Admin {
   policies: PolicyRepository;
   orders: OrdersQuery;
   settings: AdminSettings;
+  /** Outgoing mail for setup links; null = the panel hands links over itself. */
+  mail: MailSettings | null;
 }
 
 const holder = globalThis as typeof globalThis & { __texholidayAdmin?: Admin; __texholidayAdminLimiter?: Map<string, number[]> };
 
-/** Composition root of /yonetim (one per server process). Fails fast without STAFF_MFA_KEY. */
+/** Composition root of /yonetim (one per server process). Fails fast without STAFF_MFA_KEY or with unsafe mail settings. */
 export function admin(): Admin {
   if (!holder.__texholidayAdmin) {
     const { db } = coreDatabase();
@@ -29,6 +31,7 @@ export function admin(): Admin {
       // Operations screens show the orders of this deployment's provider environment only.
       orders: new OrdersQuery(db, environment),
       settings,
+      mail: mailSettingsFromEnv(process.env),
     };
   }
   return holder.__texholidayAdmin;

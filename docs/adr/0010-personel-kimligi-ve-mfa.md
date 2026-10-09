@@ -39,7 +39,7 @@
    - İzinler her istekte yeniden okunur; geri alınan izin anında düşer.
    - Formlar yalnız aynı kökenden kabul edilir (CSRF).
 6. **Hesap yaşam döngüsü (`staff.manage` izni):**
-   - Davet: e-posta ve ad girilir. Tek kullanımlık bağlantı 72 saat geçerlidir; e-posta altyapısı gelene kadar ekranda bir kez gösterilir. Kişi bağlantıyla şifresini belirler ve Authenticator uygulamasını kurar.
+   - Davet: e-posta ve ad girilir. Tek kullanımlık bağlantı 72 saat geçerlidir. `MAIL_SMTP_URL` + `MAIL_FROM` tanımlıysa bağlantı kişiye e-postayla gider (Türkçe + İngilizce; bağlantı `PUBLIC_BASE_URL` ile kurulur, isteğin Host başlığından değil; SMTP'de TLS zorunlu); panelde gösterilmez. E-posta ayarı yoksa ya da gönderim başarısız olursa bağlantı, oluşturan kişiye ekranda bir kez gösterilir. Bağlantının ham hâli veritabanına, outbox'a ya da loglara yazılmaz; e-posta istek içinde gönderilir. Kişi bağlantıyla şifresini belirler ve Authenticator uygulamasını kurar.
    - Şifre sıfırlama bağlantısı da aynı biçimdedir ve hesabın diğer oturumlarını kapatır.
    - MFA sıfırlama (telefon kaybı) oturumları kapatır; kişi bir sonraki girişte uygulamayı yeniden kurar.
    - Kilit kaldırma yapılabilir.
@@ -66,5 +66,5 @@
 
 - Teknik güvenlik değerleri (`STAFF_SESSION_IDLE_MINUTES`, `STAFF_SESSION_MAX_HOURS`, `STAFF_LOCKOUT_ATTEMPTS`, `STAFF_LOCKOUT_MINUTES`, `STAFF_SETUP_LINK_HOURS`, `STAFF_MIN_PASSWORD_LENGTH`, `STAFF_IP_ATTEMPTS_PER_5_MIN`) işletme girdisi değildir. Varsayılanları NIST SP 800-63B yaklaşımına göredir; sınırlar içinde sıkılaştırılabilir.
 - `STAFF_MFA_KEY` kaybolursa kayıtlı Authenticator anahtarları açılamaz. Bu durumda herkesin MFA'sı sıfırlanır ve uygulamalar yeniden kurulur. Anahtar secret manager'da yedeklenmelidir.
-- Kurtarma kodları, e-posta ile bağlantı gönderimi ve WebAuthn/passkey sonraki adımdır.
+- Kurtarma kodları ve WebAuthn/passkey sonraki adımdır.
 - Kanıt: RFC 4226 ve RFC 6238 test vektörleri (`packages/admin/test/crypto.test.ts`); PostgreSQL senaryoları (`staff-auth.int.test.ts`): davet, kurulum, MFA, tekrar kullanılan kod, kilitlenme, oturum süresi, MFA sıfırlama, kapatma kuralları ve denetim kaydında gizli bilgi olmaması.

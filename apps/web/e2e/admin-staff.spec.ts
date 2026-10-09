@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { alertIn, onboard, signInAdmin, statusIn } from './admin-support';
+import { alertIn, mailedLink, onboard, signInAdmin, statusIn } from './admin-support';
 
 /** Staff accounts and permissions in /yonetim (ADR-0007, ADR-0010). Desktop only: it changes shared accounts. */
 test('invite, role preset, revoke, a restricted colleague, disable', async ({ page, browser }, info) => {
@@ -10,13 +10,14 @@ test('invite, role preset, revoke, a restricted colleague, disable', async ({ pa
   await expect(page.getByRole('heading', { level: 1, name: 'Personel ve izinler' })).toBeVisible();
   await expect(page.getByRole('cell', { name: 'owner@e2e.test' })).toBeVisible();
 
-  // Invite: the one-time link is shown once.
+  // Invite: the one-time link goes out by e-mail (not shown in the panel when mail works).
   await page.getByLabel('Ad soyad').fill('Ops Kişi');
   await page.getByLabel('E-posta').fill('ops@e2e.test');
   await page.getByRole('button', { name: 'Davet bağlantısı oluştur' }).click();
-  await expect(statusIn(page)).toHaveText('Ops Kişi için davet bağlantısı oluşturuldu.');
-  const link = await page.getByTestId('one-time-link').inputValue();
-  expect(link).toMatch(/\/yonetim\/kurulum\/[A-Za-z0-9_-]{43}$/);
+  await expect(statusIn(page)).toHaveText('Ops Kişi için davet bağlantısı oluşturuldu. Bağlantı ops@e2e.test adresine e-postayla gönderildi.');
+  await expect(page.getByTestId('one-time-link')).toHaveCount(0);
+  const link = await mailedLink('ops@e2e.test');
+  expect(link).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/yonetim\/kurulum\/[A-Za-z0-9_-]{43}$/);
   // The same email cannot be invited twice.
   await page.getByLabel('Ad soyad').fill('Ops Again');
   await page.getByLabel('E-posta').fill('OPS@e2e.test');

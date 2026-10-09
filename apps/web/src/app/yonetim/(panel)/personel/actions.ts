@@ -2,6 +2,7 @@
 
 import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import { staffLinkMail, type StaffLinkPurpose } from '@texholiday/admin';
 import { isPermission, STAFF_ROLES, type StaffRole } from '@texholiday/contracts';
 import { adminDict, adminLocale } from '../../../../i18n/admin';
 import { admin, requireStaff } from '../../../../server/admin';
@@ -29,11 +30,37 @@ async function setupLink(token: string, expiresAt: string, locale: 'tr' | 'en') 
   return { url: `${originOf(await headers())}/yonetim/kurulum/${token}`, note: `${t.common.validUntil(formatAdminInstant(expiresAt, locale))} · ${t.common.linkWarning}` };
 }
 
+/**
+ * Hands a one-time setup link to the person: by e-mail when mail is configured (link from PUBLIC_BASE_URL), otherwise
+ * shown once to the staff member who created it. A failed e-mail falls back to showing the link.
+ */
+async function deliverLink(
+  target: { email: string; displayName: string },
+  out: { token: string; expiresAt: string },
+  purpose: StaffLinkPurpose,
+  ok: string,
+  locale: 'tr' | 'en',
+): Promise<FormState> {
+  const t = adminDict(locale);
+  const mail = admin().mail;
+  if (!mail) return { ok, link: await setupLink(out.token, out.expiresAt, locale) };
+  const url = `${mail.publicBaseUrl}/yonetim/kurulum/${out.token}`;
+  const sent = await mail.mailer.send(staffLinkMail({ to: target.email, displayName: target.displayName, url, expiresAt: out.expiresAt, purpose }));
+  if (sent.delivered) return { ok: `${ok} ${t.staff.mailSent(target.email)}` };
+  return { ok: `${ok} ${t.staff.mailFailed}`, link: { url, note: `${t.common.validUntil(formatAdminInstant(out.expiresAt, locale))} · ${t.common.linkWarning}` } };
+}
+
+async function accountOf(id: string): Promise<{ email: string; displayName: string }> {
+  const a = (await admin().auth.accounts()).find((x) => x.id === id);
+  if (!a) throw new Error('account not found');
+  return { email: a.email, displayName: a.displayName };
+}
+
 export async function inviteAction(_: FormState, form: FormData): Promise<FormState> {
   return run(async ({ actor, t, locale }) => {
     const displayName = field(form, 'displayName');
     const out = await admin().auth.invite(actor, { email: field(form, 'email'), displayName });
-    return { ok: t.staff.invited(displayName), link: await setupLink(out.token, out.expiresAt, locale) };
+    return deliverLink(await accountOf(out.staffId), out, 'INVITE', t.staff.invited(displayName), locale);
   }, ['/yonetim/personel']);
 }
 
@@ -41,7 +68,7 @@ export async function passwordLinkAction(_: FormState, form: FormData): Promise<
   const id = field(form, 'staffId');
   return run(async ({ actor, t, locale }) => {
     const out = await admin().auth.issuePasswordLink(actor, id);
-    return { ok: t.staff.linkReady, link: await setupLink(out.token, out.expiresAt, locale) };
+    return deliverLink(await accountOf(id), out, out.purpose, t.staff.linkReady, locale);
   }, [`/yonetim/personel/${id}`]);
 }
 
@@ -73,7 +100,8 @@ export async function enableAction(_: FormState, form: FormData): Promise<FormSt
   const id = field(form, 'staffId');
   return run(async ({ actor, t, locale }) => {
     const out = await admin().auth.enable(actor, id);
-    return { ok: t.staff.enabledHint, link: await setupLink(out.token, out.expiresAt, locale) };
+    // A re-enabled account sets a new password and authenticator: the invite flow.
+    return deliverLink(await accountOf(id), out, 'INVITE', t.staff.enabledHint, locale);
   }, [`/yonetim/personel/${id}`, '/yonetim/personel']);
 }
 

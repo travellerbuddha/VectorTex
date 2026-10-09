@@ -11,7 +11,8 @@
     "@texholiday/contracts": "workspace:*",
     "@texholiday/db": "workspace:*",
     "@texholiday/pricing": "workspace:*",
-    "drizzle-orm": "0.45.2"
+    "drizzle-orm": "0.45.2",
+    "nodemailer": "10.0.10"
   },
   "scripts": {
     "staff:bootstrap": "tsx src/bootstrap-owner.ts"
