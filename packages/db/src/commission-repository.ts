@@ -374,7 +374,8 @@ export class CommissionRepository {
           reference: input.reference,
         });
         const entries: Array<typeof ledgerEntries.$inferInsert> = [
-          { journalId: payoutId, account: commissionAccounts.clearing(p), direction: 'DEBIT', amountMinor: input.amountMinor, currency: ccy, kind: 'COMMISSION_PAYOUT', reference: input.reference },
+          // Fully netted: nothing arrived, no bank line.
+          ...(input.amountMinor > 0n ? [{ journalId: payoutId, account: commissionAccounts.clearing(p), direction: 'DEBIT' as const, amountMinor: input.amountMinor, currency: ccy, kind: 'COMMISSION_PAYOUT', reference: input.reference }] : []),
           // Earned: the receivable is paid; stay not over: an advance until it is.
           ...settle.map((r) => line(r, r.status === 'EARNED' ? commissionAccounts.receivable(p) : commissionAccounts.advance(p), 'CREDIT')),
           // Taken back: what we owed is settled.

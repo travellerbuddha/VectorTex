@@ -280,4 +280,20 @@ describe('paid when Nuitee collects the payment, before the stay (ADR-0019 rev. 
     expect(await app.commissions.earnDue()).toMatchObject({ due: 0 });
     expect(await unbalancedJournals()).toEqual([]);
   });
+
+  it('a payout fully taken up by a deducted refund records 0 with no bank line, balanced', async () => {
+    clock.now = new Date('2027-08-10T10:00:00Z');
+    const p1 = await book('idem-commission-0201', '2027-09-01', '2027-09-03');
+    const p2 = await book('idem-commission-0202', '2027-09-01', '2027-09-03');
+    const c1 = await commission(p1);
+    const c2 = await commission(p2);
+    expect(c1.amount).toBe(c2.amount);
+    await app.commissions.recordPayout(finance, { providerId: 'nuitee', reference: 'NUITEE-2027-08-10', amount: money('EUR', BigInt(c1.amount)), receivedOn: '2027-08-10', commissionIds: [c1.id] });
+    expect((await app.staff.cancel(ops, p1, 'Misafir iptal etti, tam iade', { customerAcceptedFee: true })).outcome).toBe('CANCELLED');
+    const zero = await app.commissions.recordPayout(finance, { providerId: 'nuitee', reference: 'NUITEE-2027-08-17', amount: money('EUR', 0n), receivedOn: '2027-08-10', commissionIds: [c2.id], clawbackIds: [c1.id] });
+    expect(zero.difference).toEqual(money('EUR', 0n));
+    const lines = await core.db.execute(sql`SELECT account FROM core.ledger_entries WHERE reference = 'NUITEE-2027-08-17' ORDER BY account`);
+    expect(lines.rows.map((r) => (r as { account: string }).account)).toEqual(['liability:commission_received_in_advance:nuitee', 'liability:commission_refund_due:nuitee']);
+    expect(await unbalancedJournals()).toEqual([]);
+  });
 });

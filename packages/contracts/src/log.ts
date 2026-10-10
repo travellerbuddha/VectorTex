@@ -83,11 +83,14 @@ export function redact(value: unknown, depth = 0, seen: WeakSet<object> = new We
   return String(value);
 }
 
-/** The message of an error (and its cause), masked. */
+/**
+ * The message of an error and its cause, each masked on its own (a database error's "params:" tail must not take the
+ * cause — often the actual constraint violation — with it).
+ */
 export function errorMessage(err: unknown): string {
   if (err instanceof Error) {
-    const cause = err.cause instanceof Error && err.cause.message && !err.message.includes(err.cause.message) ? ` (cause: ${err.cause.message})` : '';
-    return redactText(`${err.message}${cause}`);
+    const cause = err.cause instanceof Error && err.cause.message && !err.message.includes(err.cause.message) ? ` (cause: ${redactText(err.cause.message)})` : '';
+    return `${redactText(err.message)}${cause}`;
   }
   return redactText(String(err));
 }

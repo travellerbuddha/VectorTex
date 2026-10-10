@@ -16,6 +16,9 @@ describe('log redaction', () => {
     const err = new Error('Failed query: INSERT INTO core.customers (email, phone) VALUES ($1, $2)\nparams: ayse@example.test,+905321112233');
     expect(errorMessage(err)).toBe('Failed query: INSERT INTO core.customers (email, phone) VALUES ($1, $2)\nparams: [REDACTED]');
     expect(errorMessage(new Error('outer', { cause: new Error('duplicate key for john@example.test') }))).toBe('outer (cause: duplicate key for [EMAIL])');
+    // The cause of a failed query stays readable after its params are cut.
+    const query = new Error('Failed query: insert into core.ledger_entries values ($1)\nparams: 0,EUR', { cause: new Error('new row violates check constraint "ledger_entries_amount_positive"') });
+    expect(errorMessage(query)).toBe('Failed query: insert into core.ledger_entries values ($1)\nparams: [REDACTED] (cause: new row violates check constraint "ledger_entries_amount_positive")');
   });
 
   it('replaces sensitive fields at any depth; keeps ids, statuses, amounts and dates', () => {
