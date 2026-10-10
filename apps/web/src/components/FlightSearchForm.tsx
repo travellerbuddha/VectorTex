@@ -17,7 +17,7 @@ const addDays = (isoDate: string, n: number) => new Date(Date.parse(`${isoDate}T
 const airportLabel = (a: Airport) => `${a.city ?? a.name} (${a.iata})`;
 
 /** Airport combobox on the provider's airport search; the IATA code of a picked suggestion is what is searched. */
-function AirportField({ label, hint, value, onChange, icon }: { label: string; hint: string; value: Airport | null; onChange: (a: Airport | null) => void; icon?: React.ReactNode }) {
+function AirportField({ label, hint, placeholder, value, onChange, icon }: { label: string; hint: string; placeholder: string; value: Airport | null; onChange: (a: Airport | null) => void; icon?: React.ReactNode }) {
   const ids = { input: useId(), list: useId(), hint: useId() };
   const [query, setQuery] = useState(value ? airportLabel(value) : '');
   const [suggestions, setSuggestions] = useState<Airport[]>([]);
@@ -63,6 +63,7 @@ function AirportField({ label, hint, value, onChange, icon }: { label: string; h
         aria-describedby={ids.hint}
         aria-activedescendant={active >= 0 ? `${ids.list}-${active}` : undefined}
         autoComplete="off"
+        placeholder={placeholder}
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -175,8 +176,8 @@ export function FlightSearchForm({ locale, currencies, today, initial }: { local
         </label>
       </fieldset>
       <div className="search-main flight-main">
-        <AirportField label={f.from} hint={f.airportHint} value={origin} onChange={setOrigin} icon={<PlaneTakeoff />} />
-        <AirportField label={f.to} hint={f.airportHint} value={destination} onChange={setDestination} icon={<PlaneLanding />} />
+        <AirportField label={f.from} hint={f.airportHint} placeholder={f.originPlaceholder} value={origin} onChange={setOrigin} icon={<PlaneTakeoff />} />
+        <AirportField label={f.to} hint={f.airportHint} placeholder={f.destinationPlaceholder} value={destination} onChange={setDestination} icon={<PlaneLanding />} />
         <div className="seg-dates">
           <div className="field seg">
             <label htmlFor="depart">

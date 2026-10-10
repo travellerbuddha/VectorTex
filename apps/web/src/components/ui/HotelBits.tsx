@@ -51,6 +51,45 @@ export function HotelMedia({ hotelId, photo, className, eager = false }: { hotel
   );
 }
 
+/** A list or guide teaser: CMS image or a postcard from the seed; the whole card is the link. */
+export function Postcard({
+  href,
+  title,
+  text,
+  image,
+  seed,
+  heading: H = 'h3',
+  children,
+}: {
+  href: string;
+  title: string;
+  text: string | null;
+  image: { url: string } | null;
+  seed: string;
+  heading?: 'h2' | 'h3';
+  children?: React.ReactNode;
+}) {
+  return (
+    <article className="postcard">
+      <div className="postcard-media">
+        {image ? (
+          // eslint-disable-next-line @next/next/no-img-element -- CMS image
+          <img src={image.url} alt="" loading="lazy" />
+        ) : (
+          <HotelArt seed={seed} />
+        )}
+      </div>
+      <div className="postcard-body">
+        <H>
+          <a href={href}>{title}</a>
+        </H>
+        {children}
+        {text && <p>{text}</p>}
+      </div>
+    </article>
+  );
+}
+
 export type BookingStep = 'room' | 'details' | 'payment' | 'done';
 const STEPS: BookingStep[] = ['room', 'details', 'payment', 'done'];
 

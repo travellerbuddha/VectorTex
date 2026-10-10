@@ -124,6 +124,7 @@ export function SearchForm({
             aria-describedby={ids.hint}
             aria-activedescendant={active >= 0 ? `${ids.list}-${active}` : undefined}
             autoComplete="off"
+            placeholder={t.search.destinationPlaceholder}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);

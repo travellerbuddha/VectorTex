@@ -12,7 +12,7 @@ import { cmsMetadata, PreviewBanner } from '../cms/CmsPage';
 import { TrackEvent } from '../tracking/TrackEvent';
 import { listEcommerce } from '../../server/analytics';
 import { RichText } from '../cms/RichText';
-import { HotelMedia, Stars } from '../ui/HotelBits';
+import { HotelMedia, Postcard, Stars } from '../ui/HotelBits';
 import { MapPin } from 'lucide-react';
 
 /**
@@ -200,23 +200,21 @@ export async function featuredLists(locale: Locale, limit: number): Promise<Arra
 /** /tr/oteller and /en/hotels: every published list in the language. */
 export async function HotelListHub({ locale }: { locale: Locale }) {
   const t = dict(locale).lists;
-  const lists: Array<{ title: string; slug: string; intro: string | null }> = [];
+  const lists: Array<{ title: string; slug: string; intro: string | null; image: { url: string } | null }> = [];
   if (cmsEnabled()) {
     const payload = await cms();
-    const res = await payload.find({ collection: 'hotel-lists', locale, fallbackLocale: false, depth: 0, limit: 200, overrideAccess: false, select: { title: true, slug: true, intro: true } });
-    for (const d of res.docs as Array<{ title?: string; slug?: string; intro?: string | null }>) if (d.title && d.slug) lists.push({ title: d.title, slug: d.slug, intro: d.intro ?? null });
+    const res = await payload.find({ collection: 'hotel-lists', locale, fallbackLocale: false, depth: 1, limit: 200, overrideAccess: false, select: { title: true, slug: true, intro: true, heroImage: true } });
+    for (const d of res.docs as Array<{ title?: string; slug?: string; intro?: string | null; heroImage?: Media }>)
+      if (d.title && d.slug) lists.push({ title: d.title, slug: d.slug, intro: d.intro ?? null, image: d.heroImage && typeof d.heroImage === 'object' && d.heroImage.url ? { url: d.heroImage.url } : null });
   }
   return (
     <div className="page hotel-list-hub">
       <h1>{t.hubTitle}</h1>
       <p className="lead">{t.hubIntro}</p>
-      <ul className="list-links">
+      <ul className="postcards postcards-grid">
         {lists.map((l) => (
-          <li key={l.slug} className="card">
-            <h2>
-              <a href={listPath(locale, l.slug)}>{l.title}</a>
-            </h2>
-            {l.intro && <p className="muted">{l.intro}</p>}
+          <li key={l.slug}>
+            <Postcard heading="h2" href={listPath(locale, l.slug)} title={l.title} text={l.intro} image={l.image} seed={l.slug} />
           </li>
         ))}
       </ul>
