@@ -14,3 +14,4 @@ export * from './hotel-offer-pricing';
 export * from './hotel-lists';
 export * from './hotel-list-accuracy';
 export * from './customer-accounts';
+export * from './commissions';

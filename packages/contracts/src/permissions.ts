@@ -57,6 +57,10 @@ export const PERMISSIONS = {
     tr: 'Sağlayıcının müşteriye yaptığı iadeyi doğruladıktan sonra siparişe kaydetme',
     en: 'Record a refund the provider made to the customer, after verifying it',
   },
+  'commissions.record_payout': {
+    tr: 'Sağlayıcının ödediği komisyonu (payout) ekstredeki referansıyla kaydetme',
+    en: 'Record a commission payout from a provider with its statement reference',
+  },
   'content.edit': {
     tr: 'Site içeriği (sayfa, destinasyon, yazı, SSS, kampanya, menü, görsel) taslağı oluşturma ve düzenleme',
     en: 'Create and edit site content drafts (pages, destinations, posts, FAQs, campaigns, menus, images)',
@@ -93,10 +97,11 @@ export const ROLE_PRESETS: Readonly<Record<StaffRole, readonly Permission[]>> = 
     'tasks.manage',
     'orders.cancel',
     'orders.record_refund',
+    'commissions.record_payout',
     'content.edit',
     'content.publish',
   ],
-  FINANCE: ['pricing_policy.edit', 'risk_policy.edit', 'orders.view', 'orders.view_financials', 'orders.record_refund'],
+  FINANCE: ['pricing_policy.edit', 'risk_policy.edit', 'orders.view', 'orders.view_financials', 'orders.record_refund', 'commissions.record_payout'],
   FINANCE_APPROVER: ['pricing_policy.approve', 'risk_policy.approve', 'orders.view', 'orders.view_financials'],
   CONTENT_EDITOR: ['content.edit', 'content.publish'],
   OPERATIONS: ['orders.view', 'tasks.manage', 'orders.cancel'],

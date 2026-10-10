@@ -54,7 +54,7 @@ async function main(): Promise<void> {
     }
   };
   const scanning = scanLoop();
-  // Housekeeping, hourly: expired customer sessions and old sign-in codes (ADR-0017).
+  // Hourly: expired customer sessions and old sign-in codes (ADR-0017); commissions whose stay has ended (ADR-0019).
   const housekeepingLoop = async () => {
     const accounts = new CustomerAccountRepository(runtime.core.db);
     while (!stopping) {
@@ -62,6 +62,12 @@ async function main(): Promise<void> {
         await accounts.prune(new Date());
       } catch (err) {
         log.error('housekeeping failed', { error: String(err) });
+      }
+      try {
+        const run = await runtime.commissions.earnDue(200);
+        if (run.due > 0) log.info('commission earning', { ...run });
+      } catch (err) {
+        log.error('commission earning failed', { error: String(err) });
       }
       await pause(3_600_000);
     }

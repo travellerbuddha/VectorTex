@@ -9,7 +9,7 @@ Finans ekibi, panelden dönem bazında satış, komisyon, iptal ve iade toplamla
 
 - Müşteri tutarı Nuitee'ye ödenir.
 - Bizim gelirimiz, Nuitee'nin konaklamadan sonra ödediği komisyondur (ADR-0006).
-- Komisyon alacağı `EXPECTED` olarak doğar ve iptalde `VOIDED` olur. `EARNED` ve `RECEIVED` geçişleri, Nuitee'nin ödeme bildirimi biçimi bilinmediği için henüz yoktur.
+- Komisyon alacağı `EXPECTED` olarak doğar ve iptalde `VOIDED` olur. `EARNED` (konaklama sonrası) ve `RECEIVED` (finansın kaydettiği payout) geçişleri ADR-0019 ile eklendi.
 
 Rapor bu yüzden muhasebe defteri değildir. Kayıtlı durumun dönem toplamıdır.
 
@@ -46,5 +46,5 @@ Rapor bu yüzden muhasebe defteri değildir. Kayıtlı durumun dönem toplamıd�
 
 ## Sonuçlar
 
-- Komisyon tahsilatı mutabakatı (EARNED/RECEIVED, payout referansı) Nuitee'nin ödeme bildirimi ve raporu netleşince eklenecektir.
+- Komisyon tahsilatı (EARNED/RECEIVED, payout referansı) ADR-0019 ile geldi; raporda dönemde gelen ödemeler de görünür. Nuitee ödeme bildiriminin otomatik eşleştirilmesi biçimi netleşince eklenecektir.
 - Kendi ödememiz (iyzico) açıldığında rapor aynı tablolardan okur. Ek gerekecek bölüm: müşteri tahsilatı ile tedarikçi ödemesinin ayrımı (`supplier_settlements`).

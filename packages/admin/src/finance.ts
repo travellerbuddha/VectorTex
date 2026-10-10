@@ -40,6 +40,8 @@ export interface FinanceReport {
   refunds: CountAndAmount[];
   /** Payment attempts created in the period, per status. */
   payments: Array<CountAndAmount & { status: string }>;
+  /** Commission payouts that arrived in the period (by their date, ADR-0019): what arrived and the commissions settled. */
+  payouts: Array<CountAndAmount & { commissions: MoneyJson }>;
 }
 
 export interface FinanceCsvRow {
@@ -105,7 +107,7 @@ export class FinanceReports {
     const env = this.environment;
     const inPeriod = sql`o.environment = ${env} AND o.created_at >= ${start} AND o.created_at < ${end}`;
 
-    const [orders, sales, commissions, open, cancellations, refunds, payments] = await Promise.all([
+    const [orders, sales, commissions, open, cancellations, refunds, payments, payouts] = await Promise.all([
       this.db.execute<Record<string, unknown>>(sql`
         SELECT o.status::text AS status, o.charge_currency AS currency, count(*)::int AS n, sum(o.charge_total_minor)::text AS total
         FROM core.orders o WHERE ${inPeriod}
@@ -143,6 +145,11 @@ export class FinanceReports {
         FROM core.payment_attempts pa
         WHERE pa.environment = ${env} AND pa.created_at >= ${start} AND pa.created_at < ${end}
         GROUP BY 1, 2 ORDER BY 2, 1`),
+      this.db.execute<Record<string, unknown>>(sql`
+        SELECT p.currency, count(*)::int AS n, sum(p.amount_minor)::text AS total, sum(p.commissions_minor)::text AS settled
+        FROM core.commission_payouts p
+        WHERE p.environment = ${env} AND p.received_on >= ${p.from}::date AND p.received_on <= ${p.to}::date
+        GROUP BY 1 ORDER BY 1`),
     ]);
     const row = (r: Record<string, unknown>): CountAndAmount => ({ currency: String(r.currency).trim(), count: Number(r.n), amount: amount(r.total, r.currency) });
     return {
@@ -155,6 +162,7 @@ export class FinanceReports {
       cancellations: cancellations.rows.map(row),
       refunds: refunds.rows.map(row),
       payments: payments.rows.map((r) => ({ ...row(r), status: String(r.status) })),
+      payouts: payouts.rows.map((r) => ({ ...row(r), commissions: amount(r.settled, r.currency) })),
     };
   }
 

@@ -6,6 +6,7 @@ import {
   foreignKey,
   boolean,
   char,
+  date,
   index,
   integer,
   jsonb,
@@ -418,9 +419,40 @@ export const supplierSettlements = core.table(
 );
 
 /**
+ * Commission payouts received from a provider (ADR-0019), entered by finance from the bank/provider statement. One
+ * payout settles one or more EARNED commissions of one provider and currency; a difference between the amount received
+ * and the commissions it settles needs a written note. Append-only (corrections are new entries, never edits).
+ */
+export const commissionPayouts = core.table(
+  'commission_payouts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    environment: environmentEnum('environment').notNull(),
+    providerId: text('provider_id').notNull(),
+    reference: text('reference').notNull(),
+    currency: ccy('currency').notNull(),
+    /** What arrived. */
+    amountMinor: minor('amount_minor').notNull(),
+    /** Sum of the commissions it settles. */
+    commissionsMinor: minor('commissions_minor').notNull(),
+    receivedOn: date('received_on', { mode: 'string' }).notNull(),
+    note: text('note'),
+    recordedBy: text('recorded_by').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('commission_payouts_reference_uq').on(t.environment, t.providerId, t.reference),
+    check('commission_payouts_amounts_positive', sql`amount_minor > 0 AND commissions_minor > 0`),
+    check('commission_payouts_reference_valid', sql`length(btrim(reference)) BETWEEN 1 AND 100`),
+    check('commission_payouts_difference_explained', sql`amount_minor = commissions_minor OR length(btrim(coalesce(note, ''))) >= 5`),
+  ],
+);
+
+/**
  * Provider commission receivables (ADR-0006; spec §6: kept apart from customer money and supplier payables).
- * EXPECTED at booking confirmation, EARNED after the stay, RECEIVED with the provider payout reference, VOIDED when
- * the booking is cancelled. No ledger entry before EARNED: a confirmed booking is not an earned commission.
+ * EXPECTED at booking confirmation, EARNED after the stay (ADR-0019: the provider still reports the booking as
+ * confirmed), RECEIVED with the provider payout, VOIDED when the booking is cancelled. No ledger entry before EARNED:
+ * a confirmed booking is not an earned commission.
  */
 export const providerCommissions = core.table(
   'provider_commissions',
@@ -438,16 +470,20 @@ export const providerCommissions = core.table(
     amountMinor: minor('amount_minor').notNull(),
     currency: ccy('currency').notNull(),
     payoutReference: text('payout_reference'),
+    payoutId: uuid('payout_id').references(() => commissionPayouts.id),
+    earnedAt: ts('earned_at'),
     createdAt: ts('created_at').notNull().defaultNow(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
   (t) => [
     uniqueIndex('provider_commissions_item_uq').on(t.orderItemId),
     index('provider_commissions_provider_status_idx').on(t.providerId, t.status),
+    index('provider_commissions_payout_idx').on(t.payoutId),
     check('provider_commissions_amount_positive', sql`amount_minor > 0`),
     check('provider_commissions_status_valid', sql`status IN ('EXPECTED', 'EARNED', 'RECEIVED', 'VOIDED')`),
     check('provider_commissions_source_valid', sql`source IN ('BOOKING', 'QUOTE')`),
-    check('provider_commissions_received_has_payout', sql`status <> 'RECEIVED' OR payout_reference IS NOT NULL`),
+    check('provider_commissions_received_has_payout', sql`status <> 'RECEIVED' OR (payout_reference IS NOT NULL AND payout_id IS NOT NULL)`),
+    check('provider_commissions_earned_has_date', sql`status NOT IN ('EARNED', 'RECEIVED') OR earned_at IS NOT NULL`),
   ],
 );
 

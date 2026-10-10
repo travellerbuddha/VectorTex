@@ -3,6 +3,7 @@ import { DomainError, VersionConflictError, opaque, type FraudVerdict, type Hold
 import type { OrderAggregate, OrderItemState, OrderStore, PaymentState, TaskState } from '@texholiday/domain';
 import { money } from '@texholiday/pricing';
 import type { CoreDb } from './client';
+import { voidCommission } from './commission-repository';
 import {
   auditLogs,
   customerTransactions,
@@ -295,10 +296,12 @@ export class DrizzleOrderStore implements OrderStore {
             })
             .onConflictDoNothing();
         } else {
-          await tx
-            .update(providerCommissions)
-            .set({ status: 'VOIDED' })
-            .where(and(eq(providerCommissions.orderItemId, it.id), eq(providerCommissions.status, 'EXPECTED')));
+          // A booking cancelled after the commission was earned reverses its ledger entries (ADR-0019); one already
+          // paid out stays received and is left to finance, with a trace on the order.
+          const voided = await voidCommission(tx, agg.id, it.id);
+          if (voided === 'ALREADY_RECEIVED') {
+            await tx.insert(auditLogs).values({ entityType: 'order', entityId: agg.id, action: 'commission.cancelled_after_payout', actor: 'system', detail: { itemId: it.id } });
+          }
         }
       }
 

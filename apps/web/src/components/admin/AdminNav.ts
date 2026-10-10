@@ -3,7 +3,7 @@ import type { StaffIdentity } from '@texholiday/admin';
 
 export type NavKey = 'home' | 'orders' | 'tasks' | 'pricing' | 'risk' | 'content' | 'reports' | 'staff' | 'permissions';
 
-export type ReportKey = 'listPrices' | 'adsFeed' | 'finance';
+export type ReportKey = 'listPrices' | 'adsFeed' | 'finance' | 'commissions';
 
 /** Reports of /yonetim/raporlar: each one is shown only to people holding one of its permissions. */
 export const ADMIN_REPORTS: ReadonlyArray<{ key: ReportKey; href: string; any: readonly Permission[] }> = [
@@ -14,6 +14,7 @@ export const ADMIN_REPORTS: ReadonlyArray<{ key: ReportKey; href: string; any: r
   },
   { key: 'adsFeed', href: '/yonetim/raporlar/reklam-sayfalari', any: ['content.edit', 'content.publish'] },
   { key: 'finance', href: '/yonetim/raporlar/finans', any: ['orders.view_financials'] },
+  { key: 'commissions', href: '/yonetim/raporlar/komisyonlar', any: ['orders.view_financials'] },
 ];
 
 export const canSeeReport = (staff: StaffIdentity, key: ReportKey) => ADMIN_REPORTS.find((r) => r.key === key)!.any.some((p) => staff.permissions.has(p));

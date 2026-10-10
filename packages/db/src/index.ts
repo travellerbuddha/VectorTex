@@ -10,3 +10,4 @@ export * from './search-repository';
 export * from './notification-repository';
 export * from './hotel-list-repository';
 export * from './customer-account-repository';
+export * from './commission-repository';
