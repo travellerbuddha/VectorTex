@@ -10,6 +10,9 @@ import { TrackEvent } from '../tracking/TrackEvent';
 import { booking } from '../../server/booking';
 import { breadcrumbList, hotelPage as hotelMarkup, jsonLd } from '../../server/structured-data';
 import { SearchForm } from '../SearchForm';
+import { HotelArt } from '../ui/Art';
+import { RatingBadge, Stars } from '../ui/HotelBits';
+import { Clock, MapPin } from 'lucide-react';
 import { hotelPath, hubPath, listPath, PriceBlock } from './HotelListPage';
 
 /**
@@ -111,22 +114,37 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
       </nav>
       <header>
         <h1>{c.name}</h1>
-        <p className="muted">
-          {c.stars ? `${'★'.repeat(Math.round(c.stars))} ${t.lists.stars(Math.round(c.stars))} · ` : ''}
-          {c.address}
+        <p className="hotel-meta">
+          <Stars stars={c.stars} locale={locale} />
+          {c.address && (
+            <span className="hotel-where">
+              <MapPin />
+              {c.address}
+            </span>
+          )}
         </p>
-        {c.rating !== null && c.reviewCount !== null && c.reviewCount > 0 && <p className="muted small">{t.lists.rating(nf(c.rating), nf(c.reviewCount))}</p>}
+        {c.rating !== null && c.reviewCount !== null && c.reviewCount > 0 && (
+          <>
+            <RatingBadge rating={c.rating} reviews={c.reviewCount} locale={locale} />
+            <p className="muted small">{t.lists.rating(nf(c.rating), nf(c.reviewCount))}</p>
+          </>
+        )}
       </header>
-      {c.images.length > 0 && (
+      {c.images.length > 0 ? (
         <ul className="gallery" aria-label={c.name}>
-          {c.images.slice(0, 8).map((img, i) => (
+          {c.images.slice(0, 5).map((img, i) => (
             <li key={img.url}>
               {/* eslint-disable-next-line @next/next/no-img-element -- provider images are https-only; no host allow-list */}
               <img src={img.url} alt={img.caption ?? c.name} loading={i === 0 ? 'eager' : 'lazy'} />
             </li>
           ))}
         </ul>
+      ) : (
+        <div className="hotel-art-hero">
+          <HotelArt seed={view.hotelId} />
+        </div>
       )}
+      <div className="hotel-page-layout">
       <section className="card book-box" aria-labelledby="book-title">
         <h2 id="book-title">{t.lists.bookTitle}</h2>
         {view.price && (
@@ -153,7 +171,7 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
         {board && <p className="muted small">{boardLabel(board, null, locale)}</p>}
       </section>
       {c.description && (
-        <section className="hotel-text">
+        <section className="hotel-text hotel-section">
           {c.description.split('\n\n').map((p, i) => (
             <p key={i}>
               {p.split('\n').map((line, j) => (
@@ -167,7 +185,7 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
         </section>
       )}
       {c.facilities.length > 0 && (
-        <section>
+        <section className="hotel-section">
           <h2>{t.lists.facilities}</h2>
           <ul className="chips">
             {c.facilities.map((f) => (
@@ -177,9 +195,10 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
         </section>
       )}
       {(c.checkinTime || c.checkoutTime) && (
-        <section>
+        <section className="hotel-section">
           <h2>{t.lists.times}</h2>
-          <p>
+          <p className="voucher-line">
+            <Clock />
             {c.checkinTime && `${t.lists.checkin}: ${c.checkinTime}`}
             {c.checkinTime && c.checkoutTime && ' · '}
             {c.checkoutTime && `${t.lists.checkout}: ${c.checkoutTime}`}
@@ -187,7 +206,7 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
         </section>
       )}
       {c.importantInformation && (
-        <section>
+        <section className="hotel-section">
           <h2>{t.lists.important}</h2>
           {c.importantInformation.split('\n\n').map((p, i) => (
             <p key={i}>{p}</p>
@@ -195,7 +214,7 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
         </section>
       )}
       {c.nearby.length > 0 && (
-        <section>
+        <section className="hotel-section">
           <h2>{t.lists.nearby}</h2>
           <ul>
             {c.nearby.map((n) => (
@@ -208,7 +227,7 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
         </section>
       )}
       {view.lists.length > 0 && (
-        <section>
+        <section className="hotel-section">
           <h2>{t.lists.inLists}</h2>
           <ul>
             {view.lists.map((l) => (
@@ -219,6 +238,7 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
           </ul>
         </section>
       )}
+      </div>
       <p className="muted small">
         {t.lists.code}: <code>{view.hotelId}</code>
       </p>

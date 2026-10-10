@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ShieldCheck } from 'lucide-react';
 import { dict, errorMessage, type Locale } from '../i18n/dictionaries';
 import { api, ApiError, newIdempotencyKey } from './api';
 
@@ -177,12 +178,18 @@ export function FlightCheckoutForm({
       ))}
       <p className="muted">{f.documentNote}</p>
       <label className="check terms">
-        <input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} required /> {f.terms(termsVersion)}{' '}
-        <a href={`/${locale}/terms`} target="_blank" rel="noopener">
-          {t.checkout.termsLink}
-        </a>
+        <input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} required />
+        <span>
+          {f.terms(termsVersion)}{' '}
+          <a href={`/${locale}/terms`} target="_blank" rel="noopener">
+            {t.checkout.termsLink}
+          </a>
+        </span>
       </label>
-      <p className="muted">{t.checkout.paymentBy}</p>
+      <p className="secure-note">
+        <ShieldCheck />
+        <span>{t.checkout.paymentBy}</span>
+      </p>
       {error && (
         <p className="error" role="alert">
           {error}

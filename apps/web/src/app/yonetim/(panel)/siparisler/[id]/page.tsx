@@ -35,7 +35,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const names = new Map(accounts.map((a) => [a.id, a.displayName]));
   const who = (actor: string) => {
     const id = actor.startsWith('staff:') ? actor.slice(6) : actor;
-    return names.get(id) ?? (actor.startsWith('system:') ? t.common.system : actor.startsWith('customer:') ? t.common.customer : actor);
+    return names.get(id) ?? (actor.startsWith('system:') ? t.common.system : actor === 'customer' || actor.startsWith('customer:') ? t.common.customer : actor);
   };
   const c = t.orders.commands;
   const first = order.items[0];

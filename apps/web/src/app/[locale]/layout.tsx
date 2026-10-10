@@ -8,6 +8,11 @@ import { ACCOUNT_DIR } from '../../server/seo';
 import { CONSENT_BOOTSTRAP, trackingSettings } from '../../server/tracking';
 import { ConsentManager, ConsentReopen } from '../../components/tracking/ConsentManager';
 import { COOKIE_POLICY_DIR } from '../../components/tracking/cookie-registry';
+import { BrandMark } from '../../components/ui/Art';
+import { ProductNav } from '../../components/ui/ProductNav';
+import { Globe, UserRound } from 'lucide-react';
+import '@fontsource-variable/inter';
+import '@fontsource-variable/bricolage-grotesque';
 import './globals.css';
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -54,53 +59,73 @@ export default async function LocaleLayout({ children, params }: { children: Rea
           {locale === 'tr' ? 'İçeriğe geç' : 'Skip to content'}
         </a>
         <header className="site-header">
-          <a className="brand" href={`/${locale}`}>
-            {t.brand}
-          </a>
-          <nav aria-label={locale === 'tr' ? 'Ürünler' : 'Products'}>
-            <a href={`/${locale}`}>{t.nav.hotels}</a>
-            {flightsOpen && <a href={`/${locale}/flights`}>{t.nav.flights}</a>}
-            {[...(flightsOpen ? [] : [t.nav.flights]), t.nav.tours, t.nav.transfers, t.nav.packages].map((label) => (
-              <span key={label} className="nav-soon" aria-disabled="true" title={t.nav.soon}>
-                {label}
-              </span>
-            ))}
-            {chrome.nav.map((n) => (
-              <a key={`${n.href}-${n.label}`} href={safeHref(n.href)}>
-                {n.label}
+          <div className="header-bar">
+            <a className="brand" href={`/${locale}`}>
+              <BrandMark />
+              <span className="brand-word">{t.brand}</span>
+            </a>
+            <ProductNav
+              label={locale === 'tr' ? 'Ürünler' : 'Products'}
+              locale={locale}
+              soon={t.nav.soon}
+              items={[
+                { key: 'hotels', text: t.nav.hotels, href: `/${locale}` },
+                { key: 'flights', text: t.nav.flights, href: flightsOpen ? `/${locale}/flights` : null },
+                { key: 'tours', text: t.nav.tours, href: null },
+                { key: 'transfers', text: t.nav.transfers, href: null },
+                { key: 'packages', text: t.nav.packages, href: null },
+              ]}
+              extra={chrome.nav.map((n) => ({ href: safeHref(n.href), text: n.label }))}
+            />
+            <div className="header-actions">
+              <a className="account-link" href={`/${locale}/${ACCOUNT_DIR[locale]}`}>
+                <UserRound />
+                <span className="account-label">{t.account.nav}</span>
               </a>
-            ))}
-          </nav>
-          <a className="account-link" href={`/${locale}/${ACCOUNT_DIR[locale]}`}>
-            {t.account.nav}
-          </a>
-          <a className="lang" href={`/${other}`} hrefLang={other} lang={other}>
-            {other.toUpperCase()}
-          </a>
+              <a className="lang" href={`/${other}`} hrefLang={other} lang={other}>
+                <Globe />
+                {other.toUpperCase()}
+              </a>
+            </div>
+          </div>
         </header>
         <main id="main">{children}</main>
         <footer className="site-footer">
-          {chrome.footer && chrome.footer.columns.length > 0 && (
-            <div className="footer-columns">
-              {chrome.footer.columns.map((c, i) => (
-                <nav key={i} aria-label={c.heading ?? undefined}>
-                  {c.heading && <strong>{c.heading}</strong>}
-                  <ul>
-                    {c.links.map((l) => (
-                      <li key={`${l.href}-${l.label}`}>
-                        <a href={safeHref(l.href)}>{l.label}</a>
-                      </li>
-                    ))}
-                  </ul>
-                </nav>
-              ))}
+          <svg className="footer-wave" viewBox="0 0 1440 40" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+            <path d="M0 40V22c120-14 240-14 360 0s240 14 360 0 240-14 360 0 240 14 360 0V40Z" />
+          </svg>
+          <div className="footer-inner">
+            <div className="footer-brand">
+              <a className="brand" href={`/${locale}`}>
+                <BrandMark />
+                <span className="brand-word">{t.brand}</span>
+              </a>
+              <p>{t.footerTagline}</p>
             </div>
-          )}
-          <p>{chrome.footer?.legal ?? t.footer}</p>
-          <p className="footer-legal-links">
-            <a href={`/${locale}/${COOKIE_POLICY_DIR[locale]}`}>{locale === 'tr' ? 'Çerez politikası' : 'Cookie policy'}</a>
-            {tags && <ConsentReopen label={locale === 'tr' ? 'Çerez tercihleri' : 'Cookie preferences'} />}
-          </p>
+            {chrome.footer && chrome.footer.columns.length > 0 && (
+              <div className="footer-columns">
+                {chrome.footer.columns.map((c, i) => (
+                  <nav key={i} aria-label={c.heading ?? undefined}>
+                    {c.heading && <strong>{c.heading}</strong>}
+                    <ul>
+                      {c.links.map((l) => (
+                        <li key={`${l.href}-${l.label}`}>
+                          <a href={safeHref(l.href)}>{l.label}</a>
+                        </li>
+                      ))}
+                    </ul>
+                  </nav>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="footer-bottom">
+            <p>{chrome.footer?.legal ?? t.footer}</p>
+            <p className="footer-legal-links">
+              <a href={`/${locale}/${COOKIE_POLICY_DIR[locale]}`}>{locale === 'tr' ? 'Çerez politikası' : 'Cookie policy'}</a>
+              {tags && <ConsentReopen label={locale === 'tr' ? 'Çerez tercihleri' : 'Cookie preferences'} />}
+            </p>
+          </div>
         </footer>
         {tags && <ConsentManager locale={locale} gtm={tags.gtm} ga4={tags.ga4} mode={tags.mode} bannerText={tags.bannerText} privacyUrl={`/${locale}/${COOKIE_POLICY_DIR[locale]}`} />}
       </body>

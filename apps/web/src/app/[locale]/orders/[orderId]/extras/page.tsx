@@ -2,6 +2,7 @@ import { isDomainError } from '@texholiday/contracts';
 import { notFound, redirect } from 'next/navigation';
 import { FlightExtrasForm } from '../../../../../components/FlightExtrasForm';
 import { OrderQuoteSummary } from '../../../../../components/QuoteSummary';
+import { BookingSteps } from '../../../../../components/ui/HotelBits';
 import { dict, type Locale } from '../../../../../i18n/dictionaries';
 import { formatInstant } from '../../../../../i18n/format';
 import { booking } from '../../../../../server/booking';
@@ -29,6 +30,7 @@ export default async function Extras({ params }: { params: Promise<{ locale: str
   if (!offer?.open) redirect(`/${locale}/orders/${orderId}/payment`);
   return (
     <div className="page extras">
+      <BookingSteps current="details" locale={locale} product="FLIGHT" />
       <h1>{t.flight.extrasTitle}</h1>
       <div className="two-col">
         <OrderQuoteSummary quote={order.quote} locale={locale} />

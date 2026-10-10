@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { CustomerCancellationView, OrderView } from '@texholiday/booking';
+import { CircleCheck, CircleX, Hourglass, Info, TriangleAlert } from 'lucide-react';
 import { dict, type Locale } from '../i18n/dictionaries';
 import { api } from './api';
 import { CancelBooking } from './CancelBooking';
@@ -54,27 +55,43 @@ export function OrderStatus({
     if (purchase && order.stage === 'CONFIRMED') pushEvent('purchase', { transaction_id: order.orderId, ...purchase }, `purchase_${order.orderId}`);
   }, [purchase, order.stage, order.orderId]);
 
+  const icon =
+    order.stage === 'CONFIRMED' ? <CircleCheck /> : order.stage === 'CANCELLED' ? <CircleX /> : open ? <Hourglass /> : order.stage === 'NEEDS_ATTENTION' ? <Info /> : <TriangleAlert />;
   const status = (
     <section aria-live="polite" className={`status status-${order.stage.toLowerCase()}`}>
-      <p className="status-message">{t.order.stage[order.stage]}</p>
-      {open && !giveUp && <p className="muted">{t.order.checking}</p>}
-      {open && giveUp && <p className="muted">{t.order.stillWorking}</p>}
+      <div className="status-head">
+        <span className="status-icon" aria-hidden="true">
+          {icon}
+        </span>
+        <div>
+          <p className="status-message">{t.order.stage[order.stage]}</p>
+          {open && !giveUp && (
+            <p className="muted status-checking">
+              <span className="spinner" aria-hidden="true" />
+              {t.order.checking}
+            </p>
+          )}
+          {open && giveUp && <p className="muted">{t.order.stillWorking}</p>}
+        </div>
+      </div>
       {order.stage === 'CONFIRMED' && order.bookingReference && order.quote.product === 'HOTEL' && (
-        <p>
-          {t.order.reference}: <strong data-testid="booking-reference">{order.bookingReference}</strong>
-          <br />
-          <span className="muted">{t.order.voucher}</span>
-        </p>
+        <>
+          <p className="reference">
+            <span className="muted">{t.order.reference}</span>
+            <strong data-testid="booking-reference">{order.bookingReference}</strong>
+          </p>
+          <p className="muted">{t.order.voucher}</p>
+        </>
       )}
       {order.stage === 'CONFIRMED' && order.quote.product === 'FLIGHT' && (
         <>
+          {order.bookingReference && (
+            <p className="reference">
+              <span className="muted">{t.flight.pnr}</span>
+              <strong data-testid="booking-reference">{order.bookingReference}</strong>
+            </p>
+          )}
           <p>
-            {order.bookingReference && (
-              <>
-                {t.flight.pnr}: <strong data-testid="booking-reference">{order.bookingReference}</strong>
-                <br />
-              </>
-            )}
             {order.ticketNumbers.length > 0 && (
               <>
                 {t.flight.tickets}: <span data-testid="ticket-numbers">{order.ticketNumbers.join(', ')}</span>

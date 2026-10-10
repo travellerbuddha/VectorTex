@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { adminLocale } from '../../i18n/admin';
+import '@fontsource-variable/inter';
+import '@fontsource-variable/bricolage-grotesque';
 import './admin.css';
 
 export const metadata: Metadata = { title: 'TexHoliday Yönetim', robots: { index: false, follow: false } };
