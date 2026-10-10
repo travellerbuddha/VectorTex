@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { signIn } from './admin-support';
 
@@ -93,6 +94,25 @@ test('hotel lists: publish a list, prices from the scan, ItemList markup, hotel 
   await expect(visitor).toHaveURL(/\/tr\/search\/hotels\/[0-9a-f-]{36}\?hotel=MOCK-H/);
   await expect(visitor.locator('.hotel .from strong').first()).toHaveText(firstPrice);
 
+  // That search (list reference: 1 room, 2 adults, 1 night) was compared with the list price: the panel report shows it.
+  await page.goto('/yonetim/raporlar');
+  await page.getByRole('link', { name: 'Liste fiyatı doğruluğu' }).click();
+  const eur = page.getByTestId('accuracy-EUR');
+  await expect(eur).toBeVisible();
+  const shownRow = eur.getByRole('row', { name: /Sayfada gösterilen fiyatlar/ });
+  await expect(shownRow.locator('td').nth(1)).not.toHaveText(/^0 /);
+
+  // Ads page feed: the list page and its hotel pages with labels; staff only.
+  await page.goto('/yonetim/raporlar/reklam-sayfalari');
+  await expect(page.getByTestId('feed-count')).toContainText('liste sayfası');
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('link', { name: 'CSV indir' }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^texholiday-sayfa-feed-\d{4}-\d{2}-\d{2}\.csv$/);
+  const csv = readFileSync(await download.path(), 'utf8');
+  expect(csv.split('\r\n')[0]).toBe('Page URL,Custom label');
+  expect(csv).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:\\d+/tr/oteller/${slug},liste;tr;liste-${slug};fiyatli\r$`, 'm'));
+  expect(csv).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:\\d+/tr/otel/mock-lara-beach-resort-mock-h1,otel;tr;[^\\r]*liste-${slug}`, 'm'));
+  expect((await visitor.request.get('/api/v1/staff/ads-page-feed')).status()).toBe(403);
+
   // Old search addresses move to the new place; list addresses do not.
   const sessionPath = new URL(visitor.url()).pathname.replace('/search/hotels/', '/hotels/');
   const moved = await visitor.request.get(sessionPath, { maxRedirects: 0 });
@@ -106,4 +126,49 @@ test('hotel lists: publish a list, prices from the scan, ItemList markup, hotel 
   expect(sitemap).toContain(`/tr/oteller/${slug}`);
   expect(sitemap).toMatch(/\/tr\/otel\/mock-lara-beach-resort-mock-h1/);
   await visitorCtx.close();
+});
+
+test('hotel lists: editors find hotels by name in the panel and add their codes; the search is staff-only', async ({ page, browser }, info) => {
+  test.skip(info.project.name !== 'desktop', 'panel screen');
+  test.setTimeout(90_000);
+
+  // Visitors cannot spend provider calls on the name search.
+  const visitorCtx = await browser.newContext();
+  const visitor = await visitorCtx.newPage();
+  await visitor.goto('/tr');
+  expect((await call(visitor, 'GET', '/api/v1/staff/hotel-names?q=lara&country=TR')).status).toBe(403);
+  await visitorCtx.close();
+
+  await signIn(page, 'editor');
+  await page.goto('/yonetim');
+  expect((await call(page, 'GET', '/api/v1/staff/hotel-names?q=lara&country=TUR')).status).toBe(422);
+  const found = await call(page, 'GET', '/api/v1/staff/hotel-names?q=lara&country=TR');
+  expect(found.status).toBe(200);
+  expect(found.json.data).toEqual([expect.objectContaining({ hotelId: 'MOCK-H1', name: 'MOCK Lara Beach Resort', city: 'Antalya', stars: 5 })]);
+
+  await page.goto('/yonetim/icerik/collections/hotel-lists/create');
+  const finder = page.getByTestId('hotel-finder');
+  await expect(finder).toBeVisible({ timeout: 30_000 });
+  await expect(finder.getByLabel('Ülke kodu')).toHaveValue('TR');
+  await finder.getByLabel('Otel adı').fill('belek');
+  const row = finder.getByRole('row').filter({ hasText: 'MOCK Belek Golf Resort' });
+  await expect(row).toContainText('MOCK-H3');
+  await expect(row).toContainText('★★★★★');
+
+  // One click puts the code in "pin"; moving it to "remove" takes it out of "pin" (a code lives in one place).
+  // Payload picks its language from the browser (here en-US); the code chips carry a "Remove" button.
+  const chips = (label: RegExp) => page.locator('.field-type').filter({ hasText: label }).getByRole('button', { name: /^MOCK-H\d+ (Remove|Kaldır)$/ });
+  const pinned = chips(/^(Hotel codes pinned to the top|Başa sabitlenecek otel kodları)/);
+  const excluded = chips(/^(Hotel codes to remove|Çıkarılacak otel kodları)/);
+  await row.getByRole('button', { name: 'MOCK Belek Golf Resort: Başa sabitle' }).click();
+  await expect(row).toContainText('✓ başa sabitlendi');
+  await expect(pinned).toHaveText([/^MOCK-H3/]);
+  await row.getByRole('button', { name: 'MOCK Belek Golf Resort: Çıkar' }).click();
+  await expect(row).toContainText('✓ çıkarıldı');
+  await expect(excluded).toHaveText([/^MOCK-H3/]);
+  await expect(pinned).toHaveCount(0);
+
+  // Another country, no match.
+  await finder.getByLabel('Ülke kodu').fill('EG');
+  await expect(finder.getByText('Bu ülkede bu adla otel bulunamadı.')).toBeVisible();
 });

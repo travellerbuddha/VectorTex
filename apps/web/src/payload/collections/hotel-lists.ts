@@ -163,6 +163,7 @@ export const HotelLists: CollectionConfig = {
             { name: 'address', type: 'text', maxLength: 300, label: { tr: 'Adres / ülke', en: 'Address / country' }, admin: { readOnly: true } },
           ],
         },
+        { name: 'hotelFinder', type: 'ui', admin: { components: { Field: '/payload/components/HotelFinder#HotelFinder' } } },
         codesField('include', { tr: 'Eklenecek otel kodları', en: 'Hotel codes to add' }, { tr: 'Otel kodu, otel sayfası adresinin sonundaki koddur (ör. …-lp1897 → lp1897).', en: 'The hotel code is the end of the hotel page address (e.g. …-lp1897 → lp1897).' }, 200),
         codesField('exclude', { tr: 'Çıkarılacak otel kodları', en: 'Hotel codes to remove' }, { tr: 'Bölgeden gelse bile gösterilmez.', en: 'Never shown, even when a place brings it.' }, 500),
         codesField('pinned', { tr: 'Başa sabitlenecek otel kodları', en: 'Hotel codes pinned to the top' }, { tr: 'Bu sırayla en üstte gösterilir.', en: 'Shown first, in this order.' }, 50),

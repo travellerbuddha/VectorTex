@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { parseCapabilityMatrix, parseSourceLock, type StaffActor } from '@texholiday/contracts';
 import { MockHotelConnector } from '@texholiday/connectors';
@@ -85,7 +85,8 @@ beforeEach(async () => {
   clock.now = new Date('2027-05-01T10:00:00Z');
   hotels.priceAdjustBp = () => 0n;
   hotels.failSearches = 0;
-  await core.db.execute(sql`TRUNCATE core.hotel_lists, core.hotel_list_settings, core.hotel_list_scopes, core.hotel_content, core.rate_slots CASCADE`);
+  hotels.soldOut.clear();
+  await core.db.execute(sql`TRUNCATE core.hotel_lists, core.hotel_list_settings, core.hotel_list_scopes, core.hotel_content, core.rate_slots, core.hotel_list_price_checks CASCADE`);
   scanner = app.hotelListScanner('test-worker', { sleep: async () => {} });
 });
 
@@ -252,5 +253,106 @@ describe('hotel list pages (ADR-0014)', () => {
     expect(map.hotels.length).toBeGreaterThan(0);
     for (const h of map.hotels) expect(Object.keys(h.slugs)).toEqual(['tr']);
     expect(await app.hotelLists.hotel('en', 'mock-lara-beach-resort-mock-h1')).toBeNull(); // no English content fetched
+  });
+  it('price accuracy: live searches with the list reference are compared with list prices, at no provider cost', async () => {
+    await repo.saveSettings({ locales: { tr: { currency: 'EUR', nationality: 'TR' }, en: null }, maxPriceAgeHours: 26 }, clock.now);
+    await publish('l1', 'antalya', config());
+    await scanner.runUntilIdle();
+    const search = (over: Record<string, unknown> = {}) =>
+      app.searchHotels({ target: { placeId: 'MOCK-PLACE-ANTALYA' }, checkin: '2027-05-20', checkout: '2027-05-21', rooms: [{ adults: 2, childAges: [] }], nationality: 'TR', currency: 'EUR', locale: 'tr', ...over });
+    const checks = () => core.db.execute<{ hotel_id: string; outcome: string; list_minor: string; live_minor: string | null; shown: boolean }>(sql`SELECT hotel_id, outcome, list_minor::text, live_minor::text, shown FROM core.hotel_list_price_checks ORDER BY checked_at, hotel_id`);
+    const calls = hotels.calls.searchHotelRates ?? 0;
+
+    // Same criteria, same prices: both hotels match.
+    await search();
+    expect((await checks()).rows.map((r) => [r.hotel_id, r.outcome, r.shown])).toEqual([['MOCK-H1', 'SAME', true], ['MOCK-H2', 'SAME', true]]);
+    expect((hotels.calls.searchHotelRates ?? 0) - calls).toBe(1); // only the visitor's own search
+
+    // Other criteria than the list reference are not compared.
+    await search({ checkout: '2027-05-22' });
+    await search({ rooms: [{ adults: 3, childAges: [] }] });
+    await search({ rooms: [{ adults: 2, childAges: [5] }] });
+    await search({ nationality: 'GB' });
+    await search({ currency: 'USD' });
+    await search({ boardType: 'AI' }); // the list is for any board
+    expect((await checks()).rows).toHaveLength(2);
+
+    // The provider raised its prices after the scan: the hotel page search sees it.
+    clock.now = new Date('2027-05-01T11:00:00Z');
+    hotels.priceAdjustBp = () => 500n;
+    await search({ target: { hotelIds: ['MOCK-H1'] } });
+    // Sold out: a search for that very hotel finds nothing; a place search says nothing about a missing hotel.
+    clock.now = new Date('2027-05-01T12:00:00Z');
+    hotels.priceAdjustBp = () => 0n;
+    hotels.soldOut.add('MOCK-H2');
+    await search({ target: { hotelIds: ['MOCK-H2'] } });
+    await search();
+    const rows = (await checks()).rows.slice(2);
+    expect(rows.map((r) => [r.hotel_id, r.outcome])).toEqual([
+      ['MOCK-H1', 'LIVE_HIGHER'],
+      ['MOCK-H1', 'SAME'],
+      ['MOCK-H2', 'LIVE_MISSING'],
+    ]);
+    expect(rows[2]!.live_minor).toBeNull();
+
+    // The panel report: per currency, worst cases first (not bookable, then the largest gap), with the hotel name.
+    const report = await app.hotelListPriceChecks.report(7);
+    expect(report.currencies).toEqual([
+      {
+        currency: 'EUR',
+        shown: expect.objectContaining({ checks: 5, same: 3, liveHigher: 1, liveLower: 0, liveMissing: 1 }),
+        all: expect.objectContaining({ checks: 5 }),
+      },
+    ]);
+    expect(report.currencies[0]!.shown.averageGap!.currency).toBe('EUR');
+    expect(report.worst.map((w) => [w.hotelId, w.outcome])).toEqual([
+      ['MOCK-H2', 'LIVE_MISSING'],
+      ['MOCK-H1', 'LIVE_HIGHER'],
+    ]);
+    expect(report.worst[1]).toMatchObject({ hotelName: 'MOCK Lara Beach Resort', hotelSlug: 'mock-lara-beach-resort-mock-h1', checkin: '2027-05-20', shown: true });
+    expect(report.worst[1]!.gapBasisPoints).toBeGreaterThanOrEqual(490);
+    expect(report.worst[1]!.gapBasisPoints).toBeLessThanOrEqual(510);
+
+    // A failing comparison never fails the visitor's search.
+    const spy = vi.spyOn(app.hotelListPriceChecks, 'record').mockRejectedValueOnce(new Error('database busy'));
+    await expect(search()).resolves.toMatchObject({ hotels: expect.any(Array) });
+    spy.mockRestore();
+
+    // Checks are kept 90 days: 90 days after the 11:00 check, the scanner has dropped the two from 10:00.
+    clock.now = new Date('2027-07-30T11:00:00Z');
+    await app.hotelListScanner('prune-worker', { sleep: async () => {} }).syncScopes();
+    expect((await checks()).rows.map((r) => r.outcome)).toEqual(['LIVE_HIGHER', 'SAME', 'LIVE_MISSING']);
+  });
+  it('ads page feed: published list pages and the hotel pages they show, per language, with targeting labels', async () => {
+    await repo.saveSettings({ locales: { tr: { currency: 'EUR', nationality: 'TR' }, en: null }, maxPriceAgeHours: 26 }, clock.now);
+    await publish('l1', 'antalya', config());
+    await publish('l2', 'her-sey-dahil', config({ places: [{ placeId: 'MOCK-PLACE-BELEK', name: 'Belek (MOCK)', address: '' }], include: ['MOCK-H1'], boardType: 'AI' }));
+    await repo.upsertList({ cmsId: 'l3', slugs: { tr: 'taslak' }, titles: { tr: 'Taslak' }, config: config(), published: false, cmsUpdatedAt: 'x' }, clock.now);
+    await scanner.runUntilIdle();
+    const pages = await app.hotelLists.adsPages();
+    const tr = pages.filter((p) => p.locale === 'tr');
+    expect(tr.filter((p) => p.kind === 'LIST')).toEqual([
+      { kind: 'LIST', locale: 'tr', slug: 'antalya', labels: ['liste', 'tr', 'liste-antalya', 'fiyatli'] },
+      { kind: 'LIST', locale: 'tr', slug: 'her-sey-dahil', labels: ['liste', 'tr', 'liste-her-sey-dahil', 'pansiyon-ai', 'fiyatli'] },
+    ]);
+    // A hotel on two lists carries both; unpublished lists add nothing.
+    expect(tr.find((p) => p.slug === 'mock-lara-beach-resort-mock-h1')).toEqual({
+      kind: 'HOTEL',
+      locale: 'tr',
+      slug: 'mock-lara-beach-resort-mock-h1',
+      labels: ['otel', 'tr', 'liste-antalya', 'liste-her-sey-dahil', 'pansiyon-ai', 'fiyatli'],
+    });
+    expect(tr.filter((p) => p.kind === 'HOTEL').map((p) => p.slug)).toEqual(['mock-belek-golf-resort-mock-h3', 'mock-kaleici-boutique-mock-h2', 'mock-lara-beach-resort-mock-h1']);
+    // English: no English price settings, so no scan; a hotel added by code is shown (without a price) once its
+    // English content is there, exactly as on the English list page.
+    expect(pages.filter((p) => p.locale === 'en' && p.kind === 'HOTEL')).toEqual([
+      { kind: 'HOTEL', locale: 'en', slug: 'mock-lara-beach-resort-mock-h1', labels: ['otel', 'en', 'liste-her-sey-dahil', 'pansiyon-ai'] },
+    ]);
+    const enList = (await app.hotelLists.list('l2', 'en', null))!;
+    expect(enList.hotels.map((h) => [h.hotelId, h.price])).toEqual([['MOCK-H1', null]]);
+    expect(pages.filter((p) => p.locale === 'en' && p.kind === 'LIST').map((p) => p.labels)).toEqual([
+      ['liste', 'en', 'liste-antalya'],
+      ['liste', 'en', 'liste-her-sey-dahil', 'pansiyon-ai'],
+    ]);
   });
 });

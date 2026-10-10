@@ -269,6 +269,8 @@ Komut: sandbox anahtarıyla yalnız okuma çağrıları; rezervasyon yok. Ham ç
 | `/data/hotels` `placeId` belgesi | "merkezin 1 km çevresi" | Bölge listesi için kullanılmaz. |
 | `/hotels/min-rates` belgesi | `margin` parametresi yok | Onaylı marjla fiyat vermediği için kullanılmaz. |
 | Hız sınırı belgeleri (sabitlendi) | Sandbox 5 istek/sn; production 250 ya da 500 istek/sn (iki belge farklı) | Tarama varsayılan 1 istek/sn ve süreçler arası ortak hızla çalışır. |
+| `GET /data/hotels?hotelName=Swandor` (ülkesiz) | 4000 "you must search by either country code, …" | Ad araması ülke kodu ister; panel bulucusu ülke + ad sorar. |
+| `GET /data/hotels?hotelName=Swandor&countryCode=TR&language=tr&limit=20` (`nuitee-hotel.sandbox.test.ts`, 10 Ekim 2026) | 200; 2 otel: `lp36ea1` Swandor Hotels & Resorts - Topkapi Palace (Lara, 5★), `lp8ad18` Swandor Hotels & Resorts - Kemer - All Inclusive (Kemer, 5★) | Panelde "Otel adıyla bul": kod tek tıkla ekle/sabitle/çıkar alanına girer. Alanlar sabitlenmiş OpenAPI ile aynı (`id`, `name`, `city`, `country`, `address`, `stars`, `deletedAt`). |
 
 **Kanıtlanamayanlar:**
 - arama çağrısı ücreti veya bakma/satma oranı sınırı;

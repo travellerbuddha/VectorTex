@@ -108,4 +108,11 @@ describe.skipIf(!key || !sandbox)('Nuitee hotel sandbox', () => {
     }
     expect(booked.kind).toBe('SUCCEEDED');
   }, 400_000);
+
+  it('hotel name search in one country (panel hotel finder, ADR-0014)', async () => {
+    const found = await c.searchHotelsByName({ name: process.env.NUITEE_SANDBOX_HOTEL_NAME ?? 'Swandor', countryCode: 'TR', language: 'tr' });
+    evidence('searchHotelsByName', found.kind === 'SUCCEEDED' ? { kind: found.kind, count: found.value.length, matches: found.value.map((h) => ({ id: h.hotelId, name: h.name, city: h.city, country: h.countryCode, stars: h.stars })) } : found);
+    expect(found.kind).toBe('SUCCEEDED');
+    if (found.kind === 'SUCCEEDED') expect(found.value.length).toBeGreaterThan(0);
+  }, 30_000);
 });

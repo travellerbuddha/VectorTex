@@ -7,6 +7,7 @@ import {
   type HotelConnector,
   type HotelContent,
   type HotelFunding,
+  type HotelNameMatch,
   type HotelOffer,
   type HotelRoomGuest,
   type HotelSearchCriteria,
@@ -43,6 +44,8 @@ export class MockHotelConnector implements HotelConnector {
   priceAdjustBp: (checkin: string) => bigint = () => 0n;
   /** Test hook: the next searches fail as a lost answer (timeout). */
   failSearches = 0;
+  /** Test hook: hotels with no bookable offer (sold out). */
+  soldOut = new Set<string>();
   /** Calls made, per operation (tests count provider calls). */
   readonly calls: Record<string, number> = {};
 
@@ -57,6 +60,7 @@ export class MockHotelConnector implements HotelConnector {
       operations: {
         searchRates: { effect: 'READ_ONLY', lostResponse: 'NONE' },
         placeDetails: { effect: 'READ_ONLY', lostResponse: 'NONE' },
+        searchHotelsByName: { effect: 'READ_ONLY', lostResponse: 'NONE' },
         hotelContent: { effect: 'READ_ONLY', lostResponse: 'NONE' },
         prebook: { effect: 'CREATES_PROVIDER_SESSION', lostResponse: 'NONE' },
         book: { effect: 'CREATES_PROVIDER_RESERVATION', lostResponse: 'CLIENT_REFERENCE_LOOKUP' },
@@ -109,6 +113,15 @@ export class MockHotelConnector implements HotelConnector {
     this.count('placeDetails');
     const p = MockHotelConnector.PLACES[input.placeId];
     return { kind: 'SUCCEEDED', value: p ? { placeId: input.placeId, name: p.name, address: p.address, types: ['locality'] } : null, evidence: this.evidence('placeDetails') };
+  }
+
+  async searchHotelsByName(input: { name: string; countryCode: string; language: string }): Promise<ExternalOutcome<readonly HotelNameMatch[]>> {
+    this.count('searchHotelsByName');
+    const q = input.name.trim().toLocaleLowerCase('tr');
+    if (q.length < 2 || q.length > 80) return notAvailable('HOTEL_NAME', 'Type 2-80 characters');
+    if (!/^[A-Z]{2}$/.test(input.countryCode)) return notAvailable('COUNTRY', 'ISO 3166-1 alpha-2 country code');
+    const hits = MockHotelConnector.HOTELS.filter((h) => h.countryCode === input.countryCode && h.name.toLocaleLowerCase('tr').includes(q));
+    return { kind: 'SUCCEEDED', value: hits.map((h) => ({ hotelId: h.hotelId, name: h.name, city: h.city, countryCode: h.countryCode, address: h.address, stars: h.stars })), evidence: this.evidence('hotelNames') };
   }
 
   /** MOCK content (invented, labelled); images are the site's own placeholder so pages render offline. */
@@ -169,7 +182,7 @@ export class MockHotelConnector implements HotelConnector {
     const bp = BigInt(criteria.margin?.basisPoints ?? 0);
     const offers: HotelOffer[] = [];
     const mk = (hotelId: string, roomName: string, board: [string, string], netPerNight: bigint, refundable: boolean, sspFactorBp: bigint | null) => {
-      if (!inScope.has(hotelId) || (criteria.boardType && criteria.boardType !== board[0])) return;
+      if (!inScope.has(hotelId) || this.soldOut.has(hotelId) || (criteria.boardType && criteria.boardType !== board[0])) return;
       const base = money(criteria.currency, netPerNight * BigInt(nights) * BigInt(rooms));
       const net = adjust === 0n ? base : add(base, percentOf(base, adjust, 'HALF_EVEN'));
       const commission = percentOf(net, bp, 'HALF_EVEN');

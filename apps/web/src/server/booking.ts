@@ -56,6 +56,8 @@ async function create(): Promise<Booking> {
     sourceLock: parseSourceLock(lockJson),
     settings,
     workerId: `web-${process.pid}`,
+    // Side work that never fails a visitor's request (list price checks) is reported on the server log only.
+    log: { warn: (msg, meta) => console.warn(JSON.stringify({ level: 'warn', msg, ...meta })) },
   });
   return { app, settings, mock };
 }

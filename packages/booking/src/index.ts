@@ -12,3 +12,4 @@ export * from './flights';
 export * from './hotel-pricing';
 export * from './hotel-offer-pricing';
 export * from './hotel-lists';
+export * from './hotel-list-accuracy';

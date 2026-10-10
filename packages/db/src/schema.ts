@@ -914,3 +914,29 @@ export const hotelContent = core.table(
     index('hotel_content_next_idx').on(t.nextFetchAt),
   ],
 );
+
+/**
+ * List price accuracy (ADR-0014): a live search with the list reference (1 room, 2 adults, 1 night, the scope's
+ * currency, nationality and board) compared with the stored list price of the same hotel and date. Written beside
+ * searches visitors make anyway (no extra provider call); kept for a while for the panel report.
+ */
+export const hotelListPriceChecks = core.table(
+  'hotel_list_price_checks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    environment: environmentEnum('environment').notNull(),
+    scopeKey: text('scope_key').notNull(),
+    hotelId: text('hotel_id').notNull(),
+    checkin: text('checkin').notNull(),
+    currency: ccy('currency').notNull(),
+    listMinor: minor('list_minor').notNull(),
+    /** Lowest live price of the hotel on that date; null when a search for this very hotel found no bookable offer. */
+    liveMinor: minor('live_minor'),
+    /** When the list price was taken from the provider, and whether it was young enough to be on the pages. */
+    listAsOf: ts('list_as_of').notNull(),
+    shown: boolean('shown').notNull(),
+    outcome: text('outcome', { enum: ['SAME', 'LIVE_HIGHER', 'LIVE_LOWER', 'LIVE_MISSING'] }).notNull(),
+    checkedAt: ts('checked_at').notNull().defaultNow(),
+  },
+  (t) => [index('hotel_list_price_checks_at_idx').on(t.checkedAt), check('hotel_list_price_checks_list_positive', sql`${t.listMinor} > 0`)],
+);
