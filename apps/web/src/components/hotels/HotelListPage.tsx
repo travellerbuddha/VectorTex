@@ -32,12 +32,15 @@ export function priceLink(l: Locale, h: Pick<ListedHotel, 'slug'>, price: Listed
 
 export function PriceBlock({ price, locale }: { price: ListedPrice; locale: Locale }) {
   const t = dict(locale).lists;
+  const board = boardLabel(price.boardType, null, locale);
+  const extras = [price.payAtProperty ? t.payAtHotel(formatMoney(price.payAtProperty, locale)) : null, price.payAtPropertyOtherCurrency ? t.payAtHotelOther : null].filter(Boolean);
   return (
     <div className="list-price">
       <span className="muted">{t.lowest}</span> <strong data-testid="list-price">{formatMoney(price.amount, locale)}</strong>
       <span className="muted small">
         {' '}
-        · {t.conditions(formatDate(price.checkin, locale))} · {price.payAtProperty ? t.payAtHotel(formatMoney(price.payAtProperty, locale)) : price.payAtPropertyOtherCurrency ? t.payAtHotelOther : t.taxesIncluded}
+        · {t.conditions(formatDate(price.checkin, locale))}
+        {board ? ` · ${board}` : ''} · {extras.length > 0 ? extras.join(' · ') : t.taxesIncluded}
       </span>
     </div>
   );
@@ -177,7 +180,7 @@ export async function HotelListHub({ locale }: { locale: Locale }) {
   const lists: Array<{ title: string; slug: string; intro: string | null }> = [];
   if (cmsEnabled()) {
     const payload = await cms();
-    const res = await payload.find({ collection: 'hotel-lists', locale, depth: 0, limit: 200, overrideAccess: false, select: { title: true, slug: true, intro: true } });
+    const res = await payload.find({ collection: 'hotel-lists', locale, fallbackLocale: false, depth: 0, limit: 200, overrideAccess: false, select: { title: true, slug: true, intro: true } });
     for (const d of res.docs as Array<{ title?: string; slug?: string; intro?: string | null }>) if (d.title && d.slug) lists.push({ title: d.title, slug: d.slug, intro: d.intro ?? null });
   }
   return (

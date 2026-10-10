@@ -128,7 +128,8 @@ export interface ScannerDeps {
 export type ScannerStep = 'SCANNED_DAY' | 'DAY_FAILED' | 'FETCHED_CONTENT' | 'IDLE';
 
 const RATE_SLOT = 'nuitee-hotel-lists';
-const LEASE_SECONDS = 300;
+/** Covers one provider call (6 s budget + 15 s HTTP margin) plus the wait for the shared pace; renewed per call. */
+const LEASE_SECONDS = 120;
 
 function hotelSummaryJson(h: HotelSummary | undefined, id: string): Record<string, unknown> {
   return h ? { ...h } : { hotelId: id, name: id };
@@ -232,6 +233,11 @@ export class HotelListScanner {
     const members = new Map<string, { summary: Record<string, unknown>; rank: number }>();
     for (const [ti, target] of targets.entries()) {
       await this.turn();
+      // A day may take several slow calls: the lease is renewed before each so no other worker takes the day meanwhile.
+      if (!(await this.deps.repo.renewDay(claim.scopeKey, claim.checkin, this.deps.workerId, new Date(this.clock().getTime() + LEASE_SECONDS * 1000)))) {
+        this.deps.log?.warn('hotel list day lease lost; scan stopped', { scopeKey: claim.scopeKey, checkin: claim.checkin });
+        return 'DAY_FAILED';
+      }
       const out = await this.deps.hotels.searchHotelRates({
         ...target,
         checkin: claim.checkin,
@@ -269,7 +275,9 @@ export class HotelListScanner {
       }
       for (const h of out.value.hotels) if (!order.includes(h.hotelId)) order.push(h.hotelId);
       order.forEach((id, i) => {
-        const rank = ti * 10_000 + i;
+        // Interleaved across places/code chunks: "top picks" of several places alternate instead of the first place
+        // filling the list.
+        const rank = i * targets.length + ti;
         const prev = members.get(id);
         if (!prev || rank < prev.rank) members.set(id, { summary: hotelSummaryJson(summaries.get(id), id), rank });
       });
@@ -409,7 +417,7 @@ export class HotelListPages {
   }
 
   /** Prices of the scopes that may be shown now, lowest per hotel (earliest date on ties). */
-  private async validPrices(scopeKeys: string[], r: ResolvedHotelPricing | null, settings: HotelListSettings, nationality: string, hotelIds?: string[]): Promise<Map<string, ListedPrice>> {
+  private async validPrices(scopeKeys: string[], r: ResolvedHotelPricing | null, settings: HotelListSettings, nationality: string, hotelIds?: string[], onDate?: string): Promise<Map<string, ListedPrice>> {
     const out = new Map<string, ListedPrice>();
     if (!r) return out;
     const now = this.clock();
@@ -417,6 +425,7 @@ export class HotelListPages {
     const minAsOf = now.getTime() - settings.maxPriceAgeHours * 3_600_000;
     for (const p of await this.deps.repo.prices(scopeKeys, from, hotelIds)) {
       if (p.fingerprint !== r.fingerprint || Date.parse(p.lastSuccessAt) < minAsOf) continue;
+      if (onDate !== undefined && p.checkin !== onDate) continue;
       const prev = out.get(p.hotelId);
       const prevMinor = prev ? BigInt(prev.amount.minor) : null;
       if (prevMinor !== null && (p.sellMinor > prevMinor || (p.sellMinor === prevMinor && p.checkin >= prev!.checkin))) continue;
@@ -530,66 +539,96 @@ export class HotelListPages {
     };
   }
 
-  /** A hotel page by its address in a language; null when the hotel has no content here. */
-  async hotel(locale: HotelListLocale, slug: string): Promise<HotelPageView | null> {
+  /** In which languages, and on which published lists, a hotel is actually shown (same filters as the list pages). */
+  private async listings(hotelId: string): Promise<Record<HotelListLocale, Array<{ cmsId: string; slug: string; title: string; boardType: HotelListConfig['boardType'] }>>> {
+    const out: Record<HotelListLocale, Array<{ cmsId: string; slug: string; title: string; boardType: HotelListConfig['boardType'] }>> = { tr: [], en: [] };
+    for (const list of await this.deps.repo.publishedLists()) {
+      const cfg = hotelListConfigSchema.safeParse(list.config);
+      if (!cfg.success) continue;
+      for (const l of HOTEL_LIST_LOCALES) {
+        if (!list.slugs[l]) continue;
+        const view = await this.list(list.cmsId, l, null);
+        if (view?.hotels.some((h) => h.hotelId === hotelId)) out[l].push({ cmsId: list.cmsId, slug: list.slugs[l]!, title: list.titles[l] ?? list.slugs[l]!, boardType: cfg.data.boardType });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * A hotel page by its address in a language; null when the hotel has no content here. The price matches what the
+   * page's search form will look for: the board of the link (none = lists without a board filter), and the linked
+   * check-in date when it has a price.
+   */
+  async hotel(locale: HotelListLocale, slug: string, opts: { board?: string | null; checkin?: string | null } = {}): Promise<HotelPageView | null> {
     if (!/^[a-z0-9-]{2,130}$/.test(slug)) return null;
     const row = await this.deps.repo.contentBySlug(this.environment, locale, slug);
     const c = content(row ?? undefined);
     if (!row || !c) return null;
-    const now = this.clock();
     const settings = await this.settings();
     const ls = settings?.locales[locale] ?? null;
-    const lists: HotelPageView['lists'] = [];
-    const scopeKeys: string[] = [];
-    let indexable = false;
-    for (const list of await this.deps.repo.publishedLists()) {
-      const cfg = hotelListConfigSchema.safeParse(list.config);
-      if (!cfg.success || !list.slugs[locale] || cfg.data.exclude.includes(row.hotelId)) continue;
-      const s = ls ? scopeFor(cfg.data, ls, this.environment) : null;
-      const isMember =
-        cfg.data.include.includes(row.hotelId) ||
-        cfg.data.pinned.includes(row.hotelId) ||
-        (s !== null && (await this.deps.repo.members([s.scopeKey], new Date(now.getTime() - MEMBER_GRACE_DAYS * 86_400_000))).some((m) => m.hotelId === row.hotelId));
-      if (!isMember) continue;
-      indexable = true;
-      lists.push({ cmsId: list.cmsId, slug: list.slugs[locale]!, title: list.titles[locale] ?? list.slugs[locale]! });
-      // The page price is the any-board price when a list without a board filter holds the hotel.
-      if (s && cfg.data.boardType === null) scopeKeys.unshift(s.scopeKey);
-      else if (s) scopeKeys.push(s.scopeKey);
-    }
+    const listed = await this.listings(row.hotelId);
+    const here = listed[locale];
+    const board = opts.board ?? null;
     let price: ListedPrice | null = null;
-    if (settings && ls && scopeKeys.length > 0) {
-      const r = await this.resolve(ls.currency);
-      const anyBoard = (await this.validPrices([scopeKeys[0]!], r, settings, ls.nationality, [row.hotelId])).get(row.hotelId);
-      price = anyBoard ?? (await this.validPrices(scopeKeys, r, settings, ls.nationality, [row.hotelId])).get(row.hotelId) ?? null;
+    if (settings && ls) {
+      const parsed = (await this.deps.repo.publishedLists()).map((l) => ({ l, cfg: hotelListConfigSchema.safeParse(l.config) }));
+      const scopeKeys = here
+        .filter((h) => h.boardType === board)
+        .map((h) => parsed.find((p) => p.l.cmsId === h.cmsId))
+        .filter((p): p is { l: HotelListRow; cfg: { success: true; data: HotelListConfig } } => p !== undefined && p.cfg.success)
+        .map((p) => scopeFor(p.cfg.data, ls, this.environment).scopeKey);
+      if (scopeKeys.length > 0) {
+        const r = await this.resolve(ls.currency);
+        const day = opts.checkin && /^\d{4}-\d{2}-\d{2}$/.test(opts.checkin) ? opts.checkin : undefined;
+        price =
+          (day ? (await this.validPrices(scopeKeys, r, settings, ls.nationality, [row.hotelId], day)).get(row.hotelId) : undefined) ??
+          (await this.validPrices(scopeKeys, r, settings, ls.nationality, [row.hotelId])).get(row.hotelId) ??
+          null;
+      }
     }
+    const all = await this.deps.repo.slugsOf(this.environment, row.hotelId);
+    // hreflang only to the language versions that are listed (indexable), plus this page itself.
+    const slugs = Object.fromEntries(Object.entries(all).filter(([l]) => l === locale || (listed[l as HotelListLocale]?.length ?? 0) > 0));
     return {
       hotelId: row.hotelId,
       locale,
       slug: row.slug,
-      slugs: await this.deps.repo.slugsOf(this.environment, row.hotelId),
+      slugs,
       content: c,
       price,
-      indexable,
-      lists,
+      indexable: here.length > 0,
+      lists: here.map(({ cmsId, slug: s, title }) => ({ cmsId, slug: s, title })),
       currency: ls?.currency ?? null,
       nationality: ls?.nationality ?? null,
     };
   }
 
-  /** Published lists and the hotels they hold, per language (sitemap). */
+  /** Published lists and the hotels they show, per language (sitemap). */
   async sitemap(): Promise<{ lists: Array<{ slugs: Record<string, string>; updatedAt: string }>; hotels: Array<{ slugs: Record<string, string>; updatedAt: string }> }> {
     const lists = await this.deps.repo.publishedLists();
-    const hotelIds = new Set<string>();
+    const shownIn = new Map<string, Set<HotelListLocale>>();
     for (const l of HOTEL_LIST_LOCALES) {
       for (const list of lists) {
         if (!list.slugs[l]) continue;
-        const view = await this.list(list.cmsId, l, null);
-        for (const h of view?.hotels ?? []) hotelIds.add(h.hotelId);
+        for (const h of (await this.list(list.cmsId, l, null))?.hotels ?? []) shownIn.set(h.hotelId, (shownIn.get(h.hotelId) ?? new Set()).add(l));
       }
     }
-    const hotels = [];
-    for (const id of hotelIds) hotels.push({ slugs: await this.deps.repo.slugsOf(this.environment, id), updatedAt: this.clock().toISOString() });
+    const hotels: Array<{ slugs: Record<string, string>; updatedAt: string }> = [];
+    for (const l of HOTEL_LIST_LOCALES) {
+      const ids = [...shownIn.entries()].filter(([, ls]) => ls.has(l)).map(([id]) => id);
+      for (const row of await this.deps.repo.content(this.environment, ids, l)) {
+        if (row.status !== 'OK') continue;
+        const langs = shownIn.get(row.hotelId)!;
+        // One entry per hotel: built on its first listed language with every listed language as alternates.
+        if ([...langs][0] !== l) continue;
+        const slugs: Record<string, string> = {};
+        for (const other of langs) {
+          const r = other === l ? row : (await this.deps.repo.content(this.environment, [row.hotelId], other))[0];
+          if (r && r.status === 'OK') slugs[other] = r.slug;
+        }
+        hotels.push({ slugs, updatedAt: row.fetchedAt });
+      }
+    }
     return { lists: lists.map((l) => ({ slugs: l.slugs, updatedAt: l.updatedAt })), hotels };
   }
 }

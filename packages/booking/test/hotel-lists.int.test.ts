@@ -143,6 +143,9 @@ describe('hotel list pages (ADR-0014)', () => {
     const scope = (await core.db.execute<{ scope_key: string }>(sql`SELECT scope_key FROM core.hotel_list_scopes WHERE active`)).rows[0]!.scope_key;
     const days = await repo.days(scope);
     expect(days.filter((d) => d.lastError?.startsWith('UNKNOWN:TIMEOUT')).length).toBeGreaterThan(0);
+    // A failing day keeps its backoff: the next sync does not make it due again (no call storm).
+    await scanner.syncScopes();
+    expect(await repo.claimDay('other-worker', clock.now, 60)).toBeNull();
     // The kept prices are a day old: still within the 26 h allowed, so they show; nothing was replaced by "no price".
     const after = (await app.hotelLists.list('l1', 'tr', null))!.hotels.map((h) => h.price?.amount);
     expect(after).toEqual(first);
@@ -215,5 +218,39 @@ describe('hotel list pages (ADR-0014)', () => {
     const s1 = await repo.takeRateSlot('pace-test', 1000, t0);
     const s2 = await repo.takeRateSlot('pace-test', 1000, t0);
     expect(s2.getTime() - s1.getTime()).toBe(1000);
+  });
+
+  it('top picks of several places alternate instead of the first place filling the list', async () => {
+    await repo.saveSettings({ locales: { tr: { currency: 'EUR', nationality: 'TR' }, en: null }, maxPriceAgeHours: 26 }, clock.now);
+    await publish('tp', 'antalya-belek', config({ places: [{ placeId: 'MOCK-PLACE-ANTALYA', name: 'Antalya (MOCK)', address: '' }, { placeId: 'MOCK-PLACE-BELEK', name: 'Belek (MOCK)', address: '' }], sort: 'TOP_PICKS' }));
+    await scanner.runUntilIdle();
+    expect((await app.hotelLists.list('tp', 'tr', null))!.hotels.map((h) => h.hotelId)).toEqual(['MOCK-H1', 'MOCK-H3', 'MOCK-H2']);
+  });
+
+  it('a hotel page shows the price its search form will look for: the board of the link, the linked date', async () => {
+    await repo.saveSettings({ locales: { tr: { currency: 'EUR', nationality: 'TR' }, en: null }, maxPriceAgeHours: 26 }, clock.now);
+    hotels.priceAdjustBp = (d) => (d === '2027-05-20' ? -1000n : 0n);
+    await publish('ai', 'her-sey-dahil', config({ places: [{ placeId: 'MOCK-PLACE-BELEK', name: 'Belek (MOCK)', address: '' }], boardType: 'AI' }));
+    await scanner.runUntilIdle();
+    const slug = 'mock-belek-golf-resort-mock-h3';
+    // Only an all-inclusive list holds the hotel: no "any board" price on a plain link.
+    expect((await app.hotelLists.hotel('tr', slug))!.price).toBeNull();
+    const ai = (await app.hotelLists.hotel('tr', slug, { board: 'AI' }))!.price!;
+    expect(ai).toMatchObject({ boardType: 'AI', checkin: '2027-05-20' });
+    // The linked date wins when it has a price.
+    expect((await app.hotelLists.hotel('tr', slug, { board: 'AI', checkin: '2027-05-10' }))!.price).toMatchObject({ checkin: '2027-05-10' });
+  });
+
+  it('a hotel keeps its first address when the provider renames it; hotel pages are indexed only in listed languages', async () => {
+    await repo.saveSettings({ locales: { tr: { currency: 'EUR', nationality: 'TR' }, en: { currency: 'EUR', nationality: 'GB' } }, maxPriceAgeHours: 26 }, clock.now);
+    await repo.upsertList({ cmsId: 'tronly', slugs: { tr: 'antalya' }, titles: { tr: 'Antalya Otelleri' }, config: config(), published: true, cmsUpdatedAt: 'x' }, clock.now);
+    await scanner.runUntilIdle();
+    const before = (await repo.content('mock', ['MOCK-H1'], 'tr'))[0]!;
+    await repo.saveContent({ ...before, slug: 'renamed-hotel-mock-h1', content: { ...(before.content as object), name: 'Renamed' } });
+    expect((await repo.content('mock', ['MOCK-H1'], 'tr'))[0]!.slug).toBe(before.slug);
+    const map = await app.hotelLists.sitemap();
+    expect(map.hotels.length).toBeGreaterThan(0);
+    for (const h of map.hotels) expect(Object.keys(h.slugs)).toEqual(['tr']);
+    expect(await app.hotelLists.hotel('en', 'mock-lara-beach-resort-mock-h1')).toBeNull(); // no English content fetched
   });
 });

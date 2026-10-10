@@ -6,9 +6,9 @@ export const dynamic = 'force-dynamic';
 type Params = { params: Promise<{ locale: string; slug: string }>; searchParams: Promise<Record<string, string | undefined>> };
 
 /** English hotel page (ADR-0014): /en/hotel/{name}-{hotel code}. */
-export async function generateMetadata({ params }: Params): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: Params): Promise<Metadata> {
   const { locale, slug } = await params;
-  return locale === 'en' ? hotelMetadata('en', slug) : {};
+  return locale === 'en' ? hotelMetadata('en', slug, await searchParams) : {};
 }
 
 export default async function Page({ params, searchParams }: Params) {

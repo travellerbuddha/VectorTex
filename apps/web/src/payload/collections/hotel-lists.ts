@@ -28,14 +28,15 @@ const codesField = (name: string, label: { tr: string; en: string }, description
 
 /** Publishing needs a source: a place or hotel codes. Pure (no I/O): it runs before validation. */
 export const guardHotelListSource: CollectionBeforeChangeHook = ({ data, req, collection }) => {
+  // On every save (each language is saved in its own request): a UUID-shaped address belongs to the search results.
+  if (typeof data?.slug === 'string' && UUID.test(data.slug)) {
+    throw new ValidationError({ collection: collection.slug, errors: [{ path: 'slug', message: 'Bu adres biçimi kullanılamaz.' }], req });
+  }
   if (data?._status !== 'published') return data;
   const places = Array.isArray(data.places) ? data.places : [];
   const codes = [...(Array.isArray(data.include) ? data.include : []), ...(Array.isArray(data.pinned) ? data.pinned : [])];
   if (places.length === 0 && codes.length === 0) {
     throw new ValidationError({ collection: collection.slug, errors: [{ path: 'places', message: 'En az bir bölge veya otel kodu girin.' }], req });
-  }
-  if (typeof data.slug === 'string' && UUID.test(data.slug)) {
-    throw new ValidationError({ collection: collection.slug, errors: [{ path: 'slug', message: 'Bu adres biçimi kullanılamaz.' }], req });
   }
   return data;
 };
@@ -90,9 +91,8 @@ export function mirrorOf(doc: PublishedList) {
  * or an unpublish) and copied to core. A failed copy fails the request, so the publish is rolled back.
  */
 export const mirrorHotelList: CollectionAfterChangeHook = async ({ doc, req }) => {
-  const published = (await req.payload
-    .findByID({ collection: 'hotel-lists', id: doc.id, draft: false, locale: 'all', depth: 0, overrideAccess: true, req })
-    .catch(() => null)) as PublishedList | null;
+  // A failed read fails the request (and rolls the change back); it never reads as "unpublished".
+  const published = (await req.payload.findByID({ collection: 'hotel-lists', id: doc.id, draft: false, locale: 'all', depth: 0, overrideAccess: true, req })) as PublishedList | null;
   const repo = await listRepository();
   const now = new Date();
   if (published && published._status === 'published') await repo.upsertList(mirrorOf(published), now);

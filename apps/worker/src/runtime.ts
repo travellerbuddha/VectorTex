@@ -1,4 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { hostname } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describeConfig, type AppConfig } from '@texholiday/config';
@@ -225,7 +227,8 @@ export async function createRuntime(
           settings: hotelPricingSettingsFromEnv(env, config.providerEnvironment, tech.policyId),
         }),
         tech: hotelListTechSettingsFromEnv(env),
-        workerId: env.WORKER_ID ?? `worker-${process.pid}`,
+        // Unique per process even when containers share pids (lease ownership must tell workers apart).
+        workerId: `${env.WORKER_ID ?? `worker-${hostname()}-${process.pid}`}-${randomUUID().slice(0, 8)}`,
         log,
       })
     : null;

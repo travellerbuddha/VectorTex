@@ -146,6 +146,9 @@ export class HotelListRepository {
         and(
           sql`${hotelListDays.scopeKey} IN (SELECT ${hotelListScopes.scopeKey} FROM ${hotelListScopes} WHERE ${hotelListScopes.active} AND ${hotelListScopes.environment} = ${environment} AND ${hotelListScopes.currency} = ${currency})`,
           sql`${hotelListDays.fingerprint} IS DISTINCT FROM ${fingerprint}`,
+          // Only priced days that are not in a retry: a failing day keeps its backoff (no call storm every minute).
+          sql`${hotelListDays.lastSuccessAt} IS NOT NULL`,
+          eq(hotelListDays.attempts, 0),
           gt(hotelListDays.nextDueAt, now.toISOString()),
         ),
       )
@@ -212,6 +215,16 @@ export class HotelListRepository {
         .where(and(eq(hotelListDays.scopeKey, input.scopeKey), eq(hotelListDays.checkin, input.checkin)));
       return true;
     });
+  }
+
+  /** Extends this worker's lease of a day; false when another worker holds it now. */
+  async renewDay(scopeKey: string, checkin: string, workerId: string, until: Date): Promise<boolean> {
+    const rows = await this.db
+      .update(hotelListDays)
+      .set({ lockedUntil: until.toISOString() })
+      .where(and(eq(hotelListDays.scopeKey, scopeKey), eq(hotelListDays.checkin, checkin), eq(hotelListDays.lockedBy, workerId)))
+      .returning({ scopeKey: hotelListDays.scopeKey });
+    return rows.length === 1;
   }
 
   /** Releases a day whose answer was not complete; its previous prices stay. */
@@ -334,11 +347,19 @@ export class HotelListRepository {
     return hotelIds.filter((h) => !have.has(h));
   }
 
+  /** Saves content; a hotel keeps the address it was first published under (a provider rename must not break it). */
   async saveContent(row: HotelContentRow): Promise<void> {
-    const set = { slug: row.slug, status: row.status, content: row.content, fetchedAt: row.fetchedAt, nextFetchAt: row.nextFetchAt };
+    const set = {
+      // In ON CONFLICT the existing row is named by the bare table name (no schema).
+      slug: sql`CASE WHEN "hotel_content"."status" = 'OK' THEN "hotel_content"."slug" ELSE excluded.slug END`,
+      status: row.status,
+      content: row.content,
+      fetchedAt: row.fetchedAt,
+      nextFetchAt: row.nextFetchAt,
+    };
     await this.db
       .insert(hotelContent)
-      .values({ environment: row.environment, hotelId: row.hotelId, language: row.language, ...set })
+      .values({ environment: row.environment, hotelId: row.hotelId, language: row.language, ...set, slug: row.slug })
       .onConflictDoUpdate({ target: [hotelContent.environment, hotelContent.hotelId, hotelContent.language], set });
   }
 

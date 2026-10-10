@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
+import { cache } from 'react';
 import { addDays, istanbulDate, type HotelPageView } from '@texholiday/booking';
 import { HOTEL_BOARD_TYPES } from '@texholiday/contracts';
 import { countryOptions } from '../../i18n/countries';
@@ -16,16 +17,29 @@ import { hotelPath, hubPath, listPath, PriceBlock } from './HotelListPage';
  */
 const origin = () => process.env.PUBLIC_BASE_URL?.replace(/\/$/, '') ?? '';
 
-async function load(locale: Locale, slug: string): Promise<HotelPageView> {
+/** The link's board filter and check-in date (validated); they decide which list price the page shows. */
+function linkParams(searchParams: Record<string, string | undefined>): { board: string | null; checkin: string | null } {
+  const board = searchParams.board && (HOTEL_BOARD_TYPES as readonly string[]).includes(searchParams.board) ? searchParams.board : null;
+  const checkin = searchParams.checkin && /^\d{4}-\d{2}-\d{2}$/.test(searchParams.checkin) ? searchParams.checkin : null;
+  return { board, checkin };
+}
+
+/** One read per request, shared by the metadata and the page (each read evaluates the published lists). */
+const read = cache(async (locale: Locale, slug: string, board: string | null, checkin: string | null) => {
   const { app } = await booking();
-  const view = await app.hotelLists.hotel(locale, slug);
+  return app.hotelLists.hotel(locale, slug, { board, checkin });
+});
+
+async function load(locale: Locale, slug: string, searchParams: Record<string, string | undefined>): Promise<HotelPageView> {
+  const p = linkParams(searchParams);
+  const view = await read(locale, slug, p.board, p.checkin);
   if (view) return view;
   notFound();
 }
 
-export async function hotelMetadata(locale: Locale, slug: string): Promise<Metadata> {
-  const { app } = await booking();
-  const view = await app.hotelLists.hotel(locale, slug);
+export async function hotelMetadata(locale: Locale, slug: string, searchParams: Record<string, string | undefined> = {}): Promise<Metadata> {
+  const p = linkParams(searchParams);
+  const view = await read(locale, slug, p.board, p.checkin);
   if (!view) return {};
   const c = view.content;
   const languages: Record<string, string> = {};
@@ -44,7 +58,7 @@ export async function hotelMetadata(locale: Locale, slug: string): Promise<Metad
 
 export async function HotelPage({ locale, slug, searchParams }: { locale: Locale; slug: string; searchParams: Record<string, string | undefined> }) {
   if (slug !== slug.toLowerCase()) permanentRedirect(hotelPath(locale, slug.toLowerCase()));
-  const view = await load(locale, slug);
+  const view = await load(locale, slug, searchParams);
   const t = dict(locale);
   const c = view.content;
   const { app } = await booking();
@@ -53,7 +67,7 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
   const tomorrow = addDays(today, 1);
   const asked = searchParams.checkin && /^\d{4}-\d{2}-\d{2}$/.test(searchParams.checkin) && searchParams.checkin >= tomorrow ? searchParams.checkin : null;
   const checkin = asked ?? view.price?.checkin ?? addDays(today, 14);
-  const board = searchParams.board && (HOTEL_BOARD_TYPES as readonly string[]).includes(searchParams.board) ? searchParams.board : null;
+  const { board } = linkParams(searchParams);
   const list = view.lists[0];
   const crumbs = [
     { name: t.lists.home, path: `/${locale}` },
