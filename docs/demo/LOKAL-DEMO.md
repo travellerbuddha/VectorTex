@@ -52,7 +52,7 @@ pnpm demo
   - MOCK biçiminde ayrıca 3 örnek sipariş.
 - Site derlenir ve çalıştırılır.
 
-Ekranda "TexHoliday yerel demo çalışıyor" yazısı çıkınca tarayıcıda (**Chrome önerilir**) açın:
+Ekranda "TexHoliday yerel demo çalışıyor" yazısı çıkınca tarayıcıda (**Chrome önerilir**) açın. Adresi tam olarak **`localhost`** ile yazın. `127.0.0.1` yazarsanız ödemeden dönüşte sipariş çerezi farklı adrese düşer ve sipariş açılmaz.
 
 | Ne | Adres |
 |---|---|
@@ -92,7 +92,33 @@ Giriş adımları:
 1. `/yonetim` sayfasında e-posta ve parolayı girin.
 2. Doğrulama kodu ekranında `pnpm demo:kod` çıktısındaki kodu girin.
 
-## 4. Neleri deneyebilirsiniz?
+## 4. İlk deneme: 10 dakikalık tur
+
+MOCK biçiminde, sırayla:
+
+1. **Arama.**
+   - http://localhost:3000/tr adresinde "Nereye?" kutusuna `Antalya` yazın ve listeden **Antalya (MOCK)** seçin.
+   - Tarih ve kişi seçip **Ara**'ya basın.
+2. **Teklif seçimi.** "MOCK Kaleiçi Boutique – MOCK Superior Double" için **Seç**'e basın. Bu teklif ücretsiz iptallidir.
+3. **Rezervasyon formu.**
+   - Ad, soyad, e-posta (ör. `deneme@ornek.test`) ve telefonu (`+905321112233`) girin.
+   - Satış koşullarını onaylayıp **Ödemeye geç**'e basın.
+4. **Ödeme.** **MOCK: ödemeyi tamamla**'ya basın. Acele etmeniz gerekmez; sayfada istediğiniz kadar kalabilirsiniz. "Rezervasyonunuz kesinleşti." yazısını görürsünüz.
+5. **E-posta.** http://localhost:8025 adresinde onay e-postasını açın.
+6. **Müşterinin kendi iptali.**
+   - Onay sayfasındaki sipariş sayfasında **Rezervasyonu iptal et** kutusu var. Ücretsiz iptal süresi ve ücret, otelin (Nuitee'den gelen) koşulundan gösterilir.
+   - Onay kutusunu işaretleyip iptal edin. İptal e-postası Mailpit'e gelir.
+   - İade edilmez bir teklifte (ör. "MOCK Lara Beach Resort – MOCK Standard Room") kutu yerine "çevrimiçi iptal edilemez" yazar.
+7. **Rezervasyonlarım.**
+   - Üst menüden **Rezervasyonlarım**'a gidip aynı e-postayı yazın.
+   - Kod Mailpit'e gelir. Kodu girince siparişleriniz listelenir. Telefon ekranında denemek için tarayıcıyı daraltabilirsiniz.
+8. **Panel.**
+   - http://localhost:3000/yonetim adresinde `operasyon@demo.texholiday.test` ile girin (parola ve kod: `pnpm demo:kod`).
+   - Siparişler → iptal ettiğiniz sipariş. Zaman çizelgesinde "İptal istendi · Müşteri (site)" görünür.
+   - Başka bir siparişte **Durumu kontrol et**'e basın.
+9. **Finans.** `finans@demo.texholiday.test` ile Raporlar → **Komisyon tahsilatı** ve **Finans** ekranlarına bakın (ayrıntı aşağıda).
+
+## 5. Neleri deneyebilirsiniz?
 
 - **Otel listesi oluşturma.**
   - Panel → İçerik (site) → Otel listeleri → yeni liste.
@@ -106,6 +132,12 @@ Giriş adımları:
 - **Rezervasyonlarım.**
   - Sitenin üst menüsündeki "Rezervasyonlarım"a rezervasyonda kullanılan e-postayı yazın (örnek: `ayse.demir@ornek.test`).
   - Giriş kodu http://localhost:8025 adresine gelir.
+- **Müşterinin kendi iptali** (ADR-0021).
+  - Sipariş sayfasında, otelin iptal koşuluna göre iade varsa **Rezervasyonu iptal et** kutusu çıkar.
+  - Ücret varsa tutar onay metninde yazar.
+  - İptal personel iptaliyle aynı yoldan gider: e-posta, komisyonun düşmesi, panelde zaman çizelgesi.
+- **Uçak.** Üst menü → Uçak. Örnek: `IST` → `AYT`. Yolcu bilgileri, koltuk/bagaj adımı ve MOCK ödeme; bilet bir sonraki okumada düzenlenir.
+- **Çerez politikası.** Alt bilgideki "Çerez politikası" bağlantısı (`/tr/cerez-politikasi`). Sitenin kullandığı çerezler koddaki listeden üretilir.
 - **Panel.**
   - Siparişler: durum kontrolü, iptal, iade kaydı.
   - Fiyat politikası: taslak → başka bir hesapla onay.
@@ -120,7 +152,7 @@ Giriş adımları:
   - İçerik → "Ölçüm ve çerez ayarları"na bir GTM kimliği girilince sitede çerez bandı çıkar.
   - Kimlik yokken hiçbir şey yüklenmez. Demoda gerçek kimlik girmeyin, ölçüm verisi Google'a gider.
 
-## 5. Nuitee SANDBOX ile çalıştırma (isteğe bağlı)
+## 6. Nuitee SANDBOX ile çalıştırma (isteğe bağlı)
 
 1. Nuitee panelinde API anahtarları bölümünden **sandbox** anahtarını kopyalayın. **Asla production anahtarı kullanmayın.**
 2. Proje klasöründeki `.env.demo` dosyasını not defteriyle açın ve `NUITEE_API_KEY=` satırına anahtarı yapıştırın.
@@ -134,7 +166,7 @@ Sandbox biçiminde listeler gerçek yerlerle kurulur: Antalya, Swandor otelleri,
 
 Sandbox'ın önerilen satış fiyatları yapaydır. Bu yüzden demoda fiyat paritesi kontrolü kapalıdır; bu ayar yalnız sandbox'ta kabul edilir.
 
-## 6. Sorun giderme
+## 7. Sorun giderme
 
 | Belirti | Çözüm |
 |---|---|
@@ -142,12 +174,14 @@ Sandbox'ın önerilen satış fiyatları yapaydır. Bu yüzden demoda fiyat pari
 | "Node 22 gerekli" | nodejs.org'dan 22 LTS kurun, terminali kapatıp açın. |
 | Port kullanımda (3000, 8025, 1025) | O portu kullanan programı kapatın. |
 | Panel girişinde kod kabul edilmiyor | Kodu yeniden alın: `pnpm demo:kod` (kodlar 30 sn geçerli, her biri bir kez kullanılır). |
+| Ödemeden sonra sipariş sayfası açılmıyor | Adres çubuğunda `localhost:3000` olmalı, `127.0.0.1:3000` değil (sipariş çerezi adrese bağlıdır). |
 | Her şeyi baştan kurmak | `pnpm demo:sifirla` ardından `pnpm demo` |
 | Kodu güncelledim (`git pull`) | `pnpm install` ardından `pnpm demo` (site gerekirse yeniden derlenir) |
 
-## 7. Güvenlik notları
+## 8. Güvenlik notları
 
 - `.env.demo` ve `.demo/` klasörü yalnız bu bilgisayardadır ve git'e girmez.
 - Demo hesaplarının parolası ve kod anahtarları bu dosyalarda açık durur. Gerçek personel hesabı için kullanılmaz.
 - Demo fiyat politikası (otel %10, uçak %8) ve liste ayarları **demo değerleridir**; işletme kararı değildir. Canlıda finans ekibi kendi değerlerini girer.
 - Demo komutları production ortamında çalışmaz: betik yalnız `development` + MOCK/SANDBOX ortamında veri yükler.
+- MOCK biçiminde site, worker ve örnek veri yükleyici aynı MOCK "sağlayıcıyı" paylaşır (`.demo/mock-provider`). Böylece ödemesi sitede alınan rezervasyonu worker tamamlayabilir, örnek siparişler de panelden kontrol edilip iptal edilebilir. `pnpm demo:sifirla` bu klasörü de siler.

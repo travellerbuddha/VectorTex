@@ -96,6 +96,9 @@ function demoEnv() {
     NEXT_TELEMETRY_DISABLED: '1',
     DEMO_STATE_DIR: stateDir,
     DEMO_STAFF_PASSWORD: file.DEMO_STAFF_PASSWORD,
+    // MOCK only: the site, the worker and the seed share one MOCK "provider" (prebooks, payments, bookings), as they
+    // share the real provider outside the demo.
+    ...(sandbox ? {} : { MOCK_STATE_DIR: join(stateDir, 'mock-provider') }),
   };
 }
 
@@ -262,6 +265,7 @@ if (cmd === 'kod') {
   servicesUp();
   say('Demo veritabanı siliniyor...');
   rmSync(join(stateDir, 'kuruldu.json'), { force: true });
+  rmSync(join(stateDir, 'mock-provider'), { recursive: true, force: true });
   const env = demoEnv();
   setupOnce(env);
   say('Sıfırlandı. Başlatmak için: pnpm demo');

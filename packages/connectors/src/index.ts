@@ -6,3 +6,5 @@ export * from './nuitee/hotel';
 export * from './mock/hotel';
 export * from './nuitee/flight';
 export * from './mock/flight';
+export * from './mock/state';
+export * from './mock/connectors';

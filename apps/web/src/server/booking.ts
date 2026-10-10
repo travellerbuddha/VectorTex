@@ -1,6 +1,6 @@
 import { BookingApp, bookingSettingsFromEnv, type BookingSettings } from '@texholiday/booking';
 import { loadConfig } from '@texholiday/config';
-import { MockFlightConnector, MockHotelConnector, NuiteeFlightConnector, NuiteeHotelConnector, NUITEE_HOTEL_TIMEOUTS } from '@texholiday/connectors';
+import { mockConnectors, NuiteeFlightConnector, NuiteeHotelConnector, NUITEE_HOTEL_TIMEOUTS, type MockFlightConnector, type MockHotelConnector } from '@texholiday/connectors';
 import { DomainError, parseCapabilityMatrix, parseSourceLock, type FlightConnector, type HotelConnector } from '@texholiday/contracts';
 import matrixJson from '../../../../contracts/capability-matrix.json';
 import lockJson from '../../../../contracts/sources.lock.json';
@@ -31,7 +31,7 @@ async function create(): Promise<Booking> {
   const config = loadConfig(process.env);
   const settings = bookingSettingsFromEnv(process.env, config.providerEnvironment, process.env.POLICY_ID ?? 'b2c');
   const core = coreDatabase();
-  const mock = config.providerEnvironment === 'mock' ? { hotels: new MockHotelConnector(), flights: new MockFlightConnector() } : null;
+  const mock = config.providerEnvironment === 'mock' ? mockConnectors(process.env.MOCK_STATE_DIR) : null;
   let hotels: HotelConnector;
   let flights: FlightConnector;
   if (mock) {

@@ -1,6 +1,6 @@
 import { loadConfig } from '@texholiday/config';
 import { errorMessage, jsonLogger } from '@texholiday/contracts';
-import { MockFlightConnector, MockHotelConnector } from '@texholiday/connectors';
+import { mockConnectors } from '@texholiday/connectors';
 import { CustomerAccountRepository } from '@texholiday/db';
 import { OutboxRelay, startConsumer, type Logger } from './relay';
 import { createRuntime } from './runtime';
@@ -11,10 +11,11 @@ const log: Logger = jsonLogger({ service: 'worker' });
 async function main(): Promise<void> {
   const config = loadConfig(process.env); // fail-fast: invalid/placeholder secrets stop the process here
   // MOCK environment (local development and demo; refused in production by loadConfig): the same MOCK connectors as
-  // the web process, so the hotel list scan and checkout deadlines run without a provider. MOCK bookings live in the
-  // memory of the process that made them: a checkout abandoned before payment ends here as "not booked".
-  const mock = config.providerEnvironment === 'mock';
-  const runtime = await createRuntime(config, process.env, log, new Map(), mock ? new MockHotelConnector() : null, mock ? new MockFlightConnector() : null);
+  // the web process, so the hotel list scan and checkout deadlines run without a provider. With MOCK_STATE_DIR (the
+  // demo) both processes share the MOCK provider's prebooks, payments and bookings, so the worker can finish a booking
+  // paid on the site; without it each process has its own memory.
+  const mock = config.providerEnvironment === 'mock' ? mockConnectors(process.env.MOCK_STATE_DIR) : null;
+  const runtime = await createRuntime(config, process.env, log, new Map(), mock?.hotels ?? null, mock?.flights ?? null);
   const connection = { url: config.redis.url, maxRetriesPerRequest: null };
   const relayOpts = { batchSize: 100, dispatchLeaseSeconds: 600, maxAttempts: 12, retryDelaySeconds: (attempt: number) => Math.min(5 * 2 ** attempt, 900) };
   const relay = new OutboxRelay(runtime.outbox, connection, relayOpts, log);
