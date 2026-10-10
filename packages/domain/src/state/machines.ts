@@ -178,6 +178,8 @@ export type OperationTaskReason =
   | 'TICKETING_DELAYED'
   | 'SUPPLIER_LOSS_RECORDED'
   /** Provider-managed payment: the customer may hold a provider payment authorization without a booking. */
-  | 'PROVIDER_PAYMENT_HOLD';
+  | 'PROVIDER_PAYMENT_HOLD'
+  /** The customer cancelled on the site and the provider refused it: the booking stands, someone contacts the customer. */
+  | 'CUSTOMER_CANCEL_REJECTED';
 
 export type DocumentStatus = 'PENDING' | 'READY';

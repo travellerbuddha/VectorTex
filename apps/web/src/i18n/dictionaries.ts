@@ -4,6 +4,7 @@ export const isLocale = (v: string): v is Locale => (LOCALES as readonly string[
 
 const tr = {
   brand: 'TexHoliday',
+  notFound: { title: 'Sayfa bulunamadı', text: 'Aradığınız sayfa taşınmış ya da kaldırılmış olabilir.', home: 'Ana sayfaya dön' },
   nav: { hotels: 'Otel', flights: 'Uçak', tours: 'Tur/Aktivite', transfers: 'Transfer', packages: 'Paket Oluştur', soon: 'Yakında' },
   search: {
     title: 'Otel arayın',
@@ -127,6 +128,23 @@ const tr = {
     newSearch: 'Yeni arama',
     checking: 'Durum kontrol ediliyor…',
     stillWorking: 'İşlem biraz uzun sürüyor. Sonucu e-postayla bildireceğiz; bu sayfayı daha sonra yeniden açabilirsiniz.',
+    cancel: {
+      title: 'Rezervasyonu iptal et',
+      freeUntil: (at: string) => `${at} tarihine kadar ücretsiz iptal edebilirsiniz.`,
+      freeNow: 'Şu anda iptal ücreti yok.',
+      fee: (fee: string, paid: string) => `Şu anda iptal ederseniz iptal ücreti ${fee} olur (ödediğiniz tutar: ${paid}). Ücreti, otelin rezervasyonda kabul ettiğiniz iptal koşulları belirler.`,
+      refund: 'İade, otelin iptal koşullarına göre yapılır: ödediğiniz tutardan varsa iptal ücreti düşülür, kalanı iade edilir. İade işlendiğinde size e-posta göndereceğiz.',
+      confirmFree: 'Rezervasyonumu iptal etmek istiyorum.',
+      confirmFee: (fee: string) => `${fee} iptal ücretini kabul ediyorum ve rezervasyonumu iptal etmek istiyorum.`,
+      submit: 'Rezervasyonu iptal et',
+      sending: 'İptal ediliyor…',
+      inProgress: 'İptal isteğiniz işleniyor. Sonuç kesinleşince bu sayfada görünür ve size e-posta göndeririz.',
+      rejected: 'Otel sağlayıcısı iptali kabul etmedi; rezervasyonunuz geçerli. Ekibimiz sizinle iletişime geçecek.',
+      feeChanged: 'İptal ücreti değişti. Lütfen yeni ücreti inceleyip yeniden onaylayın.',
+      notAnymore: 'Bu rezervasyon artık çevrimiçi iptal edilemiyor.',
+      failed: 'İptal isteği gönderilemedi. Lütfen birazdan yeniden deneyin.',
+      noRefund: 'Otelin iptal koşullarına göre şu anda iptal edilirse iade yapılmıyor; bu nedenle çevrimiçi iptal edilemez. Bir değişiklik için bizimle iletişime geçin.',
+    },
   },
   flight: {
     title: 'Uçuş arayın',
@@ -285,6 +303,7 @@ type Dict = typeof tr;
 
 const en: Dict = {
   brand: 'TexHoliday',
+  notFound: { title: 'Page not found', text: 'The page you are looking for may have moved or been removed.', home: 'Back to the home page' },
   nav: { hotels: 'Hotels', flights: 'Flights', tours: 'Tours & Activities', transfers: 'Transfers', packages: 'Build a Package', soon: 'Coming soon' },
   search: {
     title: 'Find a hotel',
@@ -408,6 +427,23 @@ const en: Dict = {
     newSearch: 'New search',
     checking: 'Checking status…',
     stillWorking: 'This is taking a little longer. We will email the result; you can reopen this page later.',
+    cancel: {
+      title: 'Cancel the booking',
+      freeUntil: (at: string) => `You can cancel free of charge until ${at}.`,
+      freeNow: 'There is no cancellation fee at the moment.',
+      fee: (fee: string, paid: string) => `If you cancel now, the cancellation fee is ${fee} (amount paid: ${paid}). The fee is set by the hotel's cancellation conditions you accepted when booking.`,
+      refund: "The refund follows the hotel's cancellation conditions: any cancellation fee is deducted from the amount you paid and the rest is refunded. We will e-mail you when the refund is processed.",
+      confirmFree: 'I want to cancel my booking.',
+      confirmFee: (fee: string) => `I accept the cancellation fee of ${fee} and want to cancel my booking.`,
+      submit: 'Cancel the booking',
+      sending: 'Cancelling…',
+      inProgress: 'Your cancellation is being processed. The result will show on this page and we will e-mail you.',
+      rejected: 'The hotel provider did not accept the cancellation; your booking stands. Our team will contact you.',
+      feeChanged: 'The cancellation fee has changed. Please review the new fee and confirm again.',
+      notAnymore: 'This booking can no longer be cancelled online.',
+      failed: 'The cancellation could not be sent. Please try again shortly.',
+      noRefund: "Under the hotel's cancellation conditions, cancelling now is not refunded, so it cannot be cancelled online. Please contact us for any change.",
+    },
   },
   flight: {
     title: 'Search flights',

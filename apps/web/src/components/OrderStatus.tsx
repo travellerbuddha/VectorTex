@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { OrderView } from '@texholiday/booking';
+import type { CustomerCancellationView, OrderView } from '@texholiday/booking';
 import { dict, type Locale } from '../i18n/dictionaries';
 import { api } from './api';
+import { CancelBooking } from './CancelBooking';
 import { pushEvent, type AnalyticsItem } from './tracking/TrackEvent';
 
 const OPEN = new Set(['PREPARING_PAYMENT', 'AWAITING_PAYMENT', 'CONFIRMING', 'ISSUING']);
@@ -17,12 +18,15 @@ export function OrderStatus({
   initial,
   finalizeWhileOpen,
   purchase,
+  cancellation,
 }: {
   locale: Locale;
   initial: OrderView;
   finalizeWhileOpen: boolean;
   /** Return page only (ADR-0018): GA4 purchase sent once per order from this browser when the booking is confirmed. */
   purchase?: { currency: string; value: number; items: AnalyticsItem[] };
+  /** Order page only (ADR-0021): online cancellation by the owner; undefined hides it. */
+  cancellation?: CustomerCancellationView | null;
 }) {
   const t = dict(locale);
   const [order, setOrder] = useState(initial);
@@ -50,7 +54,7 @@ export function OrderStatus({
     if (purchase && order.stage === 'CONFIRMED') pushEvent('purchase', { transaction_id: order.orderId, ...purchase }, `purchase_${order.orderId}`);
   }, [purchase, order.stage, order.orderId]);
 
-  return (
+  const status = (
     <section aria-live="polite" className={`status status-${order.stage.toLowerCase()}`}>
       <p className="status-message">{t.order.stage[order.stage]}</p>
       {open && !giveUp && <p className="muted">{t.order.checking}</p>}
@@ -98,5 +102,13 @@ export function OrderStatus({
         </p>
       )}
     </section>
+  );
+  // The cancellation form stays outside the live region, which only announces the stage.
+  if (cancellation === undefined) return status;
+  return (
+    <div>
+      {status}
+      <CancelBooking locale={locale} orderId={order.orderId} initial={cancellation} onOrder={setOrder} />
+    </div>
   );
 }

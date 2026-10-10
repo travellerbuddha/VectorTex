@@ -769,8 +769,15 @@ export class ProviderManagedOrchestrator {
    * Cancels a confirmed booking at the provider (staff command, `orders.cancel` checked by the caller), also a paid
    * flight still waiting for its ticket. The intent is stored before the call; a lost answer is resolved by reading the
    * booking, never by sending the cancel again. A cancellation the airline still has to confirm is read until final.
+   * A cancellation the customer asked for on the site (`requestedByCustomer`) that the provider refuses opens a task, so
+   * someone contacts the customer.
    */
-  async cancel(orderId: string, actor: string, reason: string, context: { expectedPenalty: Money | null; customerAcceptedFee: boolean } = { expectedPenalty: null, customerAcceptedFee: false }): Promise<StaffCancelResult> {
+  async cancel(
+    orderId: string,
+    actor: string,
+    reason: string,
+    context: { expectedPenalty: Money | null; customerAcceptedFee: boolean; requestedByCustomer?: boolean } = { expectedPenalty: null, customerAcceptedFee: false },
+  ): Promise<StaffCancelResult> {
     const agg = await this.deps.store.load(orderId);
     const it = single(agg);
     const now = this.deps.clock();
@@ -790,6 +797,7 @@ export class ProviderManagedOrchestrator {
       reason,
       expectedPenalty: context.expectedPenalty ? { currency: context.expectedPenalty.currency, minor: context.expectedPenalty.minor.toString() } : null,
       customerAcceptedFee: context.customerAcceptedFee,
+      requestedByCustomer: context.requestedByCustomer === true,
     });
     await this.deps.store.save(agg);
 
@@ -817,6 +825,7 @@ export class ProviderManagedOrchestrator {
         setCancellation(fresh, fi.id, 'REJECTED', 'UPSTREAM_RESULT', actor, now);
         const code = outcome.kind === 'REJECTED' ? outcome.code : `CAPABILITY_NOT_AVAILABLE:${outcome.capability}`;
         audit(fresh, 'provider_managed.cancel_rejected', actor, now, { itemId: fi.id, code });
+        if (context.requestedByCustomer) raiseTask(fresh, 'CUSTOMER_CANCEL_REJECTED', fi.id, `The customer cancelled on the site; the provider refused (${code}). The booking stands.`, actor, now);
         // A flight still waiting for its ticket goes on being read.
         if (awaitingTicket(fresh, fi)) this.scheduleLookup(fresh, now, 1);
         result = { outcome: 'REJECTED', code };

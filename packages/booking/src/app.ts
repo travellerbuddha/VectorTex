@@ -37,10 +37,11 @@ import { NuiteeHotelProviderManagedPort } from './nuitee-pm-port';
 import { NuiteeFlightProviderManagedPort, ProductProviderManagedPort, TransientPassengerDetails } from './nuitee-flight-pm-port';
 import { FlightSales, openFlightCurrencies } from './flights';
 import { StaffOrderCommands } from './staff-orders';
+import { customerCancellation } from './cancellation';
 import { ProviderCommissions } from './commissions';
 import type { BookingSettings } from './settings';
 import { checkoutInput, hotelSearchInput, parse, type HotelSearchInput } from './validation';
-import type { CancellationView, HotelOfferView, HotelResultView, HotelSearchView, OrderStage, OrderView, PaymentSessionView, QuoteView } from './views';
+import type { CancellationView, CustomerCancellationView, CustomerCancelResult, HotelOfferView, HotelResultView, HotelSearchView, OrderStage, OrderView, PaymentSessionView, QuoteView } from './views';
 
 const HOTEL_PROVIDER = 'nuitee';
 const HOTEL_CONNECTOR_ID = 'nuitee-hotel';
@@ -541,6 +542,42 @@ export class BookingApp {
   async order(orderId: string, token: string | null | undefined): Promise<OrderView> {
     await this.authorized(orderId, token);
     return this.view(orderId);
+  }
+
+  /** Whether the order's owner may cancel online now, and at what expected fee (T27, ADR-0021). */
+  async customerCancellation(orderId: string, token: string | null | undefined): Promise<CustomerCancellationView | null> {
+    return customerCancellation(await this.authorized(orderId, token), { quotes: this.quotes, now: this.clock() });
+  }
+
+  /**
+   * Cancels a hotel booking for its owner (T27, ADR-0021). The fee the customer accepted must equal the fee expected
+   * now: if the free period ended while the page was open, the customer sees the new fee first. The cancellation runs
+   * as a staff one would (intent stored before the call, a lost answer is read back, never re-sent); a refusal opens a
+   * task so someone contacts the customer.
+   */
+  async customerCancel(orderId: string, token: string | null | undefined, body: unknown): Promise<CustomerCancelResult> {
+    const agg = await this.authorized(orderId, token);
+    const fee = (body as { acceptedFee?: { currency?: unknown; minor?: unknown } } | null)?.acceptedFee;
+    if (!fee || typeof fee.currency !== 'string' || typeof fee.minor !== 'string' || !/^\d{1,15}$/.test(fee.minor)) {
+      throw new DomainError('VALIDATION_FAILED', 'The accepted cancellation fee is required', { httpStatus: 400 });
+    }
+    const now = this.clock();
+    const view = await customerCancellation(agg, { quotes: this.quotes, now });
+    if (view?.state !== 'AVAILABLE') throw new DomainError('ILLEGAL_TRANSITION', 'This booking cannot be cancelled online', { httpStatus: 409 });
+    if (fee.currency !== view.expectedFee.currency || fee.minor !== view.expectedFee.minor) {
+      throw new DomainError('VERSION_CONFLICT', 'The cancellation fee has changed; please review it again', { httpStatus: 409, action: 'REVIEW' });
+    }
+    const expected = fromJson(view.expectedFee);
+    const result = await this.orchestrator.cancel(orderId, 'customer:site', 'Cancelled by the customer on the site', {
+      expectedPenalty: expected,
+      customerAcceptedFee: expected.minor > 0n,
+      requestedByCustomer: true,
+    });
+    return {
+      outcome: result.outcome,
+      order: await this.view(orderId),
+      cancellation: await customerCancellation(await this.store.load(orderId), { quotes: this.quotes, now: this.clock() }),
+    };
   }
 
   private stage(agg: OrderAggregate): OrderStage {

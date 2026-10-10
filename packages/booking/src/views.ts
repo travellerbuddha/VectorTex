@@ -89,6 +89,22 @@ export interface OrderView {
   ticketNumbers: readonly string[];
 }
 
+/** Online cancellation of a hotel booking by its customer (T27, ADR-0021). */
+export type CustomerCancellationView =
+  /** Can be cancelled now. A fee above zero must be accepted exactly as shown. */
+  | { state: 'AVAILABLE'; expectedFee: MoneyJson; paid: MoneyJson; freeUntil: string | null }
+  /** A cancellation was sent and its result is being checked. */
+  | { state: 'IN_PROGRESS' }
+  /** Not offered online: under the hotel's policy (from Nuitee) cancelling now refunds nothing. */
+  | { state: 'NOT_AVAILABLE'; reason: 'NO_REFUND' };
+
+export interface CustomerCancelResult {
+  /** CANCELLED: done. REJECTED: the provider refused; the booking stands and our team is told. UNKNOWN: being checked. */
+  outcome: 'CANCELLED' | 'PENDING' | 'REJECTED' | 'UNKNOWN';
+  order: OrderView;
+  cancellation: CustomerCancellationView | null;
+}
+
 // ---------------------------------------------------------------- flights
 
 export type PassengerType = 'ADULT' | 'CHILD' | 'INFANT';

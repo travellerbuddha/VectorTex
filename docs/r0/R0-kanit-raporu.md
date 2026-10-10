@@ -263,6 +263,29 @@ Komut: `pnpm web:e2e:sandbox` (`flight-payment.sandbox.spec.ts`, "a seat and a b
 
 Soru 22.
 
+### 10.6 Nuitee otel — çok oda, çocuk ve uyruk (T03, 10 Ekim 2026)
+
+Komut: `NUITEE_SANDBOX_MARGIN_BP=1000 NUITEE_SANDBOX_BOOK=1 pnpm test:sandbox packages/connectors/test/nuitee-hotel.sandbox.test.ts -t T03`. Sandbox anahtarı ve gizli test kartı (`ACC_CREDIT_CARD`) kullanıldı; `CREDIT` kullanılmadı. Rezervasyon sonunda iptal edildi. Misafir adları uydurma.
+
+İstek:
+- Otel `lp1897`, 2 gece, uyruk **DE**, EUR, marj %10.
+- Oda 1: 2 yetişkin ve 5 yaşında çocuk.
+- Oda 2: 1 yetişkin ve 3 ile 12 yaşında çocuklar.
+
+| Adım | Sonuç | Referans |
+|---|---|---|
+| Arama | SUCCEEDED, 111 teklif. Her teklif iki odayı birlikte kapsıyor (`occupancyNumber` 1+2) | — |
+| Prebook | 3.223,68 EUR, komisyon 293,04 EUR. Komisyon net 2.930,64 EUR'nun tam %10'u. İade edilebilir; iki adımlı iptal koşulu. Fiyat aramayla aynı | prebook `EDQ85xe0C` |
+| Book (her oda için ayrı ana misafir) | CONFIRMED; maliyet 3.223,68 EUR, komisyon 293,04 EUR | booking `_IRbZK6Td` |
+| `clientReference` ile sorgu | CONFIRMED | aynı |
+| İptal | CANCELLED, ceza 0, iade 3.223,68 EUR (tam tutar) | aynı |
+
+**Kod etkisi:** yok.
+- Teklif tüm odaları tek `offerId` ile kapsar. Fiyat ve komisyon odaların toplamıdır.
+- Prebook yanıtı oda listesi taşımaz. Oda–misafir eşlemesi aramadaki teklifin `occupancyNumbers` alanından yapılır; bu, mevcut ödeme akışıyla aynıdır.
+
+**Kanıtlanamayanlar:** çocuk yaşının otelce fiyata etkisi. Sandbox fiyatları sentetik olabilir (soru 10b).
+
 ## 11. Otel liste sayfaları için Nuitee verisi (10 Ekim 2026)
 
 Komut: sandbox anahtarıyla yalnız okuma çağrıları; rezervasyon yok. Ham çıktı paylaşılmadı (anahtar yazdırılmadı).

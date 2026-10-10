@@ -109,6 +109,72 @@ describe.skipIf(!key || !sandbox)('Nuitee hotel sandbox', () => {
     expect(booked.kind).toBe('SUCCEEDED');
   }, 400_000);
 
+  it('T03: two rooms with children and a non-TR nationality -> one offer for both rooms -> prebook (-> book with two lead guests -> lookup -> cancel)', async () => {
+    // Room 1: 2 adults + a 5-year-old; room 2: 1 adult + children of 3 and 12. Nationality DE.
+    const occupancies = [
+      { occupancyNumber: 1, adults: 2, childAges: [5] },
+      { occupancyNumber: 2, adults: 1, childAges: [3, 12] },
+    ];
+    const search = await c.searchRates({
+      hotelIds: (process.env.NUITEE_SANDBOX_HOTEL_IDS ?? 'lp1897').split(','),
+      checkin,
+      checkout,
+      occupancies,
+      guestNationality: 'DE',
+      currency: 'EUR',
+      margin: marginBp !== null ? { basisPoints: marginBp } : null,
+    });
+    evidence('multiroom.search', {
+      kind: search.kind,
+      offers: search.kind === 'SUCCEEDED' ? search.value.length : null,
+      // Which rooms each offer covers (an offer must cover every requested room to be sold).
+      coverage: search.kind === 'SUCCEEDED' ? [...new Set(search.value.map((o) => [...o.occupancyNumbers].sort().join('+')))] : null,
+    });
+    expect(search.kind).toBe('SUCCEEDED');
+    if (search.kind !== 'SUCCEEDED' || search.value.length === 0) return;
+    const both = search.value.filter((o) => [...o.occupancyNumbers].sort().join(',') === '1,2');
+    expect(both.length).toBeGreaterThan(0);
+
+    const candidates = [...both].sort((a, b) => Number(a.price.minor - b.price.minor)).filter((o) => o.cancellation.refundable).slice(0, 6);
+    let pre: Awaited<ReturnType<typeof c.prebook>> | null = null;
+    for (const candidate of candidates) {
+      pre = await c.prebook({ offerRef: candidate.offerRef, usePaymentSdk: false, clientReference: `sbx-mr-${Date.now()}` });
+      evidence(
+        'multiroom.prebook',
+        pre.kind === 'SUCCEEDED'
+          ? { kind: pre.kind, prebookRef: pre.value.prebookRef, rooms: candidate.occupancyNumbers, price: pre.value.offer.price, commission: pre.value.offer.providerAppliedMargin, refundable: pre.value.offer.cancellation.refundable, penaltySteps: pre.value.offer.cancellation.steps.length, searched: candidate.price }
+          : pre,
+      );
+      if (pre.kind === 'SUCCEEDED') break;
+    }
+    expect(pre?.kind).toBe('SUCCEEDED');
+    if (!pre || pre.kind !== 'SUCCEEDED') return;
+    if (process.env.NUITEE_SANDBOX_BOOK !== '1') return;
+
+    const clientReference = `th-sbx-mr-${Date.now()}`;
+    const booked = await c.book({
+      prebookRef: pre.value.prebookRef,
+      clientReference,
+      holder: { firstName: 'Sandbox', lastName: 'Tester', email: 'sandbox-tester@example.invalid', phone: '+900000000000' },
+      guests: [
+        { occupancyNumber: 1, leadGuest: { firstName: 'Sandbox', lastName: 'Roomone', email: 'sandbox-tester@example.invalid' } },
+        { occupancyNumber: 2, leadGuest: { firstName: 'Sandbox', lastName: 'Roomtwo', email: 'sandbox-tester@example.invalid' } },
+      ],
+      funding: { kind: 'ACCOUNT_CARD' },
+    });
+    evidence(
+      'multiroom.book',
+      booked.kind === 'SUCCEEDED' ? { kind: booked.kind, ref: booked.value.providerBookingRef, status: booked.value.status, supplierCost: booked.value.supplierCost, providerCommission: booked.value.providerCommission, funding: 'ACC_CREDIT_CARD' } : booked,
+    );
+    const lookup = await c.lookupByClientReference(clientReference);
+    evidence('multiroom.lookupByClientReference', lookup.kind === 'SUCCEEDED' ? { kind: lookup.kind, status: lookup.value?.status ?? null, ref: lookup.value?.providerBookingRef ?? null } : lookup);
+    if (booked.kind === 'SUCCEEDED' && booked.value.providerBookingRef) {
+      const cancel = await c.cancel(opaque(booked.value.providerBookingRef));
+      evidence('multiroom.cancel', cancel.kind === 'SUCCEEDED' ? { kind: cancel.kind, status: cancel.value.status, penalty: cancel.value.penalty, refundAmount: cancel.value.refundAmount } : cancel);
+    }
+    expect(booked.kind).toBe('SUCCEEDED');
+  }, 400_000);
+
   it('hotel name search in one country (panel hotel finder, ADR-0014)', async () => {
     const found = await c.searchHotelsByName({ name: process.env.NUITEE_SANDBOX_HOTEL_NAME ?? 'Swandor', countryCode: 'TR', language: 'tr' });
     evidence('searchHotelsByName', found.kind === 'SUCCEEDED' ? { kind: found.kind, count: found.value.length, matches: found.value.map((h) => ({ id: h.hotelId, name: h.name, city: h.city, country: h.countryCode, stars: h.stars })) } : found);
