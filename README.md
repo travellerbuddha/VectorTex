@@ -1,4 +1,4 @@
-# TexHoliday
+# TexVector
 
 Kendi müşteri sitesi, booking engine, Payload içerik yönetimi, operasyon paneli, fiyatlandırma, finansal kayıtlar, sağlayıcı connector'ları, seçilebilir ödeme altyapısı ve tek müşteri tahsilatlı dinamik paketleme.
 
