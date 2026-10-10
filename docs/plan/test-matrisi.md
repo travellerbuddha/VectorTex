@@ -2,7 +2,7 @@
 
 Kaynak: şartname §19. Durum: ✅ otomatik test var ve geçiyor · ◐ kısmi (sözleşmeden bağımsız kısım test edildi; gerçek sağlayıcı/arayüz kısmı bekliyor) · ⛔ henüz yok / dış girdiye bağlı.
 
-Ortam etiketi: **mock** = etiketli test dublörü, **db** = gerçek PostgreSQL 16 + Redis 7 (yerel/CI), **sandbox/prod** = sağlayıcı ortamı. Ortam sütununda **sandbox** yazan satırların kanıtı R0 raporundadır (§10–10.2); hiçbir satır production kanıtı değildir.
+Ortam etiketi: **mock** = etiketli test dublörü, **db** = gerçek PostgreSQL 16 + Redis 7 (yerel/CI), **sandbox/prod** = sağlayıcı ortamı. Ortam sütununda **sandbox** yazan satırların kanıtı R0 raporundadır (§10–10.3); hiçbir satır production kanıtı değildir.
 
 | ID | Senaryo | Durum | Kanıt (dosya) | Ortam | Eksik olan |
 |---|---|---|---|---|---|
@@ -12,19 +12,19 @@ Ortam etiketi: **mock** = etiketli test dublörü, **db** = gerçek PostgreSQL 1
 | T04 | Quote değişimi/expiry | ✅ | `packages/domain/test/state-quote-time.test.ts`, `orchestrator.test.ts` (prebook fiyat değişimi, süresi dolmuş prebook) | mock | — |
 | T05 | İptal saat dilimi/DST | ✅ | `packages/domain/test/state-quote-time.test.ts` | mock | Sağlayıcı iptal politikası alan eşlemesi (spec kilidi) |
 | T06 | HTTP 200 hata gövdesi | ◐ | `packages/connectors/test/connectors.test.ts` (JSON:API) | mock | Welcome staging doğrulaması |
-| T07 | Uçak yolcu/ek hizmet | ⛔ | — | — | `openapiflights.json` kilidi + uçak erişimi |
-| T08 | PNR/bilet ayrımı | ✅ | `orchestrator.test.ts` (PNR varken capture yok) | mock | Gerçek biletleme alanları (spec) |
+| T07 | Uçak yolcu/ek hizmet | ◐ | `nuitee-flight.test.ts` (yolcu tipi 0/1/2, belge alanları, bebek ≤ yetişkin, iletişim/telefon denetimi çağrıdan önce, eksik/başka para birimli fiyat teklifi düşürülür); Nuitee sandbox'ta yolcu + iletişimle prebook ve ödeme bileşeni (`flight-payment.sandbox.spec.ts`) | mock, sandbox | Koltuk/bagaj ek hizmetleri; müşteri yolcu formu ve belge politikası (G06) |
+| T08 | PNR/bilet ayrımı | ✅ | `orchestrator.test.ts` (PNR varken capture yok); `nuitee-flight.test.ts` (havayolu PNR'ı olan CONFIRMED rezervasyon biletlenmiş sayılmaz; yalnız `ticketData.ticketedAt` veya `order.status=ticketed` → ISSUED); sandbox'ta PNR'lı ama bilet verisiz `CONFIRMED` ayrı tutuldu, `ticketData.ticketedAt` gelince `ISSUED` oldu (`flight-payment.sandbox.spec.ts`) | mock, sandbox | Production biletleme kanıtı; bilet numarası alanının teyidi (Nuitee sorusu 16) |
 | T09 | Experiences seçenek/soru | ◐ | `connectors.test.ts` | mock | `api-experiences.json` kilidi |
 | T10 | Bekleyen aktivite/voucher | ◐ | `orchestrator.test.ts` (PENDING_CONFIRMATION onay sayılmıyor) | mock | Async webhook/voucher akışı (spec) |
 | T11 | Transfer lokasyon/saat | ◐ | `connectors.test.ts` | mock | Welcome staging |
 | T12 | Tahmini transfer fiyatı | ◐ | `connectors.test.ts` | mock | Welcome firm/estimate alanı (staging) |
 | T13 | Sahte redirect/callback | ◐ | Domain durumunu yalnız sunucu `retrieve` değiştirir (`orchestrator.ts`); `iyzico.test.ts`; Nuitee tahsilatında dönüş yalnız tetikleyici, URL kimlikleri kullanılmıyor (`provider-managed.test.ts`, dönüş sayfası); sipariş erişimi çerezle, CSRF reddi (`apps/web/e2e`); Nuitee ödeme bileşeninin gerçek dönüşüyle onay (`apps/web/e2e-sandbox/site-flow.sandbox.spec.ts`) | mock, db, sandbox | iyzico sandbox |
 | T14 | Tutar/para birimi/kimlik farkı | ✅ | `orchestrator.test.ts` (mismatch → void), `iyzico.test.ts` | mock | iyzico sandbox |
-| T15 | İmza/ortam doğrulama | ◐ | `invariants.int.test.ts` (ortam karışımı), `config.test.ts` (host kilidi), `iyzico.test.ts` (yanıt imzası, V3 HPP webhook), `nuitee-hotel.test.ts` (sandbox kaydı production'ı güncellemez) | mock, db | Webhook endpoint'i (P16), iyzico webhook aktivasyonu |
+| T15 | İmza/ortam doğrulama | ◐ | `invariants.int.test.ts` (ortam karışımı), `config.test.ts` (host kilidi), `iyzico.test.ts` (yanıt imzası, V3 HPP webhook), `nuitee-hotel.test.ts` ve `nuitee-flight.test.ts` (sandbox kaydı production'ı güncellemez; başka prebook/ortamın işlemiyle book yapılmaz) | mock, db | Webhook endpoint'i (P16), iyzico webhook aktivasyonu |
 | T16 | Fraud review | ✅ | `orchestrator.test.ts`, `iyzico.test.ts` | mock | fraudStatus kodlarının doküman teyidi |
 | T17 | Çift tıklama/iki worker | ✅ | `orchestrator.test.ts`, `order-store.int.test.ts` | mock, db | — |
 | T18 | Tekrar/sırası değişmiş webhook | ◐ | `invariants.int.test.ts` (inbox), `orchestrator.test.ts` (geri gitmeyen durum) | mock, db | Webhook endpoint'leri (P16) |
-| T19 | Sağlayıcı create yanıtı kayıp | ✅ | `orchestrator.test.ts`, `order-store.int.test.ts`, `nuitee-hotel.test.ts` (4005/2014/5000 → UNKNOWN → lookup); `provider-managed.test.ts` (2014 sonrası yeni referans, süre dolunca gönderilmiş tüm referansların sorgusu, tek kullanımlık işlem); Nuitee sandbox'ta 4005 → sorgu, tükenmiş referans ve tek kullanımlık işlem doğrulandı (`provider-payment.sandbox.spec.ts`) | mock, db, sandbox | Kayıp yanıt senaryosunun sandbox'ta zorlanması |
+| T19 | Sağlayıcı create yanıtı kayıp | ✅ | `orchestrator.test.ts`, `order-store.int.test.ts`, `nuitee-hotel.test.ts` (4005/2014/5000 → UNKNOWN → lookup); `provider-managed.test.ts` (2014 sonrası yeni referans, süre dolunca gönderilmiş tüm referansların sorgusu, tek kullanımlık işlem); Nuitee sandbox'ta 4005 → sorgu, tükenmiş referans ve tek kullanımlık işlem doğrulandı (`provider-payment.sandbox.spec.ts`); uçak: `nuitee-flight.test.ts` (409/429/5xx/zaman aşımı → UNKNOWN, aynı prebook ile tekrar), sandbox'ta aynı prebook ile tekrar aynı rezervasyonu döndürdü (`flight-payment.sandbox.spec.ts`) | mock, db, sandbox | Kayıp yanıt senaryosunun sandbox'ta zorlanması |
 | T20 | Capture/refund yanıtı kayıp | ✅ | `orchestrator.test.ts`, `iyzico.test.ts` | mock | Refund komut akışı (P15) |
 | T21 | Gateway değişimi | ✅ | `invariants.int.test.ts` (tek canlı ödeme denemesi) | db | — |
 | T22 | Desteklenmeyen yetenek | ✅ | `routing.test.ts`, `iyzico.test.ts` | mock | — |

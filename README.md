@@ -7,7 +7,7 @@ Kendi müşteri sitesi, booking engine, Payload içerik yönetimi, operasyon pan
 - Durum: [`docs/plan/is-paketleri.md`](docs/plan/is-paketleri.md) · [`docs/plan/canli-kapilari.md`](docs/plan/canli-kapilari.md) · [`docs/plan/test-matrisi.md`](docs/plan/test-matrisi.md)
 - Mimari kararlar: [`docs/adr/`](docs/adr/)
 
-> İlk canlı sürüm G01–G09 geçmeden açılmaz. CI testleri mock ve yerel PostgreSQL/Redis üzerindedir. Sağlayıcı sandbox kanıtları isteğe bağlı koşulardan gelir ve R0 raporuna (§10–10.2) işlenir. Production kanıtı yoktur.
+> İlk canlı sürüm G01–G09 geçmeden açılmaz. CI testleri mock ve yerel PostgreSQL/Redis üzerindedir. Sağlayıcı sandbox kanıtları isteğe bağlı koşulardan gelir ve R0 raporuna (§10–10.3) işlenir. Production kanıtı yoktur.
 
 ## Yapı
 
@@ -42,5 +42,5 @@ pnpm contracts:pin && pnpm contracts:types   # doküman erişimi açıldığınd
 pnpm staff:bootstrap <e-posta> "<Ad Soyad>"   # ilk /yonetim hesabı + kurulum bağlantısı (yalnız bir kez, ADR-0010; DATABASE_URL, STAFF_MFA_KEY, PUBLIC_BASE_URL)
 # İsteğe bağlı, CI dışı (yalnız sandbox anahtarıyla; her test kendi rezervasyonunu iptal eder):
 NUITEE_API_KEY=... NUITEE_KEY_ENVIRONMENT=sandbox pnpm test:sandbox            # bağlayıcı zinciri (hesap kartı)
-NUITEE_API_KEY=... NUITEE_KEY_ENVIRONMENT=sandbox TEST_DATABASE_URL=... pnpm web:e2e:sandbox   # Nuitee ödeme bileşeni + site
+NUITEE_API_KEY=... NUITEE_KEY_ENVIRONMENT=sandbox TEST_DATABASE_URL=... pnpm web:e2e:sandbox   # Nuitee ödeme bileşeni + site + uçak (ödeme bileşeni → bilet bekleme → iptal)
 ```

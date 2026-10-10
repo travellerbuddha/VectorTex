@@ -166,3 +166,42 @@ Ağ izinleri verildikten sonra Nuitee ödeme bileşeni (`payment-wrapper.liteapi
 - **Ödeme yöntemleri para birimine göre değişiyor:** USD'de kartın yanında Cash App Pay, Afterpay, Affirm, Amazon Pay ve Klarna listelendi (kart varsayılan değil). Düğme metni İngilizce ("Pay").
 - **Geliştirme ortamı ağı:** `r.stripe.com` (analitik), `b.stripecdn.com` ve `merchant-ui-api.stripe.com` (Link) kapalı. Ödeme yine tamamlandı (Stripe pasif captcha hatasını tolere etti). Canlı müşteri tarayıcılarında bu kısıt yok.
 - **Hydration hatası düzeltildi:** Ülke adları ve sıralaması Node ile tarayıcıda farklı (TR'de 92 fark, EN'de 4). Liste artık yalnız sunucuda üretiliyor. Mock E2E sayfa hatasında başarısız sayılıyor.
+
+### 10.3 Nuitee uçak — tahsilatlı ödeme, bağlayıcı düzeyi (9 Ekim 2026)
+
+Uçak bağlayıcısı (ADR-0011) sandbox anahtarıyla, gerçek Nuitee ödeme bileşeni ve Stripe test kartıyla denendi. Komut: `pnpm web:e2e:sandbox` (`apps/web/e2e-sandbox/flight-payment.sandbox.spec.ts`); keşif adımları ayrıca elle çalıştırılan, commit edilmeyen bir betikle yapıldı. Yolcu ve iletişim bilgileri uydurma test değerleridir. Kişisel veri ve gizli değer kaydedilmedi. Oluşan her rezervasyon iptal edildi.
+
+| Adım | Sonuç | Referans |
+|---|---|---|
+| Arama (IST→AYT, 1 yetişkin, EUR, test marjı %10) | 200; 184–231 teklif; fiyat kuruşu kuruşuna eşlendi | — |
+| Doğrulama | 200; `offerId` gövdede yok (OpenAPI'deki gibi), değişiklik yok | — |
+| Prebook (`usePaymentSdk:true`) | 200; `price` = doğrulanmış fiyat; `transactionId` + `secretKey`; `paymentTypes` TRANSACTION_ID, ACC_CREDIT_CARD; ek hizmet grupları var | `01a12313-b372…` |
+| Ödeme bileşeni (publicKey `sandbox`, uçak `secretKey`) | `redirect_status=succeeded`. Dönüş URL'si `payment_intent` ve `payment_intent_client_secret` taşıyor: bu URL kayda yazılmamalı | — |
+| `POST /flights/bookings` (belgelenmiş yol) | **307 → `/flights/bookings/`**. Taşıyıcımız yönlendirme izlemediği için ilk koşu UNKNOWN (ağ) döndü; istek rezervasyona ulaşmadı. Bağlayıcı artık sondaki eğik çizgili yolu çağırıyor | ilk koşu, prebook `01a1230c-7ea9…` (rezervasyonsuz) |
+| Book (`TRANSACTION_ID`) | 201 `PENDING_CONFIRMATION`; `paymentStatus` "succeeded" (belgelenmemiş değer); maliyet = prebook fiyatı | `01a1231c-c31c…` |
+| Aynı prebook ile tekrar | 200, **aynı rezervasyon** (belgelenmiş idempotency); `paymentStatus` "pending" ya da "completed" | aynı |
+| Onay ve biletleme | Süre değişken. Bir koşuda 1–3 dakikada `CONFIRMED` + havayolu PNR'ı geldi, bilet verisi yoktu. Başka bir koşuda 4 dakika `PENDING_CONFIRMATION` kaldı. **Son koşuda ~3 dakikada biletlendi:** `ticketData.ticketedAt` doldu (bağlayıcı: `ISSUED`). OpenAPI'de olmayan `ticketData.tickets[]` geldi (bilet numarası, durum "issued", yolcu belge alanları); sandbox'ta bilet numarası PNR ile aynı. `order.status` biletlendikten sonra da "created" kaldı | `01a12301-ba14…`, `01a12313-eed4…`, `01a1231c-c31c…` |
+| Ödemeden önce book | **Sandbox reddetmedi**: 201, ardından `CONFIRMED`; bir koşuda biletlendi de. Rehbere göre production reddeder (soru 11) | `01a122fc-cb04…`, `01a12318-0070…`, `01a1231f-fa04…` (biletli, iptal edildi) |
+| İptal teklifi | Onaylı rezervasyonda 500 (59099); onay bekleyende 409 (49006); iptali bekleyende 409 (49007) | — |
+| İptal — onaylı ve biletli rezervasyon | 200 `CANCELLED`, ücret 0, `refund_amount` = ödenen tutarın tamamı, **`destination: agency_deposit`**, belgelenmemiş `refund_type: "full"`; biletli rezervasyon da iade edilemez tarifeye rağmen tam iadeyle iptal edildi (sandbox) | `01a12301-ba14…`, `01a1231c-c31c…` |
+| İptal — onaylanmamış rezervasyon | 202 ve `status: CREATED` (OpenAPI yalnız CONFIRMED yazıyor). Rezervasyon `CREATED` + `cancelIntentAt` olarak kaldı; tekrar 202 (idempotent). 9–19 dakika sonra `CANCELLED` oldu | `01a12310-b741…`, `01a12310-f716…` |
+| İptal — ödemesi "pending" kalan rezervasyon | 409 → bağlayıcı UNKNOWN → rezervasyon okundu: `CANCELLED` (belirsiz yanıtın belgelenmiş çözümü) | `01a12313-eed4…` |
+| Hız sınırı | Arka arkaya çağrılarda 429 (4290, OpenAPI'de yok) → bağlayıcı UNKNOWN sayıyor, tekrar soruluyor | — |
+| Yanıt süresi | `GET /flights/bookings/{id}` 0,2–23 s | — |
+
+**Kod etkisi:**
+- Book yolu sondaki eğik çizgiyle çağrılıyor.
+- 429 UNKNOWN sayılıyor.
+- `cancelIntentAt` bekleyen her durumda `CANCEL_PENDING` sayılıyor.
+- 202 iptal yanıtında `CREATED` / `PENDING_CONFIRMATION` kabul ediliyor.
+- Bilet numaraları `ticketData.tickets[]` varsa okunuyor; biletlenme kararı yine yalnız `ticketedAt` ile veriliyor. Bu dizideki yolcu belge bilgileri saklanmıyor.
+- Sözleşme testleri bu yanıt biçimlerini "SANDBOX SHAPE" etiketiyle içeriyor.
+
+**Sandbox'ın kanıtlayamadıkları:**
+- ödemesiz rezervasyonun production'da reddedildiği;
+- production biletlemesi (sandbox bilet numarası yapay ve PNR ile aynı);
+- iptal teklifi;
+- tutarlar: `payment.amount` (22,10 EUR) ile `pricing.totalAmount` (22,76 EUR) farkı;
+- iadenin müşteri kartına mı yoksa hesabımıza mı (`agency_deposit`) döndüğü.
+
+Sorular: `saglayici-sorulari.md` 11–19.

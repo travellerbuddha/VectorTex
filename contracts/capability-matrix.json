@@ -193,22 +193,29 @@
         "PROVIDER_MANAGED"
       ],
       "documentationStatus": "DOCUMENTED",
-      "accountStatus": "UNVERIFIED",
-      "sandboxStatus": "NOT_RUN",
+      "accountStatus": "ENABLED",
+      "sandboxStatus": "PASSED",
       "productionStatus": "NOT_RUN",
       "enabledForProduction": false,
       "chargeCurrencies": {
-        "EUR": "UNVERIFIED",
+        "EUR": "VERIFIED",
         "USD": "UNVERIFIED",
         "GBP": "UNVERIFIED"
       },
-      "supportsApiMargin": false,
+      "supportsApiMargin": true,
       "requiredSources": [
-        "nuitee-openapi-flights"
+        "nuitee-openapi-flights",
+        "nuitee-ref-flight-prebooks",
+        "nuitee-guide-flight-experience",
+        "nuitee-guide-flights-support-billing",
+        "nuitee-guide-user-payment"
       ],
       "activationConditions": [
         "Flight production access",
-        "Correct prebook and latest payment references"
+        "Correct prebook and latest payment references",
+        "Written confirmation that production refuses a booking without a confirmed payment (sandbox accepts it)",
+        "Refund path of payment-component bookings (destination agency_deposit) and ticketing evidence",
+        "Business decisions: support model, passenger document policy, flight markup policy"
       ],
       "blocksGate": "G02",
       "forbiddenWorkarounds": [],
@@ -221,11 +228,18 @@
           "summary": "Prebook usePaymentSdk defaults to true; book with TRANSACTION_ID; status CREATED/PENDING_CONFIRMATION/CONFIRMED (TICKETED->CONFIRMED)/CANCELLED/CANCELLED_WITH_CHARGES."
         },
         {
-          "source": "scratchpad probe (sandbox key, POST /flights/rates)",
+          "source": "sources.lock.json#nuitee-openapi-flights",
+          "verifiedAt": "2026-10-09",
+          "environment": "documentation",
+          "reference": "sha256:58f41981cfdb9477dcd42dd7f211f0b1c85787b03a4dfd3a22bdfc64ab2824c1",
+          "summary": "POST /flights/rates accepts margin.rateSearch (percent, takes precedence over account overrides) -> supportsApiMargin. Book is idempotent per prebookId (HTTP 200 returns the existing booking)."
+        },
+        {
+          "source": "apps/web/e2e-sandbox/flight-payment.sandbox.spec.ts",
           "verifiedAt": "2026-10-09",
           "environment": "sandbox",
-          "reference": "flights-rates:200",
-          "summary": "Flight rate search answered HTTP 200 with offers in sandbox (IST-AYT, 1 adult, EUR). Only search was exercised; prebook, payment SDK and ticketing are not verified, so accountStatus stays UNVERIFIED."
+          "reference": "prebook 01a1231c… / booking 01a1231c-c31c (ticketed, cancelled); bookings 01a12301-ba14, 01a12313-eed4 (cancelled)",
+          "summary": "Search (EUR, test markup 10%) -> verify -> prebook usePaymentSdk:true (price = verified price) -> payment component (publicKey sandbox, Stripe test card) redirect_status succeeded -> book TRANSACTION_ID 201 PENDING_CONFIRMATION at the prebook price; repeat with the same prebook returned the same booking. Ticketed about 3 minutes later (ticketData.ticketedAt, airline PNR; ticket number equals the PNR in sandbox); confirmation/ticketing time varied between runs. Cancel of the ticketed booking: 200 CANCELLED, fee 0, refund = amount paid, destination agency_deposit. POST /flights/bookings answers 307 to /flights/bookings/ (called directly). The sandbox accepted and ticketed a booking sent before payment, so the production payment check is not evidenced (provider question 11). EUR only."
         }
       ]
     },

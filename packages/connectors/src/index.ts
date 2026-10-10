@@ -4,3 +4,4 @@ export * from './nuitee/experience-participants';
 export * from './welcome/jsonapi';
 export * from './nuitee/hotel';
 export * from './mock/hotel';
+export * from './nuitee/flight';

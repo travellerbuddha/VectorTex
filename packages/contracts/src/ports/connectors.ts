@@ -1,5 +1,5 @@
 import type { Money } from '@texholiday/pricing';
-import type { CancellationPolicySnapshot, OpaqueRef, ProductType, ProviderEnvironment, ProviderManagedTransactionRef, TravelerRef } from '../common';
+import type { CancellationPolicySnapshot, OpaqueRef, ProductType, ProviderEnvironment, ProviderManagedTransactionRef } from '../common';
 import type { ExternalOutcome } from '../outcome';
 
 /**
@@ -181,25 +181,171 @@ export interface HotelConnector {
 
 // ---------------- Flight ----------------
 
+export type FlightPassengerType = 'ADULT' | 'CHILD' | 'INFANT';
+export type FlightCabin = 'ECONOMY' | 'PREMIUM_ECONOMY' | 'BUSINESS' | 'FIRST';
+
+export interface FlightSearchCriteria {
+  /** One leg = one way; two legs = return or open jaw. Dates are local departure dates (YYYY-MM-DD). */
+  legs: ReadonlyArray<{ origin: string; destination: string; date: string }>;
+  adults: number;
+  childAges: readonly number[];
+  infantAges: readonly number[];
+  cabinClass: FlightCabin | null;
+  /** Point of sale (ISO 3166-1 alpha-2); null = provider default. */
+  pointOfSale: string | null;
+  currency: string;
+  /** Fare markup the provider adds to the price (approved pricing policy, ADR-0006); null = no markup. */
+  margin: { basisPoints: number } | null;
+}
+
+export interface FlightSegment {
+  segmentKey: string;
+  direction: 'OUTBOUND' | 'INBOUND';
+  origin: { code: string; name: string | null };
+  destination: { code: string; name: string | null };
+  /** Airport-local times as the provider sends them (no offset). */
+  departureLocal: string;
+  arrivalLocal: string;
+  marketingCarrier: { code: string; name: string | null };
+  operatingCarrier: { code: string; name: string | null };
+  flightNumber: string | null;
+  durationMinutes: number | null;
+  /** En-route technical stops inside the segment (0 = non-stop). */
+  stopCount: number;
+  cabin: string | null;
+  fareFamily: string | null;
+}
+
+/** Fare rules as published with the offer. Amounts of refund/change fees are often not published. */
+export interface FlightTerms {
+  refundable: boolean;
+  changeable: boolean;
+  /** The provider signalled a refund/change fee, even when the amount is not published. */
+  hasRefundFee: boolean;
+  hasChangeFee: boolean;
+  /** Provider wording with severity (info/warning/danger); shown only after review of the wording. */
+  summary: ReadonlyArray<{ level: string; message: string }>;
+}
+
+export interface FlightBaggage {
+  /** personal, cabin or checked (provider wording kept). */
+  bagType: string;
+  pieces: number;
+  weightKg: number | null;
+  passengerType: string | null;
+}
+
+/**
+ * A priced flight offer. `price` is the total for all passengers including the provider-added markup and any platform
+ * fees passed on; the markup amount itself is not exposed by the provider. No cancellation schedule exists for flights:
+ * the cost of a cancellation is known only from a cancellation quote after booking.
+ */
+export interface FlightOffer {
+  offerRef: OpaqueRef;
+  journeyKey: string;
+  price: Money;
+  /** Supplier values (never include the markup). */
+  supplier: { base: Money; taxes: Money; fees: Money };
+  perPassenger: Readonly<Partial<Record<FlightPassengerType, Money>>>;
+  segments: readonly FlightSegment[];
+  terms: FlightTerms;
+  includedBaggage: readonly FlightBaggage[];
+  fareFamily: string | null;
+  seatsRemaining: number | null;
+  /** The offer id stops working at this instant (search again). */
+  expiresAt: string | null;
+}
+
+export interface FlightVerification {
+  offer: FlightOffer;
+  /** Any true flag needs a new customer acceptance before prebook. */
+  changes: { price: boolean; fare: boolean; cabin: boolean; messages: readonly string[] };
+}
+
+/** Passenger as on the travel document. Collected only under the approved identity policy (G06). */
+export interface FlightPassenger {
+  type: FlightPassengerType;
+  firstName: string;
+  lastName: string;
+  middleName: string | null;
+  birthDate: string;
+  gender: 'M' | 'F';
+  nationality: string;
+  document: { type: 'passport' | 'id_card'; number: string; issuingCountry: string; expiresOn: string } | null;
+}
+
+export interface FlightContact {
+  email: string;
+  firstName: string;
+  lastName: string;
+  /** Without "+" (e.g. 90). */
+  phoneCountryCode: string;
+  phoneNumber: string;
+}
+
+export interface FlightPrebook {
+  prebookRef: OpaqueRef;
+  /** What the payment component charges (prebook price and currency). Compared with the accepted quote by the caller. */
+  amountToCharge: Money;
+  providerManagedTransaction: ProviderManagedTransactionRef | null;
+  /** usePaymentSdk only: short-lived secret for the provider payment component (never our API key). */
+  paymentClientSecret: string | null;
+  paymentTypes: readonly string[];
+  /** Seats/bags can be attached before booking (not offered yet). */
+  servicesAttachable: boolean;
+}
+
+/** Provider booking state plus the flight facts operations need. PNR alone is not a ticket (T08). */
+export type FlightBookingState = ProviderBookingState & {
+  /** Provider booking reference shown to the customer (FH-…); null when the answer omitted it. */
+  bookingReference: string | null;
+  airlineLocators: ReadonlyArray<{ airline: string; pnr: string }>;
+  ticketedAt: string | null;
+  /** Ticket must be issued by then (provider deadline). */
+  ticketLimitAt: string | null;
+  /** A cancellation was requested and awaits airline confirmation. */
+  cancelRequestedAt: string | null;
+  /** Provider payment status as reported, unnormalized (documented: pending, completed, failed, not_required). */
+  paymentStatus: string | null;
+};
+
+export interface FlightCancellationQuote {
+  /** confirmed | estimated | heuristic | unknown (provider wording). */
+  confidence: string;
+  refundable: boolean;
+  voidable: boolean;
+  /** Potential maximum refund, not guaranteed; null when not quoted. */
+  refund: Money | null;
+  penalty: Money | null;
+  /** Where refunded money goes (original_payment, agency_deposit, voucher, …); never assumed. */
+  destination: string;
+  vouchers: number;
+  expiresAt: string | null;
+}
+
+export type FlightCancelResult = FlightBookingState & {
+  penalty: Money | null;
+  refundAmount: Money | null;
+  destination: string | null;
+  vouchers: number;
+};
+
 export interface FlightConnector {
   descriptor(): ConnectorDescriptor;
-  searchRates(criteria: {
-    legs: ReadonlyArray<{ origin: string; destination: string; date: string }>;
-    adults: number;
-    childAges: readonly number[];
-    infants: number;
-    sellingCountry: string;
-    currency: string;
-  }): Promise<ExternalOutcome<readonly QuotedOffer[]>>;
-  verify(input: { offerRef: OpaqueRef }): Promise<ExternalOutcome<QuotedOffer>>;
-  prebook(input: { offerRef: OpaqueRef; clientReference: string; travelers: readonly TravelerRef[]; funding: FlightFunding['kind'] }): Promise<
-    ExternalOutcome<{ prebookRef: OpaqueRef; offer: QuotedOffer; providerManagedTransaction: ProviderManagedTransactionRef | null }>
-  >;
-  book(input: { prebookRef: OpaqueRef; clientReference: string; funding: FlightFunding }): Promise<ExternalOutcome<ProviderBookingState>>;
-  getBooking(providerBookingRef: OpaqueRef): Promise<ExternalOutcome<ProviderBookingState>>;
-  lookupByClientReference(clientReference: string): Promise<ExternalOutcome<ProviderBookingState | null>>;
-  cancellationQuote(providerBookingRef: OpaqueRef): Promise<ExternalOutcome<{ penalty: Money; refundToUs: Money; quoteRef: OpaqueRef; expiresAt: string | null }>>;
-  cancel(input: { providerBookingRef: OpaqueRef; quoteRef: OpaqueRef }): Promise<ExternalOutcome<ProviderBookingState>>;
+  searchRates(criteria: FlightSearchCriteria): Promise<ExternalOutcome<readonly FlightOffer[]>>;
+  verify(input: { offerRef: OpaqueRef }): Promise<ExternalOutcome<FlightVerification>>;
+  prebook(input: {
+    offerRef: OpaqueRef;
+    usePaymentSdk: boolean;
+    contact: FlightContact;
+    passengers: readonly FlightPassenger[];
+  }): Promise<ExternalOutcome<FlightPrebook>>;
+  /** Idempotent per prebook: a repeat returns the existing booking (the lost-response resolution). */
+  book(input: { prebookRef: OpaqueRef; clientReference: string; funding: FlightFunding }): Promise<ExternalOutcome<FlightBookingState>>;
+  getBooking(providerBookingRef: OpaqueRef): Promise<ExternalOutcome<FlightBookingState>>;
+  cancellationQuote(providerBookingRef: OpaqueRef): Promise<ExternalOutcome<FlightCancellationQuote>>;
+  /** CANCEL_PENDING while the airline has not confirmed (HTTP 202); repeats are idempotent while pending. */
+  cancel(providerBookingRef: OpaqueRef): Promise<ExternalOutcome<FlightCancelResult>>;
 }
 
 // ---------------- Experience ----------------

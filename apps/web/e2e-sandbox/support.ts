@@ -1,6 +1,6 @@
 import { appendFileSync } from 'node:fs';
 import { expect, type Frame, type Page } from '@playwright/test';
-import { NuiteeHotelConnector } from '@texholiday/connectors';
+import { NuiteeFlightConnector, NuiteeHotelConnector } from '@texholiday/connectors';
 
 /**
  * SANDBOX helpers. Never used against production: the config refuses to start unless the key is declared sandbox,
@@ -13,6 +13,17 @@ export function sandboxHotelConnector(): NuiteeHotelConnector {
     searchBaseUrl: 'https://api.liteapi.travel/v3.0',
     bookBaseUrl: 'https://book.liteapi.travel/v3.0',
     searchTimeoutSeconds: 6,
+    bookTimeoutSeconds: 120,
+  });
+}
+
+/** SANDBOX flights connector (same refusal rules as the hotel one: sandbox key only). */
+export function sandboxFlightConnector(): NuiteeFlightConnector {
+  return new NuiteeFlightConnector({
+    apiKey: process.env.NUITEE_API_KEY ?? '',
+    environment: 'sandbox',
+    baseUrl: 'https://api.liteapi.travel/v3.0',
+    searchTimeoutSeconds: 30,
     bookTimeoutSeconds: 120,
   });
 }
