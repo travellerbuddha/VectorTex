@@ -37,7 +37,7 @@
    - İadenin kime gittiği (`destination`) olduğu gibi raporlanır, varsayılmaz.
 6. **Fiyat ve marj:**
    - `margin.rateSearch` her aramada açıkça gönderilir: politika yoksa 0. Böylece hesap düzeyindeki havayolu/rota ayarları sessizce uygulanmaz (ADR-0006).
-   - Koltuk, bagaj ve ceza marjları gönderilmez ve hesap ayarına tabidir. Bu bir işletme kararıdır (G06).
+   - Koltuk, bagaj ve ceza marjları gönderilmez ve hesap ayarına tabidir. Bu bir işletme kararıdır (G06). ADR-0013 ile değişti: dört kategori de politikadan açıkça gönderilir.
    - Müşteriden çekilecek tutar prebook `price` alanıdır (ödeme oturumunun tutarı). Akış bu tutarı müşterinin kabul ettiği fiyatla karşılaştırır.
 7. **Yönlendirme izlenmez.** Belgelenmiş `POST /flights/bookings` yolu sandbox'ta 307 ile `/flights/bookings/` adresine yönlendiriyor. Taşıyıcımız API anahtarı başka adrese gitmesin diye yönlendirme izlemez, bu yüzden bağlayıcı sondaki eğik çizgili yolu doğrudan çağırır. Bu, ilk sandbox koşusunda yakalandı: istek rezervasyon işleyicisine hiç ulaşmadı ve sonuç UNKNOWN döndü.
 8. **CREDIT yalnız production'da.** Kredi hattıyla yapılan rezervasyon gerçektir. Ödeme bileşeni dışındaki yöntemler (`ACC_CREDIT_CARD`, `CREDIT`) sözleşmede belgelenmiştir ama hesap kanıtı yoktur (G02).

@@ -18,7 +18,10 @@ import {
   type FlightPassenger,
   type FlightPassengerType,
   type FlightPrebook,
+  type FlightPrebookState,
   type FlightSearchCriteria,
+  type FlightService,
+  type FlightServiceSelection,
   type FlightSegment,
   type FlightVerification,
   type HttpTransport,
@@ -68,6 +71,8 @@ const int = (v: unknown): number | null => (typeof v === 'number' && Number.isIn
 const obj = (v: unknown): Json | null => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Json) : null);
 const arr = (v: unknown): Json[] => (Array.isArray(v) ? (v as unknown[]).filter((x): x is Json => obj(x) !== null) : []);
 const IATA = /^[A-Z]{3}$/;
+/** Basis points -> the provider's percentage (10.5 for 1050 bp); none = 0. */
+const pct = (bp: number | null | undefined): number => (bp === null || bp === undefined ? 0 : new D(bp).div(100).toNumber());
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const COUNTRY = /^[A-Z]{2}$/;
 
@@ -93,6 +98,9 @@ export class NuiteeFlightConnector implements FlightConnector {
         // "This is when the seat is held. The provider reservation is created here" (flight guide); nothing returns a
         // prebook without its id, so a lost answer cannot be found again. No money moves: paying needs its secret.
         prebook: { effect: 'CREATES_PROVIDER_RESERVATION', lostResponse: 'NONE' },
+        readPrebook: { effect: 'READ_ONLY', lostResponse: 'NONE' },
+        // "Modifies in place" and creates a new payment intent; GET /flights/prebooks/{id} shows the result.
+        attachServices: { effect: 'CREATES_PROVIDER_SESSION', lostResponse: 'NONE' },
         // "Idempotent: returns the existing booking (HTTP 200) if one already exists for the given prebookId".
         book: { effect: 'CREATES_PROVIDER_RESERVATION', lostResponse: 'DOCUMENTED_IDEMPOTENCY_KEY' },
         getBooking: { effect: 'READ_ONLY', lostResponse: 'NONE' },
@@ -373,10 +381,15 @@ export class NuiteeFlightConnector implements FlightConnector {
       ...(criteria.cabinClass ? { cabinClass: criteria.cabinClass } : {}),
       currency: criteria.currency,
       ...(criteria.pointOfSale ? { country: criteria.pointOfSale } : {}),
-      // Always explicit: rateSearch "takes precedence over any airline/route overrides configured for your account", so
-      // only the approved pricing policy decides the fare markup (ADR-0006). Seat, bag and penalty markups are not sent
-      // and follow the account configuration (business input, G06).
-      margin: { rateSearch: criteria.margin ? new D(criteria.margin.basisPoints).div(100).toNumber() : 0 },
+      // Always explicit: rateSearch "takes precedence over any airline/route overrides configured for your account", and
+      // "categories you omit keep their configured markup", so every category is sent and only the approved pricing
+      // policy decides the markups (ADR-0006, ADR-0013); a category without a policy value is sent as 0.
+      margin: {
+        rateSearch: pct(criteria.margin?.basisPoints),
+        seats: pct(criteria.margin?.seatsBasisPoints),
+        bags: pct(criteria.margin?.bagsBasisPoints),
+        penalties: pct(criteria.margin?.penaltiesBasisPoints),
+      },
     };
     const http = await this.send('searchRates', 'POST', '/flights/rates', body, this.cfg.searchTimeoutSeconds);
     if (!http.ok) return http.outcome;
@@ -508,6 +521,108 @@ export class NuiteeFlightConnector implements FlightConnector {
       },
       evidence: http.evidence,
     };
+  }
+
+  private static readonly PASSENGER_TYPE_CODE: Record<string, 'ALL' | FlightPassengerType> = { ALL: 'ALL', ADT: 'ADULT', CHD: 'CHILD', INF: 'INFANT' };
+
+  /** Attachable seats and bags of available groups; a service we cannot price exactly or read is left out. */
+  private services(parsed: Parsed, attachable: Json | null): FlightService[] {
+    const out: FlightService[] = [];
+    for (const group of arr(attachable?.groups)) {
+      // Sandbox 2026-10-10 omitted `available` on groups (documented as "any services currently available"): only an
+      // explicit false closes a group; each seat still says whether it is free.
+      if (group.available === false) continue;
+      for (const sv of arr(group.services)) {
+        const raw = str(sv.category)?.toLowerCase() ?? str(group.category)?.toLowerCase();
+        const category = raw === 'seat' ? 'SEAT' : raw === 'baggage' ? 'BAGGAGE' : null;
+        const id = str(sv.serviceId);
+        const name = str(sv.name);
+        const passengerType = NuiteeFlightConnector.PASSENGER_TYPE_CODE[str(sv.passengerType)?.toUpperCase() ?? ''];
+        const display = obj(obj(sv.pricing)?.display);
+        const price = this.money(parsed, display, 'amount', display?.currency);
+        if (!category || !id || !name || !passengerType || !price || price.minor < 0n) continue;
+        const meta = obj(sv.metadata);
+        const seat = obj(meta?.seat);
+        const bag = obj(meta?.baggage);
+        if (category === 'SEAT' && !str(seat?.seatNumber)) continue;
+        out.push({
+          serviceRef: opaque(id),
+          category,
+          name,
+          passengerType,
+          segmentKey: str(sv.segmentKey),
+          price,
+          seat:
+            category === 'SEAT'
+              ? { number: str(seat!.seatNumber)!, row: int(seat!.seatRow), column: str(seat!.seatColumn), position: str(seat!.position), type: str(seat!.seatType), available: seat!.available === true }
+              : null,
+          baggage: category === 'BAGGAGE' ? { bagType: str(bag?.bagType) ?? 'checked', pieces: int(bag?.pieces) ?? 1, weightKg: typeof bag?.weightKg === 'number' && Number.isFinite(bag.weightKg) ? bag.weightKg : null } : null,
+        });
+      }
+    }
+    return out;
+  }
+
+  /** The prebook record shared by GET /flights/prebooks/{id} and POST .../services. */
+  private prebookState(http: Extract<ParsedHttp, { ok: true }>, expectedPrebook: OpaqueRef): ExternalOutcome<FlightPrebookState> {
+    const d = arr(obj(http.json)?.data)[0];
+    if (!d || str(d.prebookId) !== expectedPrebook) return this.unknown(http.evidence, 'MALFORMED_RESPONSE');
+    const amountToCharge = this.money(http.parsed, d, 'price', d.currency);
+    if (!amountToCharge) return this.unknown(http.evidence, 'MALFORMED_RESPONSE');
+    // We never use vouchers; a discounted selling price would make the charged amount differ from what we show.
+    if (d.voucherCode !== undefined && d.voucherCode !== null && d.voucherCode !== '') return this.unknown(http.evidence, 'MALFORMED_RESPONSE');
+    const transactionId = str(d.transactionId);
+    const secret = str(d.secretKey);
+    const attachable = obj(d.servicesAttachable);
+    const expires = str(attachable?.expiresAt);
+    return {
+      kind: 'SUCCEEDED',
+      value: {
+        prebookRef: expectedPrebook,
+        amountToCharge,
+        providerManagedTransaction: transactionId
+          ? { __brand: 'ProviderManagedTransactionRef', providerId: 'nuitee', productType: 'FLIGHT', prebookRef: expectedPrebook, transactionId: opaque(transactionId), environment: this.cfg.environment }
+          : null,
+        paymentClientSecret: secret,
+        servicesExpiresAt: expires && !Number.isNaN(Date.parse(expires)) ? new Date(expires).toISOString() : null,
+        services: this.services(http.parsed, attachable),
+        attached: arr(obj(d.booking)?.selectedServices)
+          .map((x) => ({ serviceRef: opaque(str(x.serviceId) ?? ''), passengerIndex: int(x.passengerIndex) ?? -1, quantity: int(x.quantity) ?? 1 }))
+          .filter((x) => x.serviceRef !== '' && x.passengerIndex >= 0),
+      },
+      evidence: http.evidence,
+    };
+  }
+
+  /** GET /flights/prebooks/{id}: "returns the stored transactionId / secretKey as-is" with a live services catalog. */
+  async readPrebook(prebookRef: OpaqueRef): Promise<ExternalOutcome<FlightPrebookState>> {
+    const http = await this.send('readPrebook', 'GET', `/flights/prebooks/${encodeURIComponent(prebookRef)}`, null, this.cfg.searchTimeoutSeconds);
+    if (!http.ok) return http.outcome;
+    if (http.status >= 400) return this.refused(http);
+    return this.prebookState(http, prebookRef);
+  }
+
+  /**
+   * POST /flights/prebooks/{id}/services. "Creates a new Stripe payment intent" and updates the prebook in place, so a
+   * lost answer is resolved by reading the prebook (never by attaching again). 409 (booking already confirmed, service
+   * conflict) is read back the same way: UNKNOWN.
+   */
+  async attachServices(input: { prebookRef: OpaqueRef; selections: readonly FlightServiceSelection[] }): Promise<ExternalOutcome<FlightPrebookState>> {
+    if (input.selections.length === 0) return notAvailable('SERVICES', 'Select at least one service');
+    if (input.selections.some((x) => !str(x.serviceRef) || !Number.isInteger(x.passengerIndex) || x.passengerIndex < 0 || !Number.isInteger(x.quantity) || x.quantity < 1)) {
+      return notAvailable('SERVICES', 'Each selection needs a service, a passenger index and a quantity of at least 1');
+    }
+    const http = await this.send(
+      'attachServices',
+      'POST',
+      `/flights/prebooks/${encodeURIComponent(input.prebookRef)}/services`,
+      { selectedServices: input.selections.map((x) => ({ passengerIndex: x.passengerIndex, serviceId: x.serviceRef, quantity: x.quantity })) },
+      this.cfg.searchTimeoutSeconds,
+    );
+    if (!http.ok) return http.outcome;
+    if (http.status === 409) return this.unknown(http.evidence);
+    if (http.status >= 400) return this.refused(http);
+    return this.prebookState(http, input.prebookRef);
   }
 
   private paymentFor(funding: FlightFunding, prebookRef: OpaqueRef): { ok: true; payment: Json } | { ok: false; refused: string } {

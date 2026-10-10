@@ -216,7 +216,8 @@
         "Written confirmation that production refuses a booking without a confirmed payment (sandbox accepts it)",
         "Refund path of payment-component bookings (destination agency_deposit) and ticketing evidence",
         "First Line onboarding: traveller contact on the booking and the traveller-facing support channel (provider question 20)",
-        "Flight margin editing enabled on the production account, so margin.rateSearch is honoured (provider question 21)"
+        "Flight margin editing enabled on the production account, so margin.rateSearch is honoured (provider question 21)",
+        "Seat/bag confirmation by the airline and refund if refused after payment (provider question 22)"
       ],
       "blocksGate": "G02",
       "forbiddenWorkarounds": [],
@@ -248,6 +249,13 @@
           "environment": "sandbox",
           "reference": "POST /flights/rates IST-AYT 2026-11-19, 2 adults + 1 child, EUR, read-only",
           "summary": "rateSearch 0: total = base+taxes+fees on all 132 offers; rateSearch 10: total/(base+taxes+fees) 1.09991-1.10000 on all 132 offers (deviation -0.87..0 bp); no platformFees. The applied markup is derived as total - (base+taxes+fees) and checked against the approved FLIGHT rule."
+        },
+        {
+          "source": "apps/web/e2e-sandbox/flight-payment.sandbox.spec.ts",
+          "verifiedAt": "2026-10-10",
+          "environment": "sandbox",
+          "reference": "prebook 01a125af-c7d4… / booking 01a125b0-0b56… (cancel pending); prebook 01a125b0-bbb3… (carrier not supported)",
+          "summary": "Seats via GET /flights/prebooks/{id} and POST .../services before payment: new transactionId and secretKey, amount exactly fare + seat (38.22 + 11.58 = 49.80 EUR), paid with the new secret, booked at 49.80. POST answer lacked the attached list (GET had it); groups had no available flag; undocumented notSupported/providerErrors when the carrier has no seat map. No baggage offered on the tested routes."
         }
       ]
     },

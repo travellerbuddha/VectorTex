@@ -43,6 +43,30 @@ export interface ProviderManagedPrebook {
   differences: readonly QuoteDifference[];
 }
 
+/** A seat or bag picked by the customer for one passenger (flights, ADR-0013). */
+export interface ServiceSelection {
+  serviceRef: OpaqueRef;
+  /** Zero-based position in the prebook passengers. */
+  passengerIndex: number;
+  quantity: number;
+}
+
+/** The provider payment intent in force for a prebook. */
+export interface ProviderPaymentState {
+  transactionId: OpaqueRef;
+  clientSecret: string;
+  amountToCharge: Money;
+}
+
+export type AttachServicesResult =
+  | { outcome: 'ATTACHED'; amount: Money }
+  /** Nothing was attached; the checkout continues unchanged. */
+  | { outcome: 'REJECTED'; code: string }
+  /** Attached at another amount than the one accepted: the checkout ends before any payment (K15). */
+  | { outcome: 'PRICE_CHANGED' }
+  /** The outcome could not be established: the checkout ends before any payment. */
+  | { outcome: 'FAILED' };
+
 export interface ProviderManagedBookingPort {
   /**
    * When a book call may be sent. ANY_TRIGGER: on the customer's return and on scheduled retries, because the provider
@@ -56,6 +80,13 @@ export interface ProviderManagedBookingPort {
    * it was sent with (flights: idempotent book per prebook).
    */
   lookupScope(it: OrderItemState): 'PER_REFERENCE' | 'PER_PREBOOK';
+  /**
+   * Flights (ADR-0013): attaches seats/bags to the prebook before the payment form is shown. The provider replaces the
+   * payment intent, so the answer is the new transaction, its secret and the new amount.
+   */
+  attachServices?(agg: OrderAggregate, it: OrderItemState, selections: readonly ServiceSelection[]): Promise<ExternalOutcome<ProviderPaymentState>>;
+  /** Flights: the prebook's payment intent as the provider holds it now (resolves a lost attach answer). */
+  readPayment?(agg: OrderAggregate, it: OrderItemState): Promise<ExternalOutcome<ProviderPaymentState>>;
   prebookForPayment(agg: OrderAggregate, it: OrderItemState): Promise<ExternalOutcome<ProviderManagedPrebook>>;
   book(agg: OrderAggregate, it: OrderItemState, clientReference: string, transaction: { prebookRef: OpaqueRef; transactionId: OpaqueRef }): Promise<ExternalOutcome<ProviderBookingState>>;
   /** The booking made under `clientReference`, or null when none exists. */
@@ -524,9 +555,9 @@ export class ProviderManagedOrchestrator {
       await this.lookup(agg, now, true);
       return;
     }
-    // Booked on the customer's return only: a customer who paid and never came back may hold a payment authorization
-    // (the provider releases it); otherwise nothing was sent and no money is involved.
-    const mayHold = this.deps.port.bookTrigger(it) === 'CUSTOMER_RETURN';
+    // Booked on the customer's return only: a customer who was shown the payment form, paid and never came back may
+    // hold a payment authorization (the provider releases it); without the form no money is involved.
+    const mayHold = this.deps.port.bookTrigger(it) === 'CUSTOMER_RETURN' && agg.payment!.providerSecretIssuedAt !== null;
     await this.apply(agg.id, (fresh, fi) => this.fail(fresh, fi, 'CHECKOUT_EXPIRED', 'COMMAND', now, mayHold));
   }
 
@@ -539,6 +570,11 @@ export class ProviderManagedOrchestrator {
         this.fail(fresh, fi, 'PREBOOK_UNCONFIRMED', 'UPSTREAM_RESULT', now, false);
         return;
       }
+      if (op === 'SERVICES') {
+        // Which payment intent is in force is unknown, and no payment form was shown yet: the checkout stops.
+        this.fail(fresh, fi, 'SERVICES_UNCONFIRMED', 'UPSTREAM_RESULT', now, false);
+        return;
+      }
       setBookingStatus(fresh, fi.id, 'UNKNOWN', 'UPSTREAM_RESULT', ACTOR, now);
       if (op === 'CANCEL') {
         fi.booking.unknownOperation = 'CANCEL';
@@ -549,6 +585,118 @@ export class ProviderManagedOrchestrator {
       }
       emit(fresh, 'order.provider_managed.lookup', { orderId: fresh.id });
     });
+  }
+
+  // ------------------------------------------------------------------ payment form and services (ADR-0013)
+
+  /**
+   * The client secret for the customer's browser, while the payment is open. The first hand-out is recorded: from then
+   * on the customer may pay, so the payment intent must not change any more (no services after it).
+   */
+  async issuePaymentSecret(orderId: string): Promise<string | null> {
+    let secret: string | null = null;
+    await this.apply(orderId, (fresh, fi) => {
+      const p = fresh.payment!;
+      secret = null;
+      if (fresh.status !== 'PROCESSING' || p.status !== 'PENDING' || fi.booking.status !== 'PREPARED' || fi.booking.intent || !p.providerClientSecret) return;
+      if (!p.providerSecretIssuedAt) {
+        const now = this.deps.clock();
+        p.providerSecretIssuedAt = now.toISOString();
+        audit(fresh, 'provider_managed.payment_form_opened', 'customer', now, { itemId: fi.id });
+      }
+      secret = p.providerClientSecret;
+    });
+    return secret;
+  }
+
+  /**
+   * Attaches seats/bags the customer chose (and accepted at `expectedCharge`, quote `quoteVersionId`) before any payment
+   * form was shown. The intent is stored before the call; a lost answer is resolved by reading the prebook, never by
+   * attaching again. The new payment intent replaces the old one only when the provider charges exactly the accepted
+   * amount; otherwise the checkout ends before any payment.
+   */
+  async attachServices(
+    orderId: string,
+    request: { quoteVersionId: string; expectedCharge: Money; supplierCost: Money; selections: readonly ServiceSelection[] },
+    actor: string,
+  ): Promise<AttachServicesResult> {
+    const agg = await this.deps.store.load(orderId);
+    const it = single(agg);
+    const now = this.deps.clock();
+    const p = agg.payment!;
+    const port = this.deps.port;
+    if (!port.attachServices || !port.readPayment) throw new DomainError('CAPABILITY_NOT_AVAILABLE', 'Services cannot be added to this booking', { httpStatus: 422 });
+    const open = agg.status === 'PROCESSING' && it.booking.status === 'PREPARED' && p.status === 'PENDING' && p.providerTransaction !== null && !p.providerSecretIssuedAt;
+    const expired = p.payBy !== null && new Date(p.payBy).getTime() <= now.getTime();
+    if (!open || expired) throw new DomainError('ILLEGAL_TRANSITION', 'Services can only be added before payment', { httpStatus: 409 });
+    if (it.booking.intent) throw new DomainError('VERSION_CONFLICT', 'A provider call for this order is in flight', { httpStatus: 409, retryable: true });
+    if (request.expectedCharge.currency !== p.amount.currency || request.selections.length === 0) {
+      throw new DomainError('VALIDATION_FAILED', 'Services must be priced in the payment currency', { httpStatus: 422 });
+    }
+    const before = p.providerTransaction!.transactionId;
+    it.booking.intent = { op: 'SERVICES', ...this.lease(now) };
+    audit(agg, 'provider_managed.services_requested', actor, now, {
+      itemId: it.id,
+      count: request.selections.length,
+      expectedCharge: { currency: request.expectedCharge.currency, minor: request.expectedCharge.minor.toString() },
+    });
+    await this.deps.store.save(agg);
+
+    let outcome = await port.attachServices(agg, it, request.selections);
+    // A lost answer is read back; from then on only a successful read can tell what is in force.
+    const lost = outcome.kind === 'UNKNOWN';
+    if (lost) outcome = await port.readPayment(agg, it);
+    let result: AttachServicesResult = { outcome: 'FAILED' };
+    await this.apply(orderId, (fresh, fi) => {
+      fi.booking.intent = null;
+      const fp = fresh.payment!;
+      if (!lost && (outcome.kind === 'REJECTED' || outcome.kind === 'CAPABILITY_NOT_AVAILABLE')) {
+        const code = outcome.kind === 'REJECTED' ? outcome.code : `CAPABILITY_NOT_AVAILABLE:${outcome.capability}`;
+        audit(fresh, 'provider_managed.services_rejected', actor, now, { itemId: fi.id, code });
+        result = { outcome: 'REJECTED', code };
+        return;
+      }
+      if (outcome.kind !== 'SUCCEEDED') {
+        this.fail(fresh, fi, 'SERVICES_UNCONFIRMED', 'UPSTREAM_RESULT', now, false);
+        result = { outcome: 'FAILED' };
+        return;
+      }
+      const v = outcome.value;
+      if (v.transactionId === before) {
+        if (v.amountToCharge.currency !== fp.amount.currency || v.amountToCharge.minor !== fp.amount.minor) {
+          // Same intent at another amount: not what the provider documents; which amount the form would charge is unclear.
+          this.fail(fresh, fi, 'SERVICES_UNCONFIRMED', 'UPSTREAM_RESULT', now, false);
+          result = { outcome: 'FAILED' };
+          return;
+        }
+        // Unchanged: nothing was attached; the current payment intent stays.
+        audit(fresh, 'provider_managed.services_rejected', actor, now, { itemId: fi.id, code: 'NOT_ATTACHED' });
+        result = { outcome: 'REJECTED', code: 'NOT_ATTACHED' };
+        return;
+      }
+      if (v.amountToCharge.currency !== request.expectedCharge.currency || v.amountToCharge.minor !== request.expectedCharge.minor) {
+        // K15: a different amount needs a new acceptance; the new intent is never shown (no money involved).
+        this.fail(fresh, fi, 'QUOTE_CHANGED:CHARGE_AMOUNT', 'UPSTREAM_RESULT', now, false);
+        emit(fresh, 'order.quote_changed', { orderId: fresh.id, differences: ['CHARGE_AMOUNT'] });
+        result = { outcome: 'PRICE_CHANGED' };
+        return;
+      }
+      fp.providerTransaction = { prebookRef: fp.providerTransaction!.prebookRef, transactionId: v.transactionId };
+      fp.providerClientSecret = v.clientSecret;
+      fp.amount = v.amountToCharge;
+      fresh.chargeTotal = v.amountToCharge;
+      fi.chargeAllocation = v.amountToCharge;
+      fi.supplierCost = request.supplierCost;
+      fi.quoteVersionId = request.quoteVersionId;
+      audit(fresh, 'provider_managed.services_attached', actor, now, {
+        itemId: fi.id,
+        quoteVersionId: request.quoteVersionId,
+        amount: { currency: v.amountToCharge.currency, minor: v.amountToCharge.minor.toString() },
+        transactionId: v.transactionId,
+      });
+      result = { outcome: 'ATTACHED', amount: v.amountToCharge };
+    });
+    return result;
   }
 
   // ------------------------------------------------------------------ staff commands (/yonetim)

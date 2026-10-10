@@ -125,4 +125,39 @@ describe('pricing policy editor (G06)', () => {
     );
     expect(en.document.rules).toEqual([{ productType: 'TRANSFER', paymentMode: 'OWN_GATEWAY', application: 'LOCAL', kind: 'FIXED', amount: { currency: 'EUR', minor: '150025' } }]);
   });
+
+  it('flight seat/bag/penalty markups (ADR-0013): typed like the fare markup, empty = not set, only on the flight provider markup', () => {
+    const { document, issues } = documentFromForm(
+      formOf({
+        'm.FLIGHT.PROVIDER_MANAGED.on': '1',
+        'm.FLIGHT.PROVIDER_MANAGED.pct': '8',
+        'm.FLIGHT.PROVIDER_MANAGED.seats': '15',
+        'm.FLIGHT.PROVIDER_MANAGED.bags': '',
+        'm.FLIGHT.PROVIDER_MANAGED.penalties': '0',
+      }),
+      base,
+    );
+    expect(issues).toEqual([]);
+    const flight = document.rules.find((r) => r.productType === 'FLIGHT');
+    expect(flight).toEqual({
+      productType: 'FLIGHT',
+      paymentMode: 'PROVIDER_MANAGED',
+      application: 'PROVIDER_API',
+      kind: 'PERCENT_OF_NET',
+      basisPoints: 800,
+      ancillaries: { seatsBasisPoints: 1500, bagsBasisPoints: null, penaltiesBasisPoints: 0 },
+    });
+    expect(pricingPolicyDocumentSchema.safeParse(document).success).toBe(true);
+    expect(rowsFromDocument(document)['m.FLIGHT.PROVIDER_MANAGED']).toMatchObject({ percent: '8', seats: '15', bags: '', penalties: '0' });
+    // All empty: no ancillaries object at all (the rule stays as before).
+    const plain = documentFromForm(formOf({ 'm.FLIGHT.PROVIDER_MANAGED.on': '1', 'm.FLIGHT.PROVIDER_MANAGED.pct': '8' }), base).document.rules.find((r) => r.productType === 'FLIGHT');
+    expect(plain).not.toHaveProperty('ancillaries');
+    // A bad value is reported on its field; nothing is guessed.
+    const bad = documentFromForm(formOf({ 'm.FLIGHT.PROVIDER_MANAGED.on': '1', 'm.FLIGHT.PROVIDER_MANAGED.pct': '8', 'm.FLIGHT.PROVIDER_MANAGED.bags': '12,345' }), base);
+    expect(bad.issues).toEqual([{ field: 'm.FLIGHT.PROVIDER_MANAGED.bags', code: 'PERCENT' }]);
+    // The schema refuses ancillaries anywhere but the flight provider markup.
+    const hotelWithSeats = { ...base, rules: [{ ...base.rules[0]!, ancillaries: { seatsBasisPoints: 100, bagsBasisPoints: null, penaltiesBasisPoints: null } }] };
+    expect(pricingPolicyDocumentSchema.safeParse(hotelWithSeats).success).toBe(false);
+  });
 });
+

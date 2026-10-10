@@ -92,6 +92,13 @@
       "when": 1791627593990,
       "tag": "0012_flight_passengers",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791633897775,
+      "tag": "0013_payment_secret_issued",
+      "breakpoints": true
     }
   ]
 }

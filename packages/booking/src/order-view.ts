@@ -1,7 +1,7 @@
 import type { DrizzleOrderStore, QuoteRepository } from '@texholiday/db';
 import { awaitingTicket, freeCancellation, type OrderAggregate, type QuoteVersionSnapshot } from '@texholiday/domain';
 import { toJson, type MoneyJson } from '@texholiday/pricing';
-import type { CancellationView, FlightJourneyView, FlightQuoteView, FlightTermsView, OrderStage, OrderView, PassengerType, QuoteView } from './views';
+import type { CancellationView, FlightJourneyView, FlightQuoteView, FlightServiceLine, FlightTermsView, OrderStage, OrderView, PassengerType, QuoteView } from './views';
 
 /**
  * Customer view of an order (§14), shared by the site (order pages) and the worker (customer e-mails, P16): no provider
@@ -62,6 +62,13 @@ export interface FlightQuoteOption {
   priceChangedFrom: MoneyJson | null;
   /** The provider's offer id stops working at this instant. */
   offerExpiresAt: string | null;
+  /** Segment keys of the provider journey, in journey order (services are attached per segment). */
+  segmentKeys?: string[];
+  /** Ancillaries the approved policy sells for this quote (a markup is set for them, ADR-0013). */
+  extras?: { seats: boolean; bags: boolean };
+  /** Services added before payment and the fare total without them (later quote versions only). */
+  services?: FlightServiceLine[];
+  fare?: MoneyJson;
 }
 
 export function flightQuoteView(q: QuoteVersionSnapshot, termsVersion: string): FlightQuoteView {
@@ -80,6 +87,8 @@ export function flightQuoteView(q: QuoteVersionSnapshot, termsVersion: string): 
     baggage: o.baggage,
     fareFamily: o.fareFamily,
     priceChangedFrom: o.priceChangedFrom,
+    services: o.services ?? [],
+    fare: o.fare ?? toJson(q.chargeNow),
     termsVersion,
     paymentProvider: 'NUITEE',
   };
@@ -101,7 +110,7 @@ export function orderStage(agg: OrderAggregate): OrderStage {
     if (code.startsWith('QUOTE_CHANGED')) return 'PRICE_CHANGED';
     return 'FAILED';
   }
-  if (p.status === 'NEW') return 'PREPARING_PAYMENT';
+  if (p.status === 'NEW' || it.booking.intent?.op === 'SERVICES') return 'PREPARING_PAYMENT';
   if (awaitingTicket(agg, it)) return 'ISSUING';
   if (it.booking.intent?.op === 'BOOK' || it.booking.status === 'UNKNOWN' || it.booking.status === 'PENDING_CONFIRMATION') return 'CONFIRMING';
   if (p.status === 'PENDING' && it.booking.status === 'PREPARED') return 'AWAITING_PAYMENT';

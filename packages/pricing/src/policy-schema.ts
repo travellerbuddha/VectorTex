@@ -18,8 +18,11 @@ const minorAmount = z.string().regex(/^\d+$/, 'non-negative integer in minor uni
 const basisPoints = z.number().int().min(0).max(10_000);
 const label = z.object({ tr: z.string().trim().min(1).max(80), en: z.string().trim().min(1).max(80) });
 
+/** Flight seat/bag/penalty markups (ADR-0013); null = not set (seats/bags not sold, penalties sent as 0). */
+const ancillaries = z.object({ seatsBasisPoints: basisPoints.nullable(), bagsBasisPoints: basisPoints.nullable(), penaltiesBasisPoints: basisPoints.nullable() });
+
 const marginRule = z.discriminatedUnion('kind', [
-  z.object({ productType, paymentMode, application: z.enum(['LOCAL', 'PROVIDER_API']), kind: z.literal('PERCENT_OF_NET'), basisPoints }),
+  z.object({ productType, paymentMode, application: z.enum(['LOCAL', 'PROVIDER_API']), kind: z.literal('PERCENT_OF_NET'), basisPoints, ancillaries: ancillaries.optional() }),
   z.object({ productType, paymentMode, application: z.literal('LOCAL'), kind: z.literal('FIXED'), amount: z.object({ currency: currencyCode, minor: minorAmount }) }),
 ]);
 
@@ -53,6 +56,9 @@ export const pricingPolicyDocumentSchema = z
       seen.add(key);
       if (r.paymentMode === 'OWN_GATEWAY' && r.application === 'PROVIDER_API' && !API_MARGIN_PRODUCT_TYPES.includes(r.productType)) {
         ctx.addIssue({ code: 'custom', path: ['rules', i], message: `${r.productType} has no documented provider margin field; its own-gateway margin must be LOCAL` });
+      }
+      if (r.kind === 'PERCENT_OF_NET' && r.ancillaries && (r.productType !== 'FLIGHT' || r.application !== 'PROVIDER_API')) {
+        ctx.addIssue({ code: 'custom', path: ['rules', i, 'ancillaries'], message: 'seat/bag/penalty markups exist only for the flight provider API markup' });
       }
       if (r.paymentMode === 'PROVIDER_MANAGED' && (r.application !== 'PROVIDER_API' || r.kind !== 'PERCENT_OF_NET')) {
         ctx.addIssue({ code: 'custom', path: ['rules', i], message: 'provider-managed margin must use the provider API percentage' });

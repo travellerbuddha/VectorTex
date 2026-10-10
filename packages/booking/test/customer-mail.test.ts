@@ -103,6 +103,8 @@ describe('customer booking e-mails', () => {
       baggage: [],
       fareFamily: null,
       priceChangedFrom: null,
+      services: [],
+      fare: { currency: 'EUR', minor: '30655' },
       termsVersion: 't',
       paymentProvider: 'NUITEE',
     };
@@ -117,6 +119,22 @@ describe('customer booking e-mails', () => {
     expect(m.text).toContain('Ödenen tutar: €306,55');
     expect(m.text).toContain('İade edilemez bilet');
     expect(m.text).toContain('25 USD hizmet bedelini');
+    const withExtras = customerMail(
+      'BOOKING_CONFIRMED',
+      view({
+        quote: {
+          ...flightQuote,
+          services: [
+            { passengerIndex: 0, category: 'SEAT', name: 'Seat 5D', seat: '5D', baggage: null, segment: 'IST → AYT · MK 101', price: { currency: 'EUR', minor: '1158' } },
+            { passengerIndex: 1, category: 'BAGGAGE', name: 'Checked bag 20kg', seat: null, baggage: { pieces: 1, weightKg: 20 }, segment: null, price: { currency: 'EUR', minor: '2875' } },
+          ],
+        },
+        bookingReference: 'MOCKPN',
+      }),
+      tr,
+      ctx,
+    );
+    expect(withExtras.text).toContain('Ek hizmetler: 1. yolcu: Seat 5D (IST → AYT · MK 101) €11,58; 2. yolcu: Checked bag 20kg €28,75');
     const cancelled = customerMail('BOOKING_CANCELLED', view({ quote: flightQuote, stage: 'CANCELLED', bookingReference: null }), en, ctx, { refundExpected: true });
     expect(cancelled.subject).toBe('TexHoliday – Your booking was cancelled: İstanbul (IST) → Antalya (AYT)');
     expect(cancelled.text).not.toContain('USD 25');

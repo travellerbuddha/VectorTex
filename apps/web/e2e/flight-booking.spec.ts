@@ -18,7 +18,7 @@ async function noHorizontalOverflow(page: Page) {
 
 const field = (page: Page, id: string) => page.locator(`[id="${id}"]`);
 
-test('flight booking with the provider-managed payment (MOCK): search → fare check → passengers → pay → ticket → confirmed; the order in /yonetim', async ({ page, browser }, info) => {
+test('flight booking with the provider-managed payment (MOCK): search → fare check → passengers → seat and bag → pay → ticket → confirmed; the order in /yonetim', async ({ page, browser }, info) => {
   // The /yonetim sign-in may wait for the next authenticator step (a code is accepted once per account).
   test.setTimeout(90_000);
   const lastName = info.project.name === 'desktop' ? 'Uçuştest Masa' : 'Uçuştest Mobil';
@@ -72,8 +72,19 @@ test('flight booking with the provider-managed payment (MOCK): search → fare c
   await field(page, 'passengers.1.gender').selectOption('M');
   await page.getByRole('button', { name: 'Ödemeye geç' }).click();
 
+  // Seats and bags before payment (ADR-0013): a seat for the adult on the first flight, a bag for the child.
+  await expect(page.getByRole('heading', { level: 1, name: 'Koltuk ve bagaj' })).toBeVisible();
+  await expect(page.getByTestId('extras-total')).toHaveText(total);
+  await noHorizontalOverflow(page);
+  await page.getByLabel('Koltuk – Ayşe ' + lastName + ' için').first().selectOption({ label: '1A · geniş bacak mesafesi · €16,50' });
+  await page.getByLabel('Ek bagaj – Can ' + lastName + ' için').first().selectOption({ index: 1 });
+  const newTotal = await page.getByTestId('extras-total').innerText();
+  expect(newTotal).not.toBe(total);
+  await page.getByRole('button', { name: 'Seçimleri ekle ve yeni toplamı kabul et' }).click();
+
   await expect(page.getByRole('heading', { level: 1, name: 'Ödeme' })).toBeVisible();
-  await expect(page.getByTestId('quote-total')).toHaveText(total);
+  await expect(page.getByTestId('quote-total')).toHaveText(newTotal);
+  await expect(page.getByTestId('quote-services')).toContainText('Koltuk 1A');
   await page.getByRole('button', { name: 'MOCK: ödemeyi tamamla' }).click();
 
   // Booked with an airline PNR first, confirmed only once the ticket is issued (T08).
@@ -94,5 +105,6 @@ test('flight booking with the provider-managed payment (MOCK): search → fare c
   await expect(ops.getByTestId('flight-ticketing')).toHaveText('Düzenlendi');
   await expect(ops.getByTestId('order-item')).toContainText(`Ayşe ${lastName} (Yetişkin), Can ${lastName} (Çocuk)`);
   await expect(ops.getByTestId('order-item')).not.toContainText('TESTP000');
+  await expect(ops.getByTestId('flight-extras')).toContainText(`Ayşe ${lastName}: MOCK Seat 1A`);
   await ctx.close();
 });

@@ -1,6 +1,6 @@
 import { notAvailable, type ExternalOutcome, type FlightConnector, type FlightPassenger, type OpaqueRef, type ProviderBookingState, type ProviderManagedTransactionRef } from '@texholiday/contracts';
 import type { CheckoutRepository, QuoteRepository } from '@texholiday/db';
-import type { OrderAggregate, OrderItemState, ProviderManagedBookingPort, ProviderManagedPrebook, QuoteDifference } from '@texholiday/domain';
+import type { OrderAggregate, OrderItemState, ProviderManagedBookingPort, ProviderManagedPrebook, ProviderPaymentState, QuoteDifference, ServiceSelection } from '@texholiday/domain';
 import { equals, type Money } from '@texholiday/pricing';
 
 /**
@@ -92,6 +92,27 @@ export class NuiteeFlightProviderManagedPort implements ProviderManagedBookingPo
     return { __brand: 'ProviderManagedTransactionRef', providerId: 'nuitee', productType: 'FLIGHT', prebookRef: tx.prebookRef, transactionId: tx.transactionId, environment: agg.environment };
   }
 
+  /** Attaches seats/bags to the stored prebook; the answer is the replacing payment intent (ADR-0013). */
+  async attachServices(agg: OrderAggregate, it: OrderItemState, selections: readonly ServiceSelection[]): Promise<ExternalOutcome<ProviderPaymentState>> {
+    const prebookRef = agg.payment?.providerTransaction?.prebookRef ?? it.booking.prebookRef;
+    if (!prebookRef) return notAvailable('PREBOOK', 'No prebook for the order item');
+    return this.paymentState(await this.flights.attachServices({ prebookRef, selections }));
+  }
+
+  /** The prebook's payment intent in force now (`GET /flights/prebooks/{id}`). */
+  async readPayment(agg: OrderAggregate, it: OrderItemState): Promise<ExternalOutcome<ProviderPaymentState>> {
+    const prebookRef = agg.payment?.providerTransaction?.prebookRef ?? it.booking.prebookRef;
+    if (!prebookRef) return notAvailable('PREBOOK', 'No prebook for the order item');
+    return this.paymentState(await this.flights.readPrebook(prebookRef));
+  }
+
+  private paymentState(out: Awaited<ReturnType<FlightConnector['readPrebook']>>): ExternalOutcome<ProviderPaymentState> {
+    if (out.kind !== 'SUCCEEDED') return out;
+    const v = out.value;
+    if (!v.providerManagedTransaction || !v.paymentClientSecret) return { kind: 'UNKNOWN', reason: 'MALFORMED_RESPONSE', evidence: out.evidence };
+    return { kind: 'SUCCEEDED', value: { transactionId: v.providerManagedTransaction.transactionId, clientSecret: v.paymentClientSecret, amountToCharge: v.amountToCharge }, evidence: out.evidence };
+  }
+
   async book(agg: OrderAggregate, _it: OrderItemState, clientReference: string, tx: { prebookRef: OpaqueRef; transactionId: OpaqueRef }): Promise<ExternalOutcome<ProviderBookingState>> {
     return this.flights.book({ prebookRef: tx.prebookRef, clientReference, funding: { kind: 'PROVIDER_MANAGED', transaction: this.transaction(agg, tx) } });
   }
@@ -133,6 +154,14 @@ export class ProductProviderManagedPort implements ProviderManagedBookingPort {
   }
   lookupScope(it: OrderItemState) {
     return this.of(it).lookupScope(it);
+  }
+  attachServices(agg: OrderAggregate, it: OrderItemState, selections: readonly ServiceSelection[]): Promise<ExternalOutcome<ProviderPaymentState>> {
+    const p = this.of(it);
+    return p.attachServices ? p.attachServices(agg, it, selections) : Promise.resolve(notAvailable('SERVICES', `No services for ${it.productType}`));
+  }
+  readPayment(agg: OrderAggregate, it: OrderItemState): Promise<ExternalOutcome<ProviderPaymentState>> {
+    const p = this.of(it);
+    return p.readPayment ? p.readPayment(agg, it) : Promise.resolve(notAvailable('SERVICES', `No services for ${it.productType}`));
   }
   prebookForPayment(agg: OrderAggregate, it: OrderItemState) {
     return this.of(it).prebookForPayment(agg, it);

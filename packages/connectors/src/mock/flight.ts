@@ -15,7 +15,10 @@ import {
   type FlightPassenger,
   type FlightPassengerType,
   type FlightPrebook,
+  type FlightPrebookState,
   type FlightSearchCriteria,
+  type FlightService,
+  type FlightServiceSelection,
   type FlightSegment,
   type FlightVerification,
   type OpaqueRef,
@@ -40,7 +43,12 @@ export class MockFlightConnector implements FlightConnector {
   private readonly offers = new Map<string, FlightOffer>();
   /** The markup each offer was searched with (a re-priced fare keeps it). */
   private readonly markupBp = new Map<string, bigint>();
-  private readonly prebooks = new Map<string, { offerRef: string; transactionId: string | null; price: Money; passengers: readonly FlightPassenger[] }>();
+  private readonly prebooks = new Map<
+    string,
+    { offerRef: string; transactionId: string | null; price: Money; passengers: readonly FlightPassenger[]; services: FlightService[]; attached: FlightServiceSelection[] }
+  >();
+  /** Seat and bag markups each offer was searched with (applied to its services). */
+  private readonly serviceBp = new Map<string, { seats: bigint; bags: bigint }>();
   private readonly paid = new Set<string>();
   /** By prebook (the provider's idempotency key for booking). */
   private readonly bookings = new Map<string, FlightBookingState>();
@@ -52,6 +60,12 @@ export class MockFlightConnector implements FlightConnector {
   ticketOnBook = false;
   /** The next cancellation is accepted but waits for the airline (HTTP 202), final on the next read. */
   cancelPending = false;
+  /** The next attach is applied at the provider but its answer is lost (UNKNOWN). */
+  nextAttachLost = false;
+  /** The next attach charges this much more than the services' prices (a provider price change). */
+  nextAttachSurcharge: bigint = 0n;
+  /** The next attach is refused (nothing attached, the payment intent unchanged). */
+  nextAttachRefused = false;
 
   constructor(private readonly clock: () => Date = () => new Date()) {}
 
@@ -188,6 +202,7 @@ export class MockFlightConnector implements FlightConnector {
       };
       this.offers.set(offerRef, offer);
       this.markupBp.set(offerRef, bp);
+      this.serviceBp.set(offerRef, { seats: BigInt(criteria.margin?.seatsBasisPoints ?? 0), bags: BigInt(criteria.margin?.bagsBasisPoints ?? 0) });
       return offer;
     };
     const out = [mk('MK', 'MOCK Flex', 150n, true, false, 20), mk('MK', 'MOCK Light', 100n, false, false, null), mk('MJ', 'MOCK Saver', 80n, false, true, 15)];
@@ -221,7 +236,7 @@ export class MockFlightConnector implements FlightConnector {
     const priceChanged = this.nextPrebookPriceChange;
     this.nextPrebookPriceChange = false;
     const price = priceChanged ? add(found.price, money(found.price.currency, 100n)) : found.price;
-    this.prebooks.set(prebookRef, { offerRef: input.offerRef, transactionId, price, passengers: input.passengers });
+    this.prebooks.set(prebookRef, { offerRef: input.offerRef, transactionId, price, passengers: input.passengers, services: this.catalog(found, input.offerRef), attached: [] });
     return {
       kind: 'SUCCEEDED',
       value: {
@@ -232,10 +247,103 @@ export class MockFlightConnector implements FlightConnector {
           : null,
         paymentClientSecret: transactionId ? `MOCK_secret_${transactionId}` : null,
         paymentTypes: ['TRANSACTION_ID'],
-        servicesAttachable: false,
+        servicesAttachable: true,
       },
       evidence: this.evidence('prebook'),
     };
+  }
+
+  /** A small seat map (rows 1-4, A-D; row 1 extra legroom; two seats taken) and one checked-bag option per segment. */
+  private catalog(offer: FlightOffer, offerRef: string): FlightService[] {
+    const bp = this.serviceBp.get(offerRef) ?? { seats: 0n, bags: 0n };
+    const cur = offer.price.currency;
+    const priced = (base: bigint, markup: bigint) => {
+      const net = money(cur, base);
+      return add(net, percentOf(net, markup, 'HALF_EVEN'));
+    };
+    const out: FlightService[] = [];
+    for (const seg of offer.segments) {
+      for (let row = 1; row <= 4; row += 1) {
+        for (const column of ['A', 'B', 'C', 'D']) {
+          const number = `${row}${column}`;
+          out.push({
+            serviceRef: opaque(`MOCK-SVC-${this.run}-${seg.segmentKey}-${number}`),
+            category: 'SEAT',
+            name: `MOCK Seat ${number}`,
+            passengerType: 'ALL',
+            segmentKey: seg.segmentKey,
+            price: priced(row === 1 ? 1500n : 800n, bp.seats),
+            seat: { number, row, column, position: column === 'A' || column === 'D' ? 'window' : 'aisle', type: row === 1 ? 'extra_legroom' : 'standard', available: !(row === 2 && (column === 'B' || column === 'C')) },
+            baggage: null,
+          });
+        }
+      }
+      out.push({
+        serviceRef: opaque(`MOCK-SVC-${this.run}-${seg.segmentKey}-BAG20`),
+        category: 'BAGGAGE',
+        name: 'MOCK Checked bag 20kg',
+        passengerType: 'ALL',
+        segmentKey: seg.segmentKey,
+        price: priced(2500n, bp.bags),
+        seat: null,
+        baggage: { bagType: 'checked', pieces: 1, weightKg: 20 },
+      });
+    }
+    return out;
+  }
+
+  private prebookState(prebookRef: string): FlightPrebookState | null {
+    const pre = this.prebooks.get(prebookRef);
+    if (!pre) return null;
+    return {
+      prebookRef: opaque(prebookRef),
+      amountToCharge: pre.price,
+      providerManagedTransaction: pre.transactionId
+        ? { __brand: 'ProviderManagedTransactionRef', providerId: 'nuitee', productType: 'FLIGHT', prebookRef: opaque(prebookRef), transactionId: opaque(pre.transactionId), environment: 'mock' }
+        : null,
+      paymentClientSecret: pre.transactionId ? `MOCK_secret_${pre.transactionId}` : null,
+      servicesExpiresAt: new Date(this.clock().getTime() + 30 * 60_000).toISOString(),
+      services: pre.services,
+      attached: [...pre.attached],
+    };
+  }
+
+  async readPrebook(prebookRef: OpaqueRef): Promise<ExternalOutcome<FlightPrebookState>> {
+    const state = this.prebookState(prebookRef);
+    return state ? { kind: 'SUCCEEDED', value: state, evidence: this.evidence('readPrebook') } : { kind: 'REJECTED', code: 'NUITEE_44004', message: 'MOCK prebook not found', evidence: this.evidence('readPrebook') };
+  }
+
+  /** Attaches services: a new payment intent for the new amount (the old one is superseded), seats taken. */
+  async attachServices(input: { prebookRef: OpaqueRef; selections: readonly FlightServiceSelection[] }): Promise<ExternalOutcome<FlightPrebookState>> {
+    const pre = this.prebooks.get(input.prebookRef);
+    if (!pre) return { kind: 'REJECTED', code: 'NUITEE_44004', message: 'MOCK prebook not found', evidence: this.evidence('attach') };
+    if (this.bookings.has(input.prebookRef)) return { kind: 'UNKNOWN', reason: 'AMBIGUOUS', evidence: this.evidence('attach:confirmed') };
+    if (this.nextAttachRefused) {
+      this.nextAttachRefused = false;
+      return { kind: 'REJECTED', code: 'NUITEE_44001', message: 'MOCK ancillary refused', evidence: this.evidence('attach') };
+    }
+    let added = money(pre.price.currency, this.nextAttachSurcharge);
+    this.nextAttachSurcharge = 0n;
+    for (const sel of input.selections) {
+      const sv = pre.services.find((x) => x.serviceRef === sel.serviceRef);
+      if (!sv || sel.passengerIndex >= pre.passengers.length || (sv.seat && !sv.seat.available)) {
+        return { kind: 'REJECTED', code: 'NUITEE_44001', message: 'MOCK ancillary not found', evidence: this.evidence('attach') };
+      }
+      added = add(added, money(sv.price.currency, sv.price.minor * BigInt(sel.quantity)));
+    }
+    for (const sel of input.selections) {
+      const sv = pre.services.find((x) => x.serviceRef === sel.serviceRef)!;
+      if (sv.seat) sv.seat = { ...sv.seat, available: false };
+      pre.attached.push({ ...sel });
+    }
+    this.seq += 1;
+    pre.price = add(pre.price, added);
+    if (pre.transactionId) pre.transactionId = `MOCK-FTX-${this.run}-${this.seq}`;
+    if (this.nextAttachLost) {
+      this.nextAttachLost = false;
+      return { kind: 'UNKNOWN', reason: 'AMBIGUOUS', evidence: this.evidence('attach:lost') };
+    }
+    return { kind: 'SUCCEEDED', value: this.prebookState(input.prebookRef)!, evidence: this.evidence('attach') };
   }
 
   private state(prebookRef: string, clientReference: string, price: Money, ticketed: boolean): FlightBookingState {

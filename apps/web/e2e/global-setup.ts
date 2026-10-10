@@ -65,7 +65,14 @@ export default async function globalSetup() {
         rounding: 'HALF_EVEN',
         rules: [
           { productType: 'HOTEL', paymentMode: 'PROVIDER_MANAGED', application: 'PROVIDER_API', kind: 'PERCENT_OF_NET', basisPoints: 1000 },
-          { productType: 'FLIGHT', paymentMode: 'PROVIDER_MANAGED', application: 'PROVIDER_API', kind: 'PERCENT_OF_NET', basisPoints: 1000 },
+          {
+            productType: 'FLIGHT',
+            paymentMode: 'PROVIDER_MANAGED',
+            application: 'PROVIDER_API',
+            kind: 'PERCENT_OF_NET',
+            basisPoints: 1000,
+            ancillaries: { seatsBasisPoints: 1000, bagsBasisPoints: 1500, penaltiesBasisPoints: null },
+          },
         ],
         serviceFees: [],
         fx: null,

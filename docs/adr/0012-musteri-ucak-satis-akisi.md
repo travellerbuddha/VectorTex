@@ -27,7 +27,7 @@ Arama → teklif anahtarı → Nuitee'nin fiyatı yeniden doğrulaması (`/fligh
 Sandbox, ödemesi yapılmamış bir uçak rezervasyonunu kabul edip biletledi (R0 §10.3, soru 11). Bu yüzden:
 
 - Uçakta zamanlanmış adımlar ve personelin "durumu kontrol et" komutu **book göndermez**. Book'u yalnız müşterinin dönüşü tetikler (`ProviderManagedBookingPort.bookTrigger = CUSTOMER_RETURN`). Otelde zamanlanmış adımlar book gönderebilir: Nuitee otelde ödenmemiş işlemi bilinen bir kodla reddediyor.
-- Uçakta zamanlanmış tek adım, ödeme süresi dolunca checkout'u kapatmaktır. Ödeyip geri dönmeyen müşteride kartta provizyon kalmış olabilir. Bu yüzden kapanışta provizyon görevi açılır ve müşteriye bilgi e-postası gider (`mayHoldPayment: true`).
+- Uçakta zamanlanmış tek adım, ödeme süresi dolunca checkout'u kapatmaktır. Ödeyip geri dönmeyen müşteride kartta provizyon kalmış olabilir. Bu yüzden kapanışta provizyon görevi açılır ve müşteriye bilgi e-postası gider (`mayHoldPayment: true`). ADR-0013 ile değişti: görev ve e-posta yalnız ödeme formu müşteriye gösterildiyse açılır.
 - Dönüşteki book sağlayıcı tarafından reddedilirse (production kodu bilinmiyor) sipariş biter. Provizyon görevi açılır ve sipariş otomatik yeniden denenmez.
 
 ### 3. Kayıp yanıt prebook üzerinden çözülür
@@ -78,7 +78,7 @@ Saklama süresi bir işletme girdisidir (G06, KVKK) ve belirlenmedi. Bu yüzden 
 - Sandbox kanıtı (R0 §10.4):
   - %0 marjda 132 teklifin hepsinde oran tam 1.
   - %10 marjda oran 1,09991–1,10000; sapma en çok 0,87 baz puan.
-- Koltuk, bagaj ve ceza marjları gönderilmez ve hesap ayarına tabidir (soru 18).
+- Koltuk, bagaj ve ceza marjları gönderilmez ve hesap ayarına tabidir (soru 18). ADR-0013 ile değişti: bu üç marj artık politikadan gelir; değeri olmayan kategori 0 gönderilir.
 - Satış noktası (`FLIGHT_POINT_OF_SALE`) bir ayardır. Boşsa Nuitee varsayılanı kullanılır.
 
 ## Sonuçlar

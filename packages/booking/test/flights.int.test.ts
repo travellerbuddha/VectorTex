@@ -289,3 +289,125 @@ describe('customer flight sales (provider-managed payment, ADR-0012)', () => {
     expect(tasks.rows.map((t) => t.reason)).toEqual(['REFUND_UNKNOWN']);
   });
 });
+
+/** Seats and bags before payment (ADR-0013), with the MOCK provider catalog. */
+describe('flight extras before the payment form (ADR-0013)', () => {
+  const withExtras = { ...rule('FLIGHT', 1000), ancillaries: { seatsBasisPoints: 1000, bagsBasisPoints: 1500, penaltiesBasisPoints: null } };
+  const paidOrder = async (key: string) => {
+    const q = await quoteFor({ returnDate: null });
+    const { orderId, accessToken } = await sales.createCheckout(checkoutBody(q.quoteVersionId, key));
+    return { orderId, accessToken, q };
+  };
+
+  it('without seat/bag markups in the policy nothing is offered', async () => {
+    await approvePricing([rule('HOTEL', 1000), rule('FLIGHT', 1000)]);
+    const { orderId, accessToken } = await paidOrder('flight-extras-none');
+    expect(await sales.services.offer(orderId, accessToken)).toMatchObject({ open: false, segments: [] });
+  });
+
+  it('offer -> attach a seat and a bag -> new accepted quote and payment session -> paid -> booked at the new total', async () => {
+    await approvePricing([rule('HOTEL', 1000), withExtras]);
+    const { orderId, accessToken, q } = await paidOrder('flight-extras-01');
+    const offer = await sales.services.offer(orderId, accessToken);
+    expect(offer.open).toBe(true);
+    expect(offer.passengers.map((p) => [p.index, p.type])).toEqual([
+      [0, 'ADULT'],
+      [1, 'ADULT'],
+      [2, 'CHILD'],
+    ]);
+    expect(offer.current).toEqual(q.total);
+    // MOCK Saver connects in ESB: one entry per flight segment; no provider ids reach the browser.
+    expect(offer.segments.map((x) => x.label)).toEqual([expect.stringMatching(/^IST → ESB/), expect.stringMatching(/^ESB → AYT/)]);
+    expect(JSON.stringify(offer)).not.toMatch(/MOCK-SVC|MOCK-FPRE|MOCK-FTX/);
+    const seg = offer.segments[0]!;
+    const seat = seg.seats.find((x) => x.number === '1A')!;
+    const bag = seg.bags[0]!;
+    // Seat 15.00 + 10%, bag 25.00 + 15% (the approved markups).
+    expect(seat.price).toEqual({ currency: 'EUR', minor: '1650' });
+    expect(bag.price).toEqual({ currency: 'EUR', minor: '2875' });
+    expect(seg.seats.find((x) => x.number === '2B')!.available).toBe(false);
+    const expectedTotal = { currency: 'EUR', minor: String(BigInt(q.total.minor) + 1650n + 2875n) };
+
+    // The total the customer accepted must be the live one, else nothing is sent.
+    await expect(sales.services.attach(orderId, accessToken, { selections: [{ passengerIndex: 0, key: seat.key }], expectedTotal })).rejects.toMatchObject({ code: 'QUOTE_CHANGED' });
+    // One seat per passenger and flight; no seat for a taken one.
+    const taken = seg.seats.find((x) => !x.available)!;
+    await expect(sales.services.attach(orderId, accessToken, { selections: [{ passengerIndex: 0, key: taken.key }], expectedTotal })).rejects.toMatchObject({ code: 'VALIDATION_FAILED', issues: [{ path: 'selections.0', message: 'seat not available' }] });
+    await expect(
+      sales.services.attach(orderId, accessToken, { selections: [{ passengerIndex: 0, key: seat.key }, { passengerIndex: 0, key: seg.seats.find((x) => x.number === '1B')!.key }], expectedTotal }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+
+    const r = await sales.services.attach(orderId, accessToken, { selections: [{ passengerIndex: 0, key: seat.key }, { passengerIndex: 1, key: bag.key }], expectedTotal });
+    expect(r.outcome).toBe('ATTACHED');
+    expect(r.order.stage).toBe('AWAITING_PAYMENT');
+    expect(r.order.quote.total).toEqual(expectedTotal);
+    if (r.order.quote.product !== 'FLIGHT') throw new Error('not a flight');
+    expect(r.order.quote.fare).toEqual(q.total);
+    expect(r.order.quote.services.map((x) => [x.passengerIndex, x.category, x.seat, x.price.minor])).toEqual([
+      [0, 'SEAT', '1A', '1650'],
+      [1, 'BAGGAGE', null, '2875'],
+    ]);
+    // A new, accepted quote version and the order's charge, allocation and payment amount moved together.
+    const rows = await core.db.execute<{ version: number; accepted: boolean; charge: string; allocation: string; amount: string }>(sql`
+      SELECT qv.version, qv.accepted_at IS NOT NULL AS accepted, o.charge_total_minor::text AS charge, i.charge_allocation_minor::text AS allocation, pa.amount_minor::text AS amount
+      FROM core.orders o JOIN core.order_items i ON i.order_id = o.id JOIN core.quote_versions qv ON qv.id = i.quote_version_id JOIN core.payment_attempts pa ON pa.order_id = o.id
+      WHERE o.id = ${orderId}`);
+    expect(rows.rows[0]).toEqual({ version: 2, accepted: true, charge: expectedTotal.minor, allocation: expectedTotal.minor, amount: expectedTotal.minor });
+
+    // The payment form gets the new intent; from then on nothing can be added.
+    const session = await app.paymentSession(orderId, accessToken);
+    if (session.state !== 'READY') throw new Error('no payment session');
+    expect((await sales.services.offer(orderId, accessToken)).open).toBe(false);
+    await expect(sales.services.attach(orderId, accessToken, { selections: [{ passengerIndex: 2, key: bag.key }], expectedTotal })).rejects.toMatchObject({ code: 'ILLEGAL_TRANSITION' });
+    flights.markPaid(session.secretKey.replace('MOCK_secret_', ''));
+    await app.finalize(orderId, accessToken);
+    const view = await app.finalize(orderId, accessToken);
+    expect(view.stage).toBe('CONFIRMED');
+    const agg = await new DrizzleOrderStore(core.db).load(orderId);
+    expect(agg.payment).toMatchObject({ status: 'CAPTURED', amount: money('EUR', BigInt(expectedTotal.minor)) });
+  });
+
+  it('a provider price different from the accepted total ends the checkout before any payment (K15)', async () => {
+    await approvePricing([rule('HOTEL', 1000), withExtras]);
+    const { orderId, accessToken, q } = await paidOrder('flight-extras-02');
+    const offer = await sales.services.offer(orderId, accessToken);
+    const seat = offer.segments[0]!.seats.find((x) => x.available)!;
+    flights.nextAttachSurcharge = 1n;
+    const r = await sales.services.attach(orderId, accessToken, { selections: [{ passengerIndex: 0, key: seat.key }], expectedTotal: { currency: 'EUR', minor: String(BigInt(q.total.minor) + BigInt(seat.price.minor)) } });
+    expect(r.outcome).toBe('PRICE_CHANGED');
+    expect(r.order.stage).toBe('PRICE_CHANGED');
+    expect(r.order.paymentHoldMayExist).toBe(false);
+    expect((await app.paymentSession(orderId, accessToken)).state).toBe('CLOSED');
+  });
+
+  it('after a refused attach the customer can choose again; the next quote version is numbered after the unused one', async () => {
+    await approvePricing([rule('HOTEL', 1000), withExtras]);
+    const { orderId, accessToken, q } = await paidOrder('flight-extras-04');
+    const offer = await sales.services.offer(orderId, accessToken);
+    const seat = offer.segments[0]!.seats.find((x) => x.available)!;
+    const body = { selections: [{ passengerIndex: 0, key: seat.key }], expectedTotal: { currency: 'EUR', minor: String(BigInt(q.total.minor) + BigInt(seat.price.minor)) } };
+    flights.nextAttachRefused = true;
+    const refused = await sales.services.attach(orderId, accessToken, body);
+    expect(refused.outcome).toBe('REJECTED');
+    expect(refused.order.stage).toBe('AWAITING_PAYMENT');
+    expect(refused.order.quote.total).toEqual(q.total);
+    expect((await sales.services.offer(orderId, accessToken)).open).toBe(true);
+    const r = await sales.services.attach(orderId, accessToken, body);
+    expect(r.outcome).toBe('ATTACHED');
+    const rows = await core.db.execute<{ version: number }>(sql`
+      SELECT qv.version FROM core.order_items i JOIN core.quote_versions qv ON qv.id = i.quote_version_id WHERE i.order_id = ${orderId}`);
+    expect(rows.rows[0]).toEqual({ version: 3 });
+  });
+
+  it('a lost attach answer is resolved by reading the prebook', async () => {
+    await approvePricing([rule('HOTEL', 1000), withExtras]);
+    const { orderId, accessToken, q } = await paidOrder('flight-extras-03');
+    const offer = await sales.services.offer(orderId, accessToken);
+    const bag = offer.segments[0]!.bags[0]!;
+    flights.nextAttachLost = true;
+    const r = await sales.services.attach(orderId, accessToken, { selections: [{ passengerIndex: 1, key: bag.key }], expectedTotal: { currency: 'EUR', minor: String(BigInt(q.total.minor) + BigInt(bag.price.minor)) } });
+    expect(r.outcome).toBe('ATTACHED');
+    expect(r.order.quote.total.minor).toBe(String(BigInt(q.total.minor) + BigInt(bag.price.minor)));
+  });
+});
+

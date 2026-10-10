@@ -1,4 +1,4 @@
-import { basisPointsToPercent, MARGIN_SLOTS, slotKey } from '@texholiday/admin';
+import { ANCILLARY_FIELDS, basisPointsToPercent, MARGIN_SLOTS, slotKey } from '@texholiday/admin';
 import { money, toMajor, type PricingPolicyDocument } from '@texholiday/pricing';
 import { adminDict, type AdminLocale } from '../../i18n/admin';
 
@@ -31,7 +31,18 @@ export function PolicySummary({ doc, locale }: { doc: PricingPolicyDocument; loc
                   {!rule ? (
                     <span className="muted">{t.pricing.none}</span>
                   ) : rule.kind === 'PERCENT_OF_NET' ? (
-                    `%${basisPointsToPercent(rule.basisPoints, sep)}`
+                    <>
+                      {`%${basisPointsToPercent(rule.basisPoints, sep)}`}
+                      {rule.ancillaries && (
+                        <small className="muted" data-testid="ancillary-margins">
+                          <br />
+                          {ANCILLARY_FIELDS.map((f) => {
+                            const bp = rule.ancillaries![`${f}BasisPoints` as const];
+                            return `${t.pricing.ancillaryLabels[f]}: ${bp === null ? t.pricing.ancillaryNotSet : `%${basisPointsToPercent(bp, sep)}`}`;
+                          }).join(' · ')}
+                        </small>
+                      )}
+                    </>
                   ) : (
                     `${toMajor(money(rule.amount.currency, rule.amount.minor))} ${rule.amount.currency}`
                   )}

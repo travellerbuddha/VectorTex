@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { MARGIN_SLOTS, ROUNDING_MODES, rowsFromDocument, slotKey } from '@texholiday/admin';
+import { ANCILLARY_FIELDS, MARGIN_SLOTS, ROUNDING_MODES, hasAncillaries, rowsFromDocument, slotKey } from '@texholiday/admin';
 import { DISPLAY_CURRENCIES, pricingPolicyDocumentSchema } from '@texholiday/pricing';
 import { ActionForm } from '../../../../../components/admin/ActionForm';
 import { PolicySummary } from '../../../../../components/admin/PolicySummary';
@@ -109,6 +109,20 @@ export default async function PolicyVersion({ params }: { params: Promise<{ vers
                         </>
                       )}
                     </div>
+                    {hasAncillaries(slot) && slot.applications.includes('PROVIDER_API') && (
+                      <fieldset className="sub" data-testid={`ancillaries-${slot.productType}-${slot.paymentMode}`}>
+                        <legend>{t.pricing.ancillaries}</legend>
+                        <p className="muted">{t.pricing.ancillariesHint}</p>
+                        <div className="row3">
+                          {ANCILLARY_FIELDS.map((f) => (
+                            <div className="field" key={f}>
+                              <label htmlFor={`${id}-${f}`}>{t.pricing.ancillaryLabels[f]}</label>
+                              <input id={`${id}-${f}`} name={`${k}.${f}`} inputMode="decimal" defaultValue={r[f]} placeholder={t.pricing.ancillaryEmpty} />
+                            </div>
+                          ))}
+                        </div>
+                      </fieldset>
+                    )}
                   </fieldset>
                 );
               })}

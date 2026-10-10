@@ -117,6 +117,7 @@ export class DrizzleOrderStore implements OrderStore {
           providerTransaction:
             attempt.providerPrebookRef && attempt.providerTransactionId ? { prebookRef: opaque(attempt.providerPrebookRef), transactionId: opaque(attempt.providerTransactionId) } : null,
           providerClientSecret: attempt.providerClientSecret,
+          providerSecretIssuedAt: attempt.providerSecretIssuedAt ? new Date(attempt.providerSecretIssuedAt).toISOString() : null,
           payBy: attempt.payBy ? new Date(attempt.payBy).toISOString() : null,
           providerRefunds: refunds.map((r) => ({
             id: r.id,
@@ -149,15 +150,21 @@ export class DrizzleOrderStore implements OrderStore {
   async save(agg: OrderAggregate): Promise<number> {
     const nextVersion = agg.version + 1;
     await this.db.transaction(async (tx) => {
+      // The charge changes only through a domain command before any payment form was shown (services, ADR-0013); the
+      // allocation trigger checks at commit that the items still add up to it.
       const updated = await tx
         .update(orders)
-        .set({ status: agg.status, compensationReason: agg.compensationReason, version: nextVersion })
+        .set({ status: agg.status, compensationReason: agg.compensationReason, version: nextVersion, chargeTotalMinor: agg.chargeTotal.minor })
         .where(and(eq(orders.id, agg.id), eq(orders.version, agg.version)))
         .returning({ id: orders.id });
       if (updated.length === 0) throw new VersionConflictError('order', agg.id);
 
       for (const it of agg.items) {
         const b = it.booking;
+        await tx
+          .update(orderItems)
+          .set({ quoteVersionId: it.quoteVersionId, chargeAllocationMinor: it.chargeAllocation.minor, supplierCostMinor: it.supplierCost.minor })
+          .where(eq(orderItems.id, it.id));
         await tx
           .update(providerBookings)
           .set({
@@ -201,6 +208,8 @@ export class DrizzleOrderStore implements OrderStore {
             providerPrebookRef: p.providerTransaction?.prebookRef ?? null,
             providerTransactionId: p.providerTransaction?.transactionId ?? null,
             providerClientSecret: p.providerClientSecret,
+            providerSecretIssuedAt: p.providerSecretIssuedAt,
+            amountMinor: p.amount.minor,
             payBy: p.payBy,
             updatedAt: new Date().toISOString(),
           })
