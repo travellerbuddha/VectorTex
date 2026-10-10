@@ -108,6 +108,7 @@ Kısa, okunur ve sayfa dilinde adresler kullanılır. Her sayfa tipinin kendi di
 - **Gün satırları:** kapsam × giriş tarihi.
 - **Gün fiyatları.**
 - **Kalıcı üyeler.** Bir otel, son görüldüğünden itibaren 14 gün listede kalır; müsaitlik değiştikçe sayfalar dizine girip çıkmaz.
+- **Sıra.** "Öne çıkanlar" sırası birden çok yerde yerler arasında dönüşümlüdür; ilk yerin otelleri listeyi doldurmaz.
 - **Ortak çağrı hızı satırı.**
 - **Otel içerik önbelleği** (ortam, dil ve adresle).
 
@@ -138,6 +139,12 @@ Kısa, okunur ve sayfa dilinde adresler kullanılır. Her sayfa tipinin kendi di
 - Geçmiş tarihli veya kapalı para birimli fiyat da gösterilmez.
 - Gösterilmeyen fiyatın yerinde "Tarih seçin" bağlantısı olur.
 
+**Otel sayfasındaki fiyat.**
+- Otel sayfası, kendi arama formunun arayacağı fiyatı gösterir: bağlantının pansiyon filtresi ve tarihi.
+  - Filtresiz bağlantıda yalnız filtresiz listelerin fiyatı gösterilir; yalnız "her şey dahil" listesindeki bir otelde fiyat gösterilmez.
+  - Bağlantıdaki tarihin fiyatı varsa o tarih gösterilir. Fiyatın pansiyon tipi de yazılır.
+- Bir otelin sayfa adresi ilk yayımlandığı haliyle kalır; sağlayıcı oteli yeniden adlandırsa da adres değişmez.
+
 **Otelde ödenecek tutar.**
 - Sağlayıcı otelde ödenecek bir tutar bildirirse "vergiler dahil" yazılmaz; tutar gösterilir.
 - Tutar başka para birimindeyse "otelde ayrıca yerel vergi ödenebilir" yazılır.
@@ -158,7 +165,8 @@ Kısa, okunur ve sayfa dilinde adresler kullanılır. Her sayfa tipinin kendi di
 
 **Worker.**
 - Tarama, giden olay kuyruğundan (outbox) ayrı ikinci bir döngüdür; sipariş işleme yuvalarını kullanmaz.
-- Günler kiralanarak (lease) tek tek işlenir ve iki süreç aynı günü fiyatlayamaz.
+- Günler kiralanarak (lease) tek tek işlenir ve iki süreç aynı günü fiyatlayamaz. Kira her çağrıdan önce uzatılır; worker kimliği süreç başına benzersizdir.
+- Başarısız bir gün artan aralıklarla yeniden denenir. Politika değişikliği yalnız başarıyla fiyatlanmış ve yeniden denemede olmayan günleri hemen sıraya alır; böylece hatalı günler çağrı fırtınası yaratmaz.
 - Boşta kalınca bir otelin içeriği (`/data/hotel`) yavaşça çekilir.
 
 ### 4. Sayfalar
@@ -181,7 +189,8 @@ Kısa, okunur ve sayfa dilinde adresler kullanılır. Her sayfa tipinin kendi di
 - `aggregateRating` hiçbir sayfada yazılmaz.
 
 **İndeksleme.**
-- Otel sayfası, yayımlanmış bir listenin üyesiyse indekslenir; değilse `noindex` alır.
+- Otel sayfası, yayımlanmış bir listede o dilde **gerçekten gösteriliyorsa** (yıldız filtresi ve en çok otel sayısı dahil) indekslenir; değilse `noindex` alır. `hreflang` ve sitemap yalnız bu dilleri içerir.
+- Liste dizini ve liste sayfaları dil düşüşü (fallback) kullanmaz: yalnız Türkçe adresi olan liste İngilizce dizinde çıkmaz.
 - `HOTEL_PAGES_NOINDEX=true` tüm otel sayfalarını dizin dışı tutar. İçerik hakkı yazılı teyit edilmezse kullanılacak acil durum anahtarıdır.
 - Sitemap şunları içerir: liste dizinleri, listeler ve listelerde görünen oteller.
 

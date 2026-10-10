@@ -39,6 +39,8 @@ export async function loadBySlug(collection: 'pages' | 'destinations' | 'hotel-l
     collection,
     where: { slug: { equals: slug } },
     locale,
+    // A hotel list exists only in the languages it has an address in (no Turkish list under /en).
+    ...(collection === 'hotel-lists' ? { fallbackLocale: false as const } : {}),
     depth: 2,
     limit: 1,
     draft,
