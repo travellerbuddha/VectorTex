@@ -361,6 +361,7 @@ type FlightOption = {
   }>;
   terms?: { refundable: boolean; changeable: boolean };
   fareFamily?: string | null;
+  services?: Array<{ passengerIndex: number; name: string; segment: string | null; price: MoneyJson }>;
 };
 
 /** A flight item: itinerary (airport-local times), passengers (names only, ADR-0012), PNR and ticketing. */
@@ -438,6 +439,17 @@ function FlightItem({ item, locale, t }: { item: OrderDetail['items'][number]; l
           </dd>
           <dt>{d.passengers}</dt>
           <dd>{item.guests.passengers.map((p) => `${p.firstName} ${p.lastName} (${d.passengerTypes[p.type] ?? p.type})`).join(', ') || '—'}</dd>
+          {(o.services ?? []).length > 0 && (
+            <>
+              <dt>{d.extras}</dt>
+              <dd data-testid="flight-extras">
+                {o.services!.map((x) => {
+                  const p = item.guests!.passengers[x.passengerIndex];
+                  return `${p ? `${p.firstName} ${p.lastName}` : `#${x.passengerIndex + 1}`}: ${x.name}${x.segment ? ` (${x.segment})` : ''} ${formatMoney(x.price, locale)}`;
+                }).join('; ')}
+              </dd>
+            </>
+          )}
         </dl>
       )}
       <h3 className="top-gap">{d.financials}</h3>

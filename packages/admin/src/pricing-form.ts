@@ -37,7 +37,15 @@ export interface MarginRow {
   percent: string;
   amount: string;
   currency: string;
+  /** Flight provider API markup only (ADR-0013): seat, bag and penalty percentages; empty = not set. */
+  seats: string;
+  bags: string;
+  penalties: string;
 }
+
+/** Slots whose rule may carry seat/bag/penalty markups (flight, provider API). */
+export const hasAncillaries = (slot: { productType: ProductType }) => slot.productType === 'FLIGHT';
+export const ANCILLARY_FIELDS = ['seats', 'bags', 'penalties'] as const;
 
 /** "10", "10,5", "12.25" -> basis points (1% = 100). Two decimals at most, 0-100 %. Exact (no floating point). */
 export function percentToBasisPoints(text: string): number | null {
@@ -72,6 +80,12 @@ export function parseAmount(text: string, decimalSeparator: ',' | '.' = ','): st
   return frac === undefined ? digits : `${digits}.${frac}`;
 }
 
+function ancillaryRow(rule: MarginRule | undefined, decimalSeparator: ',' | '.'): Pick<MarginRow, 'seats' | 'bags' | 'penalties'> {
+  const a = rule?.kind === 'PERCENT_OF_NET' ? rule.ancillaries : undefined;
+  const text = (bp: number | null | undefined) => (bp === null || bp === undefined ? '' : basisPointsToPercent(bp, decimalSeparator));
+  return { seats: text(a?.seatsBasisPoints), bags: text(a?.bagsBasisPoints), penalties: text(a?.penaltiesBasisPoints) };
+}
+
 export function rowsFromDocument(doc: PricingPolicyDocument | null, decimalSeparator: ',' | '.' = ','): Record<string, MarginRow> {
   const rows: Record<string, MarginRow> = {};
   for (const slot of MARGIN_SLOTS) {
@@ -83,6 +97,7 @@ export function rowsFromDocument(doc: PricingPolicyDocument | null, decimalSepar
       percent: rule?.kind === 'PERCENT_OF_NET' ? basisPointsToPercent(rule.basisPoints, decimalSeparator) : '',
       amount: rule?.kind === 'FIXED' ? toMajor(money(rule.amount.currency, rule.amount.minor)).replace('.', decimalSeparator) : '',
       currency: rule?.kind === 'FIXED' ? rule.amount.currency : 'EUR',
+      ...ancillaryRow(rule, decimalSeparator),
     };
   }
   return rows;
@@ -141,6 +156,28 @@ export function documentFromForm(
     const bp = percentToBasisPoints(get(`${k}.pct`) ?? '');
     if (bp === null) {
       issues.push({ field: k, code: 'PERCENT' });
+      continue;
+    }
+    if (hasAncillaries(slot) && application === 'PROVIDER_API') {
+      // Seat/bag/penalty markups (ADR-0013): empty = not set; otherwise a percentage like the fare markup.
+      const values: Record<string, number | null> = {};
+      let bad = false;
+      for (const f of ANCILLARY_FIELDS) {
+        const raw = (get(`${k}.${f}`) ?? '').trim();
+        if (raw === '') values[f] = null;
+        else {
+          const v = percentToBasisPoints(raw);
+          if (v === null) {
+            issues.push({ field: `${k}.${f}`, code: 'PERCENT' });
+            bad = true;
+          }
+          values[f] = v;
+        }
+      }
+      if (bad) continue;
+      const ancillaries = { seatsBasisPoints: values.seats ?? null, bagsBasisPoints: values.bags ?? null, penaltiesBasisPoints: values.penalties ?? null };
+      const any = Object.values(ancillaries).some((v) => v !== null);
+      rules.push({ productType: slot.productType, paymentMode: slot.paymentMode, application, kind: 'PERCENT_OF_NET', basisPoints: bp, ...(any ? { ancillaries } : {}) });
       continue;
     }
     rules.push({ productType: slot.productType, paymentMode: slot.paymentMode, application, kind: 'PERCENT_OF_NET', basisPoints: bp });

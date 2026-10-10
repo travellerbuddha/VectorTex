@@ -23,7 +23,8 @@ import {
 } from '../state/machines';
 import type { TransitionCause } from '../state/machine';
 
-export type BookingOperation = 'PREBOOK' | 'BOOK' | 'CANCEL';
+/** SERVICES: seats/bags attached to a flight prebook before payment (replaces the provider payment intent). */
+export type BookingOperation = 'PREBOOK' | 'BOOK' | 'CANCEL' | 'SERVICES';
 export type PaymentOperation = 'CAPTURE' | 'VOID';
 
 /** A side-effecting call that was persisted before it was sent. */
@@ -100,6 +101,11 @@ export interface PaymentState {
    */
   providerTransaction: { prebookRef: OpaqueRef; transactionId: OpaqueRef } | null;
   providerClientSecret: string | null;
+  /**
+   * PROVIDER_MANAGED only: when the client secret was first handed to the customer's browser (the payment form could be
+   * filled in from then on). Services can only be attached before (ADR-0013).
+   */
+  providerSecretIssuedAt: string | null;
   /** PROVIDER_MANAGED only: after this instant an unpaid checkout is abandoned. */
   payBy: string | null;
   /**

@@ -8,6 +8,7 @@ import {
   type OrderItemState,
   type ProviderManagedBookingPort,
   type ProviderManagedPrebook,
+  type ProviderPaymentState,
 } from '../src/index';
 import { ok, providerState, rejected, unknown } from './support/fakes';
 import { FLIGHT, HOTEL, NOW, makeOrder } from './support/fixtures';
@@ -23,6 +24,16 @@ class FakePmPort implements ProviderManagedBookingPort {
   cancelScript: Array<ExternalOutcome<ProviderBookingState & { penalty: Money | null; providerRefund: Money | null }>> = [];
   /** Called inside cancel(), e.g. to check what was persisted before the call. */
   onCancel: (() => void) | null = null;
+  attachScript: Array<ExternalOutcome<ProviderPaymentState>> = [];
+  readPaymentScript: Array<ExternalOutcome<ProviderPaymentState>> = [];
+  async attachServices(_a: OrderAggregate, _i: OrderItemState, selections: readonly unknown[]) {
+    this.calls.push({ op: 'attach', clientReference: String(selections.length) });
+    return this.attachScript.shift() ?? ok({ transactionId: opaque('MOCK-TX-2'), clientSecret: 'MOCK_pi_secret_2', amountToCharge: money('EUR', 41500n) });
+  }
+  async readPayment() {
+    this.calls.push({ op: 'readPayment' });
+    return this.readPaymentScript.shift() ?? ok({ transactionId: opaque('MOCK-TX-1'), clientSecret: 'MOCK_pi_secret_1', amountToCharge: money('EUR', 40000n) });
+  }
   trigger: 'ANY_TRIGGER' | 'CUSTOMER_RETURN' = 'ANY_TRIGGER';
   scope: 'PER_REFERENCE' | 'PER_PREBOOK' = 'PER_REFERENCE';
   bookTrigger() {
@@ -627,6 +638,7 @@ describe('provider-managed flights: book on the customer return, PNR is not a ti
     const clock = { now: NOW };
     const h = flight(clock);
     await h.pm.start('ord-1');
+    expect(await h.pm.issuePaymentSecret('ord-1')).toBe('MOCK_pi_secret_1');
     clock.now = new Date(PAY_BY);
     expect((await h.pm.finalize('ord-1')).type).toBe('EXPIRE');
     const s = state(h);
@@ -672,3 +684,126 @@ describe('provider-managed flights: book on the customer return, PNR is not a ti
     expect(h.port.count('cancel')).toBe(1);
   });
 });
+
+/** Seats and bags attached before the payment form (ADR-0013). */
+describe('provider-managed flights: services before the payment form', () => {
+  const flight = () => harness({ now: NOW }, 'FLIGHT');
+  const request = (minor = 41500n) => ({ quoteVersionId: 'qv-item-flight-2', expectedCharge: money('EUR', minor), supplierCost: money('EUR', minor), selections: [{ serviceRef: opaque('MOCK-SVC-1'), passengerIndex: 0, quantity: 1 }] });
+  const started = async () => {
+    const h = flight();
+    await h.pm.start('ord-1');
+    return h;
+  };
+
+  it('replaces the payment intent and the charge with the accepted quote; the book uses the new transaction', async () => {
+    const h = await started();
+    expect(await h.pm.attachServices('ord-1', request(), 'customer')).toEqual({ outcome: 'ATTACHED', amount: money('EUR', 41500n) });
+    const s = state(h);
+    expect(s.payment).toMatchObject({ providerTransaction: { prebookRef: 'MOCK-PRE-1', transactionId: 'MOCK-TX-2' }, providerClientSecret: 'MOCK_pi_secret_2', amount: money('EUR', 41500n), providerSecretIssuedAt: null });
+    expect(s.chargeTotal).toEqual(money('EUR', 41500n));
+    expect(s.items[0]).toMatchObject({ quoteVersionId: 'qv-item-flight-2', chargeAllocation: money('EUR', 41500n), supplierCost: money('EUR', 41500n) });
+    expect(s.items[0]!.booking.intent).toBeNull();
+    expect(h.store.auditLog.map((a) => a.action)).toEqual(expect.arrayContaining(['provider_managed.services_requested', 'provider_managed.services_attached']));
+    expect(JSON.stringify(h.store.auditLog)).not.toContain('MOCK_pi_secret_2');
+    expect(await h.pm.issuePaymentSecret('ord-1')).toBe('MOCK_pi_secret_2');
+    h.port.bookScript.push(ok(providerState('ISSUED', { providerBookingRef: opaque('MOCK-FB-1'), ticketingStatus: 'ISSUED' })));
+    await h.pm.customerReturned('ord-1');
+    expect(h.port.calls.filter((c) => c.op === 'book').map((c) => c.transactionId)).toEqual(['MOCK-TX-2']);
+  });
+
+  it('once the payment form was shown, services are refused and nothing is sent', async () => {
+    const h = await started();
+    await h.pm.issuePaymentSecret('ord-1');
+    expect(state(h).payment!.providerSecretIssuedAt).toBe(NOW.toISOString());
+    await expect(h.pm.attachServices('ord-1', request(), 'customer')).rejects.toMatchObject({ code: 'ILLEGAL_TRANSITION' });
+    expect(h.port.count('attach')).toBe(0);
+  });
+
+  it('a refusal changes nothing; the customer may pay as before', async () => {
+    const h = await started();
+    h.port.attachScript.push(rejected('NUITEE_44001'));
+    expect(await h.pm.attachServices('ord-1', request(), 'customer')).toEqual({ outcome: 'REJECTED', code: 'NUITEE_44001' });
+    expect(state(h).payment).toMatchObject({ providerTransaction: { transactionId: 'MOCK-TX-1' }, amount: money('EUR', 40000n), status: 'PENDING' });
+    expect(await h.pm.issuePaymentSecret('ord-1')).toBe('MOCK_pi_secret_1');
+  });
+
+  it('a lost answer is resolved by reading the prebook, never by attaching again', async () => {
+    let h = await started();
+    h.port.attachScript.push(unknown());
+    h.port.readPaymentScript.push(ok({ transactionId: opaque('MOCK-TX-2'), clientSecret: 'MOCK_pi_secret_2', amountToCharge: money('EUR', 41500n) }));
+    expect(await h.pm.attachServices('ord-1', request(), 'customer')).toMatchObject({ outcome: 'ATTACHED' });
+    expect(h.port.count('attach')).toBe(1);
+
+    h = await started();
+    h.port.attachScript.push(unknown());
+    expect(await h.pm.attachServices('ord-1', request(), 'customer')).toEqual({ outcome: 'REJECTED', code: 'NOT_ATTACHED' });
+    expect(state(h).status).toBe('PROCESSING');
+
+    h = await started();
+    h.port.attachScript.push(unknown());
+    h.port.readPaymentScript.push(unknown());
+    expect(await h.pm.attachServices('ord-1', request(), 'customer')).toEqual({ outcome: 'FAILED' });
+    const s = state(h);
+    expect(s.status).toBe('CANCELLED');
+    expect(s.items[0]!.booking.failureCode).toBe('SERVICES_UNCONFIRMED');
+    // No payment form was ever shown: no payment hold to report.
+    expect(s.tasks).toEqual([]);
+    expect(h.store.outbox.find((e) => e.type === 'order.provider_managed.failed')!.payload).toMatchObject({ mayHoldPayment: false });
+
+    // After a lost answer a refused read proves nothing: the old intent may already be stale.
+    h = await started();
+    h.port.attachScript.push(unknown());
+    h.port.readPaymentScript.push(rejected('NUITEE_FLIGHT_PREBOOK_NOT_FOUND'));
+    expect(await h.pm.attachServices('ord-1', request(), 'customer')).toEqual({ outcome: 'FAILED' });
+    expect(state(h).items[0]!.booking.failureCode).toBe('SERVICES_UNCONFIRMED');
+    expect(await h.pm.issuePaymentSecret('ord-1')).toBeNull();
+  });
+
+  it('the same payment intent at another amount is not trusted: the checkout ends before any payment', async () => {
+    const h = await started();
+    h.port.attachScript.push(ok({ transactionId: opaque('MOCK-TX-1'), clientSecret: 'MOCK_pi_secret_1', amountToCharge: money('EUR', 41500n) }));
+    expect(await h.pm.attachServices('ord-1', request(), 'customer')).toEqual({ outcome: 'FAILED' });
+    expect(state(h)).toMatchObject({ status: 'CANCELLED' });
+    expect(state(h).items[0]!.booking.failureCode).toBe('SERVICES_UNCONFIRMED');
+    expect(await h.pm.issuePaymentSecret('ord-1')).toBeNull();
+  });
+
+  it('K15: attached at another amount than accepted ends the checkout before any payment', async () => {
+    const h = await started();
+    h.port.attachScript.push(ok({ transactionId: opaque('MOCK-TX-2'), clientSecret: 'MOCK_pi_secret_2', amountToCharge: money('EUR', 41600n) }));
+    expect(await h.pm.attachServices('ord-1', request(), 'customer')).toEqual({ outcome: 'PRICE_CHANGED' });
+    const s = state(h);
+    expect(s.status).toBe('CANCELLED');
+    expect(s.payment).toMatchObject({ status: 'DECLINED', providerClientSecret: null, amount: money('EUR', 40000n) });
+    expect(s.items[0]!.booking.failureCode).toBe('QUOTE_CHANGED:CHARGE_AMOUNT');
+    expect(await h.pm.issuePaymentSecret('ord-1')).toBeNull();
+  });
+
+  it('a crashed attach call expires into an ended checkout; no secret is handed out while it is in flight', async () => {
+    const clock = { now: NOW };
+    const h = harness(clock, 'FLIGHT');
+    await h.pm.start('ord-1');
+    h.port.attachServices = async () => {
+      // While the call is in flight the payment form is not handed out.
+      expect(await h.pm.issuePaymentSecret('ord-1')).toBeNull();
+      throw new Error('worker crashed');
+    };
+    await expect(h.pm.attachServices('ord-1', request(), 'customer')).rejects.toThrow('worker crashed');
+    expect(state(h).items[0]!.booking.intent).toMatchObject({ op: 'SERVICES' });
+    clock.now = new Date(NOW.getTime() + 301_000);
+    expect((await h.pm.finalize('ord-1')).type).toBe('INTENT_EXPIRED');
+    expect(state(h)).toMatchObject({ status: 'CANCELLED' });
+    expect(state(h).items[0]!.booking.failureCode).toBe('SERVICES_UNCONFIRMED');
+  });
+
+  it('an abandoned flight checkout whose payment form was never shown involves no money', async () => {
+    const clock = { now: NOW };
+    const h = harness(clock, 'FLIGHT');
+    await h.pm.start('ord-1');
+    clock.now = new Date(PAY_BY);
+    await h.pm.finalize('ord-1');
+    expect(state(h).tasks).toEqual([]);
+    expect(h.store.outbox.find((e) => e.type === 'order.provider_managed.failed')!.payload).toMatchObject({ code: 'CHECKOUT_EXPIRED', mayHoldPayment: false });
+  });
+});
+

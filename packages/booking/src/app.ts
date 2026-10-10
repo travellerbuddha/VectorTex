@@ -147,6 +147,7 @@ export class BookingApp {
           route: (currency, policy) => this.route(currency, policy, 'FLIGHT'),
           supportsApiMargin: (id) => this.supportsApiMargin(id),
           orderView: (orderId) => this.view(orderId),
+          authorizedOrder: (orderId, token) => this.authorized(orderId, token),
         })
       : null;
   }
@@ -533,8 +534,13 @@ export class BookingApp {
     const p = agg.payment!;
     const stage = this.stage(agg);
     if (p.status === 'PENDING' && p.providerClientSecret && stage === 'AWAITING_PAYMENT') {
-      const env = this.deps.settings.environment;
-      return { state: 'READY', provider: 'NUITEE', publicKey: env === 'production' ? 'live' : env === 'sandbox' ? 'sandbox' : 'mock', secretKey: p.providerClientSecret, payBy: p.payBy };
+      // Handing out the secret is recorded: from now on the customer may pay, so the payment intent stays (ADR-0013).
+      const secret = await this.orchestrator.issuePaymentSecret(orderId);
+      if (secret) {
+        const env = this.deps.settings.environment;
+        return { state: 'READY', provider: 'NUITEE', publicKey: env === 'production' ? 'live' : env === 'sandbox' ? 'sandbox' : 'mock', secretKey: secret, payBy: p.payBy };
+      }
+      return { state: 'NOT_READY', stage: this.stage(await this.store.load(orderId)) };
     }
     return { state: stage === 'PREPARING_PAYMENT' ? 'NOT_READY' : 'CLOSED', stage };
   }

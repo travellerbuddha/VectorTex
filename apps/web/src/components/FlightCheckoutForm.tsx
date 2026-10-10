@@ -80,7 +80,8 @@ export function FlightCheckoutForm({
           idempotencyKey,
         },
       });
-      router.push(`/${locale}/orders/${r.orderId}/payment`);
+      // Seats and bags first when the provider offers them (the page goes on to payment otherwise).
+      router.push(`/${locale}/orders/${r.orderId}/extras`);
     } catch (err) {
       if (err instanceof ApiError) {
         setFieldErrors(Object.fromEntries(err.issues.map((i) => [i.path, i.message])));

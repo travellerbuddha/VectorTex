@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, max } from 'drizzle-orm';
 import { DomainError, type FundingMethod, type HoldSemantics, type PaymentMode, type PaymentRoute, type ProductType, type ProviderEnvironment } from '@texholiday/contracts';
 import type { QuoteVersionSnapshot } from '@texholiday/domain';
 import { fromJson, sum, toJson, type Money, type MoneyJson } from '@texholiday/pricing';
@@ -39,7 +39,7 @@ export class QuoteRepository {
     if (v.providerCommission.currency !== v.supplierCost.currency) {
       throw new DomainError('VALIDATION_FAILED', 'Provider commission must be in the supplier cost currency', { httpStatus: 422 });
     }
-    const [row] = await this.db
+    const insert = this.db
       .insert(quoteVersions)
       .values({
         quoteId,
@@ -64,7 +64,22 @@ export class QuoteRepository {
         pricingPolicyVersion: v.pricingPolicy.version,
       })
       .returning({ id: quoteVersions.id });
-    return row!.id;
+    try {
+      const [row] = await insert;
+      return row!.id;
+    } catch (err) {
+      // Two requests numbered the same version of one quote: the later one retries from the current state.
+      if (pgCode(err) === PG_UNIQUE_VIOLATION && pgConstraint(err) === 'quote_versions_quote_version_uq') {
+        throw new DomainError('VERSION_CONFLICT', 'The quote changed meanwhile; please try again', { httpStatus: 409, retryable: true });
+      }
+      throw err;
+    }
+  }
+
+  /** The number the next version of a quote takes (a version accepted for a refused attach stays, unused). */
+  async nextVersion(quoteId: string): Promise<number> {
+    const [row] = await this.db.select({ v: max(quoteVersions.version) }).from(quoteVersions).where(eq(quoteVersions.quoteId, quoteId));
+    return (row?.v ?? 0) + 1;
   }
 
   /** Loads a quote version snapshot (server-side source of truth for prices and conditions). */

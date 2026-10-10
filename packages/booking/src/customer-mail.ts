@@ -66,6 +66,8 @@ const T = {
     pax: { ADULT: (n: number) => `${n} yetişkin`, CHILD: (n: number) => `${n} çocuk`, INFANT: (n: number) => `${n} bebek` },
     pnr: 'Havayolu rezervasyon kodu (PNR)',
     tickets: 'Bilet numarası',
+    extras: 'Ek hizmetler',
+    passengerN: (n: number) => `${n}. yolcu`,
     refundableFlight: (fee: boolean) => (fee ? 'İade edilebilir bilet (iade ücreti uygulanır)' : 'İade edilebilir bilet'),
     nonRefundableFlight: 'İade edilemez bilet',
     hotel: 'Otel',
@@ -107,6 +109,8 @@ const T = {
     pax: { ADULT: (n: number) => `${n} adult${n === 1 ? '' : 's'}`, CHILD: (n: number) => `${n} child${n === 1 ? '' : 'ren'}`, INFANT: (n: number) => `${n} infant${n === 1 ? '' : 's'}` },
     pnr: 'Airline booking code (PNR)',
     tickets: 'Ticket number',
+    extras: 'Extras',
+    passengerN: (n: number) => `Passenger ${n}`,
     refundableFlight: (fee: boolean) => (fee ? 'Refundable ticket (a refund fee applies)' : 'Refundable ticket'),
     nonRefundableFlight: 'Non-refundable ticket',
     hotel: 'Hotel',
@@ -152,6 +156,9 @@ function flightFacts(kind: CustomerMailKind, view: OrderView, q: FlightQuoteView
   if (kind === 'BOOKING_CONFIRMED') {
     if (view.bookingReference) rows.push([t.pnr, view.bookingReference]);
     if (view.ticketNumbers.length > 0) rows.push([t.tickets, view.ticketNumbers.join(', ')]);
+    if (q.services.length > 0) {
+      rows.push([t.extras, q.services.map((x) => `${t.passengerN(x.passengerIndex + 1)}: ${x.name}${x.segment ? ` (${x.segment})` : ''} ${mailMoney(x.price, l)}`).join('; ')]);
+    }
     rows.push([t.total, mailMoney(q.total, l)]);
     rows.push(['', q.terms.refundable ? t.refundableFlight(q.terms.refundFee) : t.nonRefundableFlight]);
   }

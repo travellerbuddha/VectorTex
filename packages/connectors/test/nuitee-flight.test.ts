@@ -115,15 +115,15 @@ describe('Nuitee flight search (pinned flights OpenAPI example)', () => {
     const req = t.requests[0]!;
     expect(req.url).toBe('https://api.liteapi.travel/v3.0/flights/rates');
     expect(req.headers['x-api-key']).toBe('test-key-not-real-000000');
-    // No policy margin = an explicit 0, so no account-level markup applies silently.
-    expect(JSON.parse(req.body!)).toEqual({ legs: [{ origin: 'JFK', destination: 'CDG', date: '2026-07-01' }], adults: 1, currency: 'USD', country: 'TR', margin: { rateSearch: 0 } });
+    // No policy margin = an explicit 0 in every category, so no account-level markup applies silently.
+    expect(JSON.parse(req.body!)).toEqual({ legs: [{ origin: 'JFK', destination: 'CDG', date: '2026-07-01' }], adults: 1, currency: 'USD', country: 'TR', margin: { rateSearch: 0, seats: 0, bags: 0, penalties: 0 } });
   });
 
-  it('sends the approved markup as a percentage and children/infants with their ages', async () => {
+  it('sends the approved markups as percentages (fare, seats, bags, penalties) and children/infants with their ages', async () => {
     const { c, t } = connector([res(200, { data: [{ journeys: [] }] })]);
-    const out = await c.searchRates({ ...criteria, adults: 2, childAges: [7], infantAges: [1], cabinClass: 'BUSINESS', margin: { basisPoints: 1050 } });
+    const out = await c.searchRates({ ...criteria, adults: 2, childAges: [7], infantAges: [1], cabinClass: 'BUSINESS', margin: { basisPoints: 1050, seatsBasisPoints: 2000, bagsBasisPoints: 1500, penaltiesBasisPoints: null } });
     expect(out).toMatchObject({ kind: 'SUCCEEDED', value: [] });
-    expect(JSON.parse(t.requests[0]!.body!)).toMatchObject({ adults: 2, children: 1, childrenAges: [7], infants: 1, infantAges: [1], cabinClass: 'BUSINESS', margin: { rateSearch: 10.5 } });
+    expect(JSON.parse(t.requests[0]!.body!)).toMatchObject({ adults: 2, children: 1, childrenAges: [7], infants: 1, infantAges: [1], cabinClass: 'BUSINESS', margin: { rateSearch: 10.5, seats: 20, bags: 15, penalties: 0 } });
   });
 
   it('refuses invalid searches without a call (more infants than adults, bad codes)', async () => {
@@ -373,3 +373,80 @@ describe('Nuitee flight descriptor', () => {
     for (const s of d.requiredSources) expect(lock.sources.find((x) => x.id === s)?.status).toBe('PINNED');
   });
 });
+
+describe('Nuitee flight services on a prebook (pinned flights OpenAPI examples)', () => {
+  const PREBOOK = '019d0674-834d-7db7-9c8b-93fe8e46e7b8';
+  // The official examples carry a voucher; we never use vouchers, so the shape without one is what we expect.
+  const withoutVoucher = (body: any) => {
+    const b = structuredClone(body);
+    for (const d of b.data) {
+      delete d.voucherCode;
+      delete d.voucherTotalAmount;
+      delete d.sellingPriceToUser;
+    }
+    return b;
+  };
+
+  it('reads the prebook: current amount and payment intent, attached and attachable seats and bags', async () => {
+    const { c, t } = connector([res(200, withoutVoucher(example('/flights/prebooks/{prebookId}', 'get', '200')))]);
+    const out = await c.readPrebook(opaque(PREBOOK));
+    expect(t.requests[0]).toMatchObject({ method: 'GET', url: `https://api.liteapi.travel/v3.0/flights/prebooks/${PREBOOK}` });
+    expect(out.kind).toBe('SUCCEEDED');
+    if (out.kind !== 'SUCCEEDED') return;
+    const v = out.value;
+    expect(v.amountToCharge).toEqual(money('USD', 114928n));
+    expect(v.providerManagedTransaction).toMatchObject({ prebookRef: PREBOOK, transactionId: 'tr_cts_t0LaZePPxdCM_Kyskafml', productType: 'FLIGHT', environment: 'sandbox' });
+    expect(v.paymentClientSecret).toMatch(/_secret_/);
+    expect(v.servicesExpiresAt).toBe('2026-03-19T14:31:42.493Z');
+    expect(v.attached).toEqual([{ serviceRef: expect.stringMatching(/^g6Rw/), passengerIndex: 0, quantity: 1 }]);
+    const seat = v.services.find((x) => x.category === 'SEAT')!;
+    expect(seat).toMatchObject({ name: 'Seat 7A', passengerType: 'ALL', segmentKey: '35125125', price: money('USD', 2183n), seat: { number: '7A', row: 7, column: 'A', position: 'window', type: 'extra_legroom', available: true }, baggage: null });
+    const bag = v.services.find((x) => x.category === 'BAGGAGE')!;
+    expect(bag).toMatchObject({ name: 'Standard Check In Baggage 10kg', price: money('USD', 1362n), baggage: { bagType: 'checked', pieces: 1, weightKg: 10 }, seat: null });
+  });
+
+  it('a voucher we never applied, another prebook or an unpriceable service is not taken at face value', async () => {
+    const voucher = await connector([res(200, example('/flights/prebooks/{prebookId}', 'get', '200'))]).c.readPrebook(opaque(PREBOOK));
+    expect(voucher).toMatchObject({ kind: 'UNKNOWN', reason: 'MALFORMED_RESPONSE' });
+    expect((await connector([res(200, withoutVoucher(example('/flights/prebooks/{prebookId}', 'get', '200')))]).c.readPrebook(opaque('another-prebook'))).kind).toBe('UNKNOWN');
+    const body = withoutVoucher(example('/flights/prebooks/{prebookId}', 'get', '200'));
+    delete body.data[0].servicesAttachable.groups[1].services[0].pricing;
+    body.data[0].servicesAttachable.groups[0].available = false;
+    const out = await connector([res(200, body)]).c.readPrebook(opaque(PREBOOK));
+    expect(out.kind === 'SUCCEEDED' && out.value.services).toEqual([]);
+  });
+
+  it('SANDBOX SHAPE (2026-10-10): groups without `available`, seats with price 0 ("included") and taken seats are read as they are', async () => {
+    const body = withoutVoucher(example('/flights/prebooks/{prebookId}', 'get', '200'));
+    for (const g of body.data[0].servicesAttachable.groups) delete g.available;
+    body.data[0].servicesAttachable.groups[0].services[0].pricing.display.amount = 0;
+    body.data[0].servicesAttachable.groups[0].services[1].metadata.seat.available = false;
+    const out = await connector([res(200, body)]).c.readPrebook(opaque(PREBOOK));
+    expect(out.kind).toBe('SUCCEEDED');
+    if (out.kind !== 'SUCCEEDED') return;
+    expect(out.value.services.map((x) => [x.category, x.price.minor, x.seat?.available ?? null])).toEqual([
+      ['SEAT', 0n, true],
+      ['SEAT', 2183n, false],
+      ['BAGGAGE', 1362n, null],
+    ]);
+  });
+
+  it('attaches selected services: new amount and a new payment intent; refusals keep their code; 409 and 5xx are UNKNOWN', async () => {
+    const { c, t } = connector([res(200, withoutVoucher(example('/flights/prebooks/{prebookId}/services', 'post', '200')))]);
+    const out = await c.attachServices({ prebookRef: opaque(PREBOOK), selections: [{ serviceRef: opaque('g6Rw-seat'), passengerIndex: 0, quantity: 1 }] });
+    expect(t.requests[0]).toMatchObject({ method: 'POST', url: `https://api.liteapi.travel/v3.0/flights/prebooks/${PREBOOK}/services` });
+    expect(JSON.parse(t.requests[0]!.body!)).toEqual({ selectedServices: [{ passengerIndex: 0, serviceId: 'g6Rw-seat', quantity: 1 }] });
+    expect(out).toMatchObject({ kind: 'SUCCEEDED', value: { amountToCharge: money('USD', 114928n), providerManagedTransaction: { transactionId: 'tr_cts_t0LaZePPxdCM_Kyskafml' } } });
+    const sel = [{ serviceRef: opaque('x'), passengerIndex: 0, quantity: 1 }];
+    expect(await connector([err(400, 44001, 'Required field is missing: ancillary not found')]).c.attachServices({ prebookRef: opaque(PREBOOK), selections: sel })).toMatchObject({ kind: 'REJECTED', code: 'NUITEE_44001' });
+    expect((await connector([err(409, 44006, 'Services can only be attached before the booking is in status CONFIRMED')]).c.attachServices({ prebookRef: opaque(PREBOOK), selections: sel })).kind).toBe('UNKNOWN');
+    expect((await connector([err(502, 54005, 'Provider auth failed')]).c.attachServices({ prebookRef: opaque(PREBOOK), selections: sel })).kind).toBe('UNKNOWN');
+    expect((await connector([timeout]).c.attachServices({ prebookRef: opaque(PREBOOK), selections: sel })).kind).toBe('UNKNOWN');
+    // Nothing is sent without a valid selection.
+    const empty = connector([]);
+    expect((await empty.c.attachServices({ prebookRef: opaque(PREBOOK), selections: [] })).kind).toBe('CAPABILITY_NOT_AVAILABLE');
+    expect((await empty.c.attachServices({ prebookRef: opaque(PREBOOK), selections: [{ serviceRef: opaque('x'), passengerIndex: -1, quantity: 1 }] })).kind).toBe('CAPABILITY_NOT_AVAILABLE');
+    expect(empty.t.requests).toHaveLength(0);
+  });
+});
+

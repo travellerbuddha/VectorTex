@@ -1,0 +1,1 @@
+ALTER TABLE "core"."payment_attempts" ADD COLUMN "provider_secret_issued_at" timestamp with time zone;

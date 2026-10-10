@@ -1,13 +1,14 @@
-import { CapabilityNotAvailableError, DomainError, type FlightAirport, type FlightConnector, type FlightOffer, type FlightPassenger, type FlightSegment, type TravelerRef } from '@texholiday/contracts';
+import { createHash } from 'node:crypto';
+import { CapabilityNotAvailableError, DomainError, type FlightAirport, type FlightConnector, type FlightOffer, type FlightPassenger, type FlightSegment, type FlightService, type TravelerRef } from '@texholiday/contracts';
 import { CheckoutRepository, IdempotencyRepository, QuoteRepository, SearchSessionRepository, type CoreDb } from '@texholiday/db';
-import { QuoteError, assertQuoteUsable, type ProviderManagedOrchestrator, type QuoteVersionSnapshot, type RouteOption } from '@texholiday/domain';
-import { PricingPolicyError, computeSellPrice, equals, fromJson, providerMarginForSearch, toJson, type Money, type MoneyJson, type PricingPolicyVersion } from '@texholiday/pricing';
+import { QuoteError, assertQuoteUsable, type OrderAggregate, type ProviderManagedOrchestrator, type QuoteVersionSnapshot, type RouteOption } from '@texholiday/domain';
+import { PricingPolicyError, add, computeSellPrice, equals, flightMarginForSearch, fromJson, toJson, type Money, type MoneyJson, type PricingPolicyVersion } from '@texholiday/pricing';
 import { orderAccessToken } from './access';
 import { flightQuoteView, type FlightQuoteOption } from './order-view';
 import type { TransientPassengerDetails } from './nuitee-flight-pm-port';
 import type { BookingSettings } from './settings';
-import { InputValidationError, flightCheckoutInput, flightSearchInput, parse, type FlightCheckoutInput, type FlightSearchInput } from './validation';
-import type { FlightJourneyView, FlightOfferView, FlightQuoteView, FlightSearchView, FlightTermsView, OrderView, PassengerType } from './views';
+import { InputValidationError, flightCheckoutInput, flightSearchInput, flightServicesInput, parse, type FlightCheckoutInput, type FlightSearchInput } from './validation';
+import type { FlightJourneyView, FlightOfferView, FlightQuoteView, FlightSearchView, FlightServiceLine, FlightServicesOfferView, FlightTermsView, OrderView, PassengerType } from './views';
 
 const FLIGHT_PROVIDER = 'nuitee';
 const FLIGHT_CONNECTOR_ID = 'nuitee-flight';
@@ -34,6 +35,8 @@ interface StoredFlightResults {
 }
 
 export interface FlightSalesDeps {
+  /** The order of the access token's owner (404 otherwise). */
+  authorizedOrder(orderId: string, token: string | null | undefined): Promise<OrderAggregate>;
   db: CoreDb;
   flights: FlightConnector;
   settings: BookingSettings;
@@ -100,11 +103,15 @@ export class FlightSales {
   private readonly searches: SearchSessionRepository;
   private readonly idempotency: IdempotencyRepository;
 
+  /** Seats and bags before payment (ADR-0013). */
+  readonly services: FlightServicesSales;
+
   constructor(private readonly deps: FlightSalesDeps) {
     this.quotes = new QuoteRepository(deps.db);
     this.checkout = new CheckoutRepository(deps.db);
     this.searches = new SearchSessionRepository(deps.db);
     this.idempotency = new IdempotencyRepository(deps.db);
+    this.services = new FlightServicesSales(deps, this.quotes, this.checkout);
   }
 
   async airports(text: string): Promise<readonly FlightAirport[]> {
@@ -133,7 +140,8 @@ export class FlightSales {
       cabinClass: input.cabinClass,
       pointOfSale: this.deps.settings.flightPointOfSale ?? null,
       currency: input.currency,
-      margin: providerMarginForSearch(policy, 'FLIGHT', 'PROVIDER_MANAGED'),
+      // Fare, seat, bag and penalty markups from the approved policy (ADR-0013); categories without a value go out as 0.
+      margin: flightMarginForSearch(policy, 'PROVIDER_MANAGED'),
     });
     if (out.kind === 'REJECTED' || out.kind === 'CAPABILITY_NOT_AVAILABLE') {
       throw new DomainError('VALIDATION_FAILED', 'The search could not be run with these criteria', { httpStatus: 422, action: 'FIX_FIELDS' });
@@ -286,6 +294,9 @@ export class FlightSales {
       capabilityId: s.results.capabilityId,
       priceChangedFrom: equals(sell, fromJson(stored.sell)) ? null : stored.sell,
       offerExpiresAt: offer.expiresAt,
+      segmentKeys: offer.segments.map((x) => x.segmentKey),
+      // Seats/bags are sold only when the approved policy sets their markup (ADR-0013).
+      extras: { seats: (flightMarginForSearch(policy, 'PROVIDER_MANAGED')?.seatsBasisPoints ?? null) !== null, bags: (flightMarginForSearch(policy, 'PROVIDER_MANAGED')?.bagsBasisPoints ?? null) !== null },
     };
     const travelers: TravelerRef[] = [
       ...Array.from({ length: c.adults }, (_, i) => ({ travelerId: `a${i + 1}`, type: 'ADULT' as const, age: null })),
@@ -442,6 +453,174 @@ export class FlightSales {
       payment: { gatewayId: FLIGHT_PROVIDER, mode: 'PROVIDER_MANAGED', idempotencyKey: `flight-checkout:${input.idempotencyKey}`, payBy },
     });
     return orderId;
+  }
+}
+
+/** The client's key for a provider service: a digest, so provider ids never reach the browser. */
+const serviceKey = (ref: string) => createHash('sha256').update(ref).digest('hex').slice(0, 20);
+
+interface ServicesContext {
+  agg: OrderAggregate;
+  quote: QuoteVersionSnapshot;
+  option: FlightQuoteOption;
+  passengers: ReadonlyArray<{ type: PassengerType; firstName: string; lastName: string }>;
+  services: FlightService[];
+  current: Money;
+  until: string | null;
+}
+
+/** Seats and bags before payment (ADR-0013): offered from the provider's live catalog, attached with a new quote. */
+export class FlightServicesSales {
+  constructor(
+    private readonly deps: FlightSalesDeps,
+    private readonly quotes: QuoteRepository,
+    private readonly checkout: CheckoutRepository,
+  ) {}
+
+  /** Null when nothing can be added any more (the customer goes to payment). */
+  private async context(orderId: string, token: string | null | undefined): Promise<ServicesContext | null> {
+    const agg = await this.deps.authorizedOrder(orderId, token);
+    const it = agg.items[0]!;
+    const p = agg.payment!;
+    const now = this.deps.clock();
+    if (it.productType !== 'FLIGHT' || agg.status !== 'PROCESSING' || it.booking.status !== 'PREPARED' || p.status !== 'PENDING' || p.providerSecretIssuedAt || !p.providerTransaction || it.booking.intent) return null;
+    if (p.payBy && new Date(p.payBy).getTime() <= now.getTime()) return null;
+    const quote = await this.quotes.get(it.quoteVersionId);
+    if (!quote) return null;
+    const option = quote.option as unknown as FlightQuoteOption;
+    if (!option.extras || (!option.extras.seats && !option.extras.bags)) return null;
+    const guests = await this.checkout.guests(it.id);
+    if (!guests?.passengers) return null;
+    const read = await this.deps.flights.readPrebook(p.providerTransaction.prebookRef);
+    if (read.kind !== 'SUCCEEDED') return null;
+    const v = read.value;
+    // The provider's amount must be the one on the order; anything else is never offered on top of.
+    if (v.amountToCharge.currency !== p.amount.currency || v.amountToCharge.minor !== p.amount.minor) return null;
+    if (v.providerManagedTransaction?.transactionId !== p.providerTransaction.transactionId) return null;
+    const until = [v.servicesExpiresAt, p.payBy].filter((x): x is string => x !== null).sort()[0] ?? null;
+    if (until && new Date(until).getTime() <= now.getTime()) return null;
+    const services = v.services.filter((x) => x.price.currency === p.amount.currency && (x.category === 'SEAT' ? option.extras!.seats : option.extras!.bags));
+    if (services.length === 0) return null;
+    return { agg, quote, option, passengers: guests.passengers, services, current: v.amountToCharge, until };
+  }
+
+  private segmentLabel(option: FlightQuoteOption, segmentKey: string | null): string | null {
+    if (!segmentKey || !option.segmentKeys) return null;
+    const i = option.segmentKeys.indexOf(segmentKey);
+    const seg = option.journeys.flatMap((j) => j.segments)[i];
+    return seg ? `${seg.origin.code} → ${seg.destination.code}${seg.flightNumber ? ` · ${seg.carrier.code} ${seg.flightNumber}` : ''}` : null;
+  }
+
+  async offer(orderId: string, token: string | null | undefined): Promise<FlightServicesOfferView> {
+    const ctx = await this.context(orderId, token);
+    const agg = ctx?.agg ?? (await this.deps.authorizedOrder(orderId, token));
+    const quote = ctx?.quote ?? (await this.quotes.get(agg.items[0]!.quoteVersionId));
+    const added = ((quote?.option as unknown as FlightQuoteOption | undefined)?.services ?? []) as FlightServiceLine[];
+    const closed = { orderId, open: false, currency: agg.payment!.amount.currency, current: toJson(agg.payment!.amount), passengers: [], segments: [], added, until: null };
+    if (!ctx) return closed;
+    const keys = ctx.option.segmentKeys ?? [...new Set(ctx.services.map((x) => x.segmentKey ?? ''))];
+    const segments = keys
+      .map((key) => {
+        const own = ctx.services.filter((x) => x.segmentKey === key);
+        return {
+          label: this.segmentLabel(ctx.option, key) ?? key,
+          seats: own
+            .filter((x) => x.category === 'SEAT' && x.seat)
+            .map((x) => ({ key: serviceKey(x.serviceRef), number: x.seat!.number, row: x.seat!.row, column: x.seat!.column, type: x.seat!.type, available: x.seat!.available, price: toJson(x.price), forType: x.passengerType })),
+          bags: own
+            .filter((x) => x.category === 'BAGGAGE' && x.baggage)
+            .map((x) => ({ key: serviceKey(x.serviceRef), name: x.name, pieces: x.baggage!.pieces, weightKg: x.baggage!.weightKg, price: toJson(x.price), forType: x.passengerType })),
+        };
+      })
+      .filter((x) => x.seats.length > 0 || x.bags.length > 0);
+    if (segments.length === 0) return closed;
+    return {
+      orderId,
+      open: true,
+      currency: ctx.current.currency,
+      current: toJson(ctx.current),
+      passengers: ctx.passengers.map((p, index) => ({ index, type: p.type, name: `${p.firstName} ${p.lastName}` })),
+      segments,
+      added,
+      until: ctx.until,
+    };
+  }
+
+  /**
+   * Attaches the chosen seats/bags. The customer accepted `expectedTotal` (the page total): it must be exactly the
+   * current amount plus the live prices, else nothing is sent (QUOTE_CHANGED). The new total becomes a new, accepted
+   * quote version before the provider call; the provider must charge exactly that.
+   */
+  async attach(orderId: string, token: string | null | undefined, raw: unknown): Promise<{ outcome: 'ATTACHED' | 'REJECTED' | 'PRICE_CHANGED' | 'FAILED'; order: OrderView }> {
+    const input = parse(flightServicesInput, raw);
+    const ctx = await this.context(orderId, token);
+    if (!ctx) throw new DomainError('ILLEGAL_TRANSITION', 'Services can no longer be added to this booking', { httpStatus: 409 });
+    const issues: Array<{ path: string; message: string }> = [];
+    const byKey = new Map(ctx.services.map((x) => [serviceKey(x.serviceRef), x]));
+    const taken = new Set<string>();
+    const perPassenger = new Set<string>();
+    const chosen: Array<{ service: FlightService; passengerIndex: number }> = [];
+    input.selections.forEach((sel, i) => {
+      const sv = byKey.get(sel.key);
+      const pax = ctx.passengers[sel.passengerIndex];
+      if (!sv || !pax) {
+        issues.push({ path: `selections.${i}`, message: 'not available any more' });
+        return;
+      }
+      if (sv.passengerType !== 'ALL' && sv.passengerType !== pax.type) issues.push({ path: `selections.${i}`, message: 'not for this passenger type' });
+      if (sv.category === 'SEAT' && (pax.type === 'INFANT' || !sv.seat?.available || taken.has(sel.key))) issues.push({ path: `selections.${i}`, message: 'seat not available' });
+      const slot = `${sv.category}|${sv.segmentKey}|${sel.passengerIndex}`;
+      if (perPassenger.has(slot)) issues.push({ path: `selections.${i}`, message: 'one seat and one bag per passenger and flight' });
+      perPassenger.add(slot);
+      taken.add(sel.key);
+      chosen.push({ service: sv, passengerIndex: sel.passengerIndex });
+    });
+    if (issues.length > 0) throw new InputValidationError(issues);
+    const total = chosen.reduce((acc, c) => add(acc, c.service.price), ctx.current);
+    if (input.expectedTotal.currency !== total.currency || input.expectedTotal.minor !== total.minor.toString()) {
+      throw new QuoteError('QUOTE_CHANGED', 'Prices changed; please review the total again');
+    }
+    const base = ctx.quote;
+    const lines: FlightServiceLine[] = chosen.map((c) => ({
+      passengerIndex: c.passengerIndex,
+      category: c.service.category,
+      name: c.service.name,
+      seat: c.service.seat?.number ?? null,
+      baggage: c.service.baggage ? { pieces: c.service.baggage.pieces, weightKg: c.service.baggage.weightKg } : null,
+      segment: this.segmentLabel(ctx.option, c.service.segmentKey),
+      price: toJson(c.service.price),
+    }));
+    const added = chosen.reduce((acc, c) => add(acc, c.service.price), fromJson({ currency: total.currency, minor: '0' }));
+    const option: FlightQuoteOption = { ...ctx.option, services: [...(ctx.option.services ?? []), ...lines], fare: ctx.option.fare ?? toJson(base.chargeNow) };
+    const versionId = await this.quotes.addVersion(base.quoteId, {
+      // A refused earlier attempt may have used base.version + 1 already.
+      version: await this.quotes.nextVersion(base.quoteId),
+      environment: this.deps.settings.environment,
+      productType: 'FLIGHT',
+      providerId: base.providerId,
+      offerRef: base.offerRef,
+      option: option as unknown as Record<string, unknown>,
+      travelers: base.travelers,
+      supplierCost: add(base.supplierCost, added),
+      // The fare markup stays the expected commission; seat/bag markups are not reported by the provider.
+      providerCommission: base.providerCommission,
+      sell: total,
+      chargeNow: total,
+      fx: null,
+      fees: [],
+      payAtProperty: [],
+      cancellation: base.cancellation,
+      expiresAt: base.expiresAt,
+      pricingPolicy: base.pricingPolicy,
+    });
+    // Submitting the page with its total is the customer's acceptance of the new total (K15).
+    await this.quotes.accept(versionId, this.deps.settings.termsVersion);
+    const result = await this.deps.orchestrator.attachServices(
+      orderId,
+      { quoteVersionId: versionId, expectedCharge: total, supplierCost: add(base.supplierCost, added), selections: chosen.map((c) => ({ serviceRef: c.service.serviceRef, passengerIndex: c.passengerIndex, quantity: 1 })) },
+      'customer',
+    );
+    return { outcome: result.outcome, order: await this.deps.orderView(orderId) };
   }
 }
 

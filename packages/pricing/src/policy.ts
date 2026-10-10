@@ -26,8 +26,18 @@ export const API_MARGIN_PRODUCT_TYPES: readonly ProductType[] = ['HOTEL', 'FLIGH
  */
 const PROVIDER_MARGIN_TOLERANCE_BP = 5n;
 
+/**
+ * Flight ancillary markups (ADR-0013), sent with the flight search next to the fare markup: seats, bags and cancellation
+ * penalties. A null category is sent as 0 (no markup); seats/bags without a value are not sold.
+ */
+export interface FlightAncillaryMargins {
+  seatsBasisPoints: number | null;
+  bagsBasisPoints: number | null;
+  penaltiesBasisPoints: number | null;
+}
+
 export type MarginRule =
-  | { productType: ProductType; paymentMode: PaymentMode; application: MarginApplication; kind: 'PERCENT_OF_NET'; basisPoints: number }
+  | { productType: ProductType; paymentMode: PaymentMode; application: MarginApplication; kind: 'PERCENT_OF_NET'; basisPoints: number; ancillaries?: FlightAncillaryMargins }
   | { productType: ProductType; paymentMode: PaymentMode; application: 'LOCAL'; kind: 'FIXED'; amount: MoneyJson };
 
 /**
@@ -125,6 +135,14 @@ export function providerMarginForSearch(policy: PricingPolicyVersion, productTyp
   assertApproved(policy);
   const rule = findRule(policy, productType, paymentMode);
   return rule.application === 'PROVIDER_API' && rule.kind === 'PERCENT_OF_NET' ? { basisPoints: rule.basisPoints } : null;
+}
+
+/** Flight provider markups for a search: the fare rule and its ancillary categories (null fields = not set). */
+export function flightMarginForSearch(policy: PricingPolicyVersion, paymentMode: PaymentMode): ({ basisPoints: number } & FlightAncillaryMargins) | null {
+  assertApproved(policy);
+  const rule = findRule(policy, 'FLIGHT', paymentMode);
+  if (rule.application !== 'PROVIDER_API' || rule.kind !== 'PERCENT_OF_NET') return null;
+  return { basisPoints: rule.basisPoints, seatsBasisPoints: rule.ancillaries?.seatsBasisPoints ?? null, bagsBasisPoints: rule.ancillaries?.bagsBasisPoints ?? null, penaltiesBasisPoints: rule.ancillaries?.penaltiesBasisPoints ?? null };
 }
 
 /** The commission the provider reports must be the margin we asked for (within rounding), never another one. */

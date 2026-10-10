@@ -159,6 +159,38 @@ export interface FlightSearchView {
   hidden: { notPriced: number };
 }
 
+/** A seat or bag on the booking (customer wording; no provider ids). */
+export interface FlightServiceLine {
+  passengerIndex: number;
+  category: 'SEAT' | 'BAGGAGE';
+  /** Provider wording, e.g. "Seat 12A", "Checked bag 20kg". */
+  name: string;
+  seat: string | null;
+  baggage: { pieces: number; weightKg: number | null } | null;
+  /** "IST → AYT" for the flight the service belongs to; null when not stated. */
+  segment: string | null;
+  price: MoneyJson;
+}
+
+/** Seats and bags the customer may still add before paying (ADR-0013). */
+export interface FlightServicesOfferView {
+  orderId: string;
+  /** False: nothing to offer any more (go to the payment page). */
+  open: boolean;
+  currency: string;
+  /** What the payment charges now (fare plus services already added). */
+  current: MoneyJson;
+  passengers: ReadonlyArray<{ index: number; type: PassengerType; name: string }>;
+  segments: ReadonlyArray<{
+    label: string;
+    seats: ReadonlyArray<{ key: string; number: string; row: number | null; column: string | null; type: string | null; available: boolean; price: MoneyJson; forType: 'ALL' | PassengerType }>;
+    bags: ReadonlyArray<{ key: string; name: string; pieces: number; weightKg: number | null; price: MoneyJson; forType: 'ALL' | PassengerType }>;
+  }>;
+  added: readonly FlightServiceLine[];
+  /** Services can be added until then (provider), never later than the payment deadline. */
+  until: string | null;
+}
+
 export interface FlightQuoteView {
   product: 'FLIGHT';
   quoteVersionId: string;
@@ -175,6 +207,9 @@ export interface FlightQuoteView {
   fareFamily: string | null;
   /** The airline's price when the fare was checked differed from the search result (shown before acceptance). */
   priceChangedFrom: MoneyJson | null;
+  /** Seats and bags added before payment; `fare` is the total without them. */
+  services: readonly FlightServiceLine[];
+  fare: MoneyJson;
   termsVersion: string;
   paymentProvider: 'NUITEE';
 }

@@ -194,8 +194,12 @@ export interface FlightSearchCriteria {
   /** Point of sale (ISO 3166-1 alpha-2); null = provider default. */
   pointOfSale: string | null;
   currency: string;
-  /** Fare markup the provider adds to the price (approved pricing policy, ADR-0006); null = no markup. */
-  margin: { basisPoints: number } | null;
+  /**
+   * Markups the provider adds (approved pricing policy, ADR-0006/0013): the fare markup, and for seats, bags and
+   * cancellation penalties their own percentages; a missing value is sent as 0 (no markup, never the account default).
+   * null = no markup at all.
+   */
+  margin: { basisPoints: number; seatsBasisPoints?: number | null; bagsBasisPoints?: number | null; penaltiesBasisPoints?: number | null } | null;
 }
 
 export interface FlightSegment {
@@ -300,6 +304,46 @@ export interface FlightPrebook {
   servicesAttachable: boolean;
 }
 
+/** Seats and bags the provider offers on a prebook (documented categories only). */
+export type FlightServiceCategory = 'SEAT' | 'BAGGAGE';
+
+export interface FlightService {
+  /** Provider service id (encoded; carries the provider price). Never shown to customers. */
+  serviceRef: OpaqueRef;
+  category: FlightServiceCategory;
+  /** Provider wording, e.g. "Seat 7A", "Standard Check In Baggage 10kg". */
+  name: string;
+  /** Who may take it: everyone or one passenger type. */
+  passengerType: 'ALL' | FlightPassengerType;
+  segmentKey: string | null;
+  /** Customer price with the provider-applied markup for its category. */
+  price: Money;
+  seat: { number: string; row: number | null; column: string | null; position: string | null; type: string | null; available: boolean } | null;
+  baggage: { bagType: string; pieces: number; weightKg: number | null } | null;
+}
+
+export interface FlightServiceSelection {
+  serviceRef: OpaqueRef;
+  /** Zero-based position in the prebook passengers. */
+  passengerIndex: number;
+  quantity: number;
+}
+
+/**
+ * A prebook as the provider holds it now (`GET /flights/prebooks/{id}`): the amount and payment intent currently in
+ * force (attaching services replaces both), the services already attached and those that can still be attached.
+ */
+export interface FlightPrebookState {
+  prebookRef: OpaqueRef;
+  amountToCharge: Money;
+  providerManagedTransaction: ProviderManagedTransactionRef | null;
+  paymentClientSecret: string | null;
+  /** Services can be attached until then (null = not stated). */
+  servicesExpiresAt: string | null;
+  services: readonly FlightService[];
+  attached: readonly FlightServiceSelection[];
+}
+
 /** Provider booking state plus the flight facts operations need. PNR alone is not a ticket (T08). */
 export type FlightBookingState = ProviderBookingState & {
   /** Provider booking reference shown to the customer (FH-…); null when the answer omitted it. */
@@ -354,6 +398,13 @@ export interface FlightConnector {
     contact: FlightContact;
     passengers: readonly FlightPassenger[];
   }): Promise<ExternalOutcome<FlightPrebook>>;
+  /** The prebook as held now: amount, current payment intent, attached and attachable services (read-only). */
+  readPrebook(prebookRef: OpaqueRef): Promise<ExternalOutcome<FlightPrebookState>>;
+  /**
+   * Attaches seats/bags before booking. Replaces the payment intent (new transaction and secret, new amount): the old
+   * ones must not be used afterwards. A lost answer is resolved with readPrebook, never by attaching again.
+   */
+  attachServices(input: { prebookRef: OpaqueRef; selections: readonly FlightServiceSelection[] }): Promise<ExternalOutcome<FlightPrebookState>>;
   /** Idempotent per prebook: a repeat returns the existing booking (the lost-response resolution). */
   book(input: { prebookRef: OpaqueRef; clientReference: string; funding: FlightFunding }): Promise<ExternalOutcome<FlightBookingState>>;
   getBooking(providerBookingRef: OpaqueRef): Promise<ExternalOutcome<FlightBookingState>>;

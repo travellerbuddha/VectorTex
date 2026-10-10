@@ -336,6 +336,8 @@ export const paymentAttempts = core.table(
     providerTransactionId: text('provider_transaction_id'),
     /** Short-lived client secret for the provider payment component; cleared once the payment is settled. */
     providerClientSecret: text('provider_client_secret'),
+    /** When the secret was first handed to the customer's browser; services attach only before (ADR-0013). */
+    providerSecretIssuedAt: ts('provider_secret_issued_at'),
     /** PROVIDER_MANAGED: an unpaid checkout is abandoned after this instant. */
     payBy: ts('pay_by'),
     createdAt: ts('created_at').notNull().defaultNow(),

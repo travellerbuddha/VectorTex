@@ -226,3 +226,31 @@ Sandbox'ta salt-okunur aramayla doğrulandı:
 - Satış fiyatı, onaylı `FLIGHT` kuralıyla mevcut 5 baz puan toleransla karşılaştırılır. Tutmazsa teklif gösterilmez. Örnek: hesapta marj düzenleme kapalıysa hesap varsayılanı uygulanır ve teklif düşer.
 - Production hesabında marj düzenlemenin açık olduğu sorulmadı, varsayılmadı (soru 21).
 
+### 10.5 Nuitee uçak — koltuk/bagaj ek hizmetleri (10 Ekim 2026)
+
+Komut: `pnpm web:e2e:sandbox` (`flight-payment.sandbox.spec.ts`, "a seat and a bag attached before payment" testi). Ödeme bileşeni ve Stripe test kartı gerçek. Yolcu bilgileri uydurma. Rezervasyon sonunda iptal edildi.
+
+| Adım | Sonuç | Referans |
+|---|---|---|
+| Arama (IST→AYT, `rateSearch`/`seats`/`bags` %10, `penalties` 0) | 200; dört kategorili istek kabul edildi (196 teklif) | — |
+| Prebook | 38,22 EUR; `servicesAttachable` dolu. İlk denemede 30 sn zaman aşımı → UNKNOWN, sonraki teklif denendi | `01a125af-c7d4…` |
+| `GET /flights/prebooks/{id}` | 102 koltuk (68 boş), bagaj yok. Gruplarda `available` alanı yok (OpenAPI'de var); bazı koltuklar 0 fiyatlı. Tutar ve niyet prebook ile aynı | aynı |
+| `POST …/services` (en ucuz boş koltuk) | 49,80 EUR = 38,22 + 11,58 (**kuruşu kuruşuna**); **yeni `transactionId` ve `secretKey`**. Yanıtta eklenen hizmet listesi yok | aynı |
+| Tekrar `GET` | Aynı yeni niyet ve tutar; `selectedServices` 1 kayıt; `bookedServices` "status: pending", "phase: post_booking"; `pricing.servicesAmount` 11,58; eklenen koltuk artık listede değil | aynı |
+| Yeni secret ile ödeme → book (yeni `TRANSACTION_ID`) | `redirect_status=succeeded`; 201 `PENDING_CONFIRMATION`, maliyet 49,80 EUR | `01a125b0-0b56…` |
+| İptal | 202 `CANCEL_PENDING` (onay öncesi; R0 §10.3'teki gibi) | aynı |
+| IST→LHR | Katalog boş. Belgelenmemiş `notSupported: true` ve `providerErrors` ("Seat selection not available for this airline", `CARRIER_NOT_SUPPORTED`) | `01a125b0-bbb3…` (rezervasyonsuz) |
+
+**Kod etkisi:**
+- Grup yalnız açıkça `available: false` ise kapatılır.
+- Eklenen liste ve kayıp yanıt GET ile çözülür.
+- Tutar eşitliği zorunlu tutulur.
+- Belgelenmemiş alanlar okunmaz; katalog boşsa hiçbir şey sunulmaz.
+
+**Kanıtlanamayanlar:**
+- bagaj (iki rotada da teklif yoktu);
+- koltuğun havayolunca kesinleşmesi;
+- hizmet marjının tutara yansıması (marj tutarı gösterilmiyor).
+
+Soru 22.
+

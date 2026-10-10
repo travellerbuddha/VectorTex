@@ -115,6 +115,15 @@ export const flightCheckoutInput = z.object({
 });
 export type FlightCheckoutInput = z.infer<typeof flightCheckoutInput>;
 
+/** Seats/bags picked on the extras page, with the total the customer saw (ADR-0013). */
+export const flightServicesInput = z.object({
+  selections: z
+    .array(z.object({ passengerIndex: z.number().int().min(0).max(12), key: z.string().regex(/^[0-9a-f]{20}$/) }))
+    .min(1)
+    .max(60),
+  expectedTotal: z.object({ currency: z.string().regex(/^[A-Z]{3}$/), minor: z.string().regex(/^\d{1,15}$/) }),
+});
+
 /** Field-level validation error for forms (paths, never values). */
 export class InputValidationError extends DomainError {
   readonly issues: ReadonlyArray<{ path: string; message: string }>;

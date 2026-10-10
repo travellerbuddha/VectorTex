@@ -11,6 +11,7 @@ import {
   assertFxSnapshotAcceptable,
   pricingPolicyDocumentSchema,
   providerMarginForSearch,
+  flightMarginForSearch,
   sum,
   type PricingPolicyVersion,
 } from '../src/index';
@@ -289,3 +290,19 @@ describe('G06 editable fees and FX policy', () => {
     ).toBe(false);
   });
 });
+
+describe('flight markups for a search (ADR-0013)', () => {
+  it('the fare markup with its seat/bag/penalty markups; categories without a value are null', () => {
+    const p: PricingPolicyVersion = {
+      ...policy,
+      rules: [
+        { productType: 'FLIGHT', paymentMode: 'PROVIDER_MANAGED', application: 'PROVIDER_API', kind: 'PERCENT_OF_NET', basisPoints: 800, ancillaries: { seatsBasisPoints: 1500, bagsBasisPoints: null, penaltiesBasisPoints: 0 } },
+      ],
+    };
+    expect(flightMarginForSearch(p, 'PROVIDER_MANAGED')).toEqual({ basisPoints: 800, seatsBasisPoints: 1500, bagsBasisPoints: null, penaltiesBasisPoints: 0 });
+    const plain: PricingPolicyVersion = { ...policy, rules: [{ productType: 'FLIGHT', paymentMode: 'PROVIDER_MANAGED', application: 'PROVIDER_API', kind: 'PERCENT_OF_NET', basisPoints: 800 }] };
+    expect(flightMarginForSearch(plain, 'PROVIDER_MANAGED')).toEqual({ basisPoints: 800, seatsBasisPoints: null, bagsBasisPoints: null, penaltiesBasisPoints: null });
+    expect(() => flightMarginForSearch(policy, 'PROVIDER_MANAGED')).toThrow(PricingPolicyError);
+  });
+});
+

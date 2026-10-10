@@ -27,6 +27,21 @@ export function FlightQuoteSummary({ quote, locale }: { quote: FlightQuoteView; 
           {f.priceChanged(formatMoney(quote.priceChangedFrom, locale))}
         </p>
       )}
+      {quote.services.length > 0 && (
+        <div data-testid="quote-services">
+          <p className="muted">
+            {f.fare}: {formatMoney(quote.fare, locale)}
+          </p>
+          <ul className="extras-list">
+            {quote.services.map((x, i) => (
+              <li key={i}>
+                {f.passengerN(x.passengerIndex + 1)}: {x.seat ? f.seatLabel(x.seat) : x.name}
+                {x.segment ? ` (${x.segment})` : ''} · {formatMoney(x.price, locale)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <p className="total">
         <span>{f.total}</span> <strong data-testid="quote-total">{formatMoney(quote.total, locale)}</strong>
       </p>
