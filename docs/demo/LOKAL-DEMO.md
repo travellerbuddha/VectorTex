@@ -14,8 +14,21 @@ Bu rehber siteyi, yönetim panelini ve içerik yönetimini **sunucuya yüklemede
 1. **Docker Desktop.** Veritabanı, Redis ve e-posta görüntüleyici bunun içinde çalışır.
    - İndirme: https://www.docker.com/products/docker-desktop/
    - Kurduktan sonra Docker Desktop'ı açın. Sol altta "Engine running" yazısını görmelisiniz.
-2. **Node.js 22 LTS.** İndirme: https://nodejs.org (22.x sürümünü seçin).
-3. **pnpm.** Kurulumdan sonra bir terminal açıp şunu bir kez çalıştırın:
+2. **Node.js 22 LTS.** Proje yalnız Node 22 ile çalışır; 24 ya da 26 kabul edilmez.
+   - Bilgisayarda Node yoksa: https://nodejs.org adresinden 22.x sürümünü kurun.
+   - **Başka bir Node sürümü varsa** (`node -v` 22 dışında bir şey yazıyorsa), onu silmeden **nvm** ile 22'yi ekleyin. Mac ve Linux'ta:
+     ```
+     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+     ```
+     Terminali kapatıp açın. Proje klasöründe şunları çalıştırın:
+     ```
+     nvm install 22
+     nvm use
+     node -v
+     ```
+     `node -v` artık `v22.…` yazmalıdır. `nvm use`, klasördeki `.nvmrc` dosyasından 22'yi seçer. **Her yeni terminalde proje klasöründe bir kez `nvm use` yazın.**
+   - Windows'ta aynı iş için "nvm-windows" kullanılır: https://github.com/coreybutler/nvm-windows. Kurduktan sonra `nvm install 22` ve `nvm use 22`.
+3. **pnpm.** Node 22 etkinken bir kez şunu çalıştırın (nvm ile kurduysanız o sürüm için de bir kez):
    ```
    corepack enable
    ```
@@ -171,7 +184,7 @@ Sandbox'ın önerilen satış fiyatları yapaydır. Bu yüzden demoda fiyat pari
 | Belirti | Çözüm |
 |---|---|
 | "Docker bulunamadı ya da çalışmıyor" | Docker Desktop'ı açın, "Engine running" yazısını bekleyin. |
-| "Node 22 gerekli" | nodejs.org'dan 22 LTS kurun, terminali kapatıp açın. |
+| "Node 22 gerekli" ya da `ERR_PNPM_UNSUPPORTED_ENGINE … Expected version: >=22.12.0 <23 · Got: v26…` | Node 22 etkin değil. nvm kurduysanız proje klasöründe `nvm use` yazın; kurmadıysanız 1. bölümdeki nvm adımlarını uygulayın. Sonra `corepack enable` ve `pnpm install`. |
 | Port kullanımda (3000, 8025, 1025) | O portu kullanan programı kapatın. |
 | Panel girişinde kod kabul edilmiyor | Kodu yeniden alın: `pnpm demo:kod` (kodlar 30 sn geçerli, her biri bir kez kullanılır). |
 | Ödemeden sonra sipariş sayfası açılmıyor | Adres çubuğunda `localhost:3000` olmalı, `127.0.0.1:3000` değil (sipariş çerezi adrese bağlıdır). |
