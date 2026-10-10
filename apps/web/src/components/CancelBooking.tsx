@@ -61,7 +61,7 @@ export function CancelBooking({
       <section className="card cancel-booking" aria-labelledby={`${id}-title`}>
         <h2 id={`${id}-title`}>{t.title}</h2>
         <p className="muted" data-testid="cancel-not-available">
-          {view.reason === 'STAY_STARTED' ? t.stayStarted : t.noRefund}
+          {t.noRefund}
         </p>
         {notice === 'notAnymore' && <p className="notice">{t.notAnymore}</p>}
       </section>

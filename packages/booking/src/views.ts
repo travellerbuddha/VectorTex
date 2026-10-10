@@ -95,8 +95,8 @@ export type CustomerCancellationView =
   | { state: 'AVAILABLE'; expectedFee: MoneyJson; paid: MoneyJson; freeUntil: string | null }
   /** A cancellation was sent and its result is being checked. */
   | { state: 'IN_PROGRESS' }
-  /** Not offered online: nothing would be refunded, or the stay has started. */
-  | { state: 'NOT_AVAILABLE'; reason: 'NO_REFUND' | 'STAY_STARTED' };
+  /** Not offered online: under the hotel's policy (from Nuitee) cancelling now refunds nothing. */
+  | { state: 'NOT_AVAILABLE'; reason: 'NO_REFUND' };
 
 export interface CustomerCancelResult {
   /** CANCELLED: done. REJECTED: the provider refused; the booking stands and our team is told. UNKNOWN: being checked. */

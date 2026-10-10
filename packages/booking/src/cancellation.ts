@@ -46,9 +46,10 @@ export async function previewCancellation(agg: OrderAggregate, deps: { quotes: Q
 
 /**
  * Online cancellation by the customer (T27, ADR-0021), hotels only: flight changes go through the provider's servicing
- * team. Offered for a confirmed booking before the check-in day, when cancelling still refunds something; the fee comes
- * from the cancellation policy the customer accepted. A cancellation in flight or with a lost answer shows as in
- * progress until the booking is read.
+ * team. Every hotel sets its own cancellation and refund terms and Nuitee passes them on with the rate; we hold no
+ * hotel terms of our own. So the only rule is Nuitee's policy as booked: offered while cancelling now still refunds
+ * something, at the fee that policy sets for this moment. Nuitee's answer to the cancel (fee, refund) is what is
+ * recorded. A cancellation in flight or with a lost answer shows as in progress until the booking is read.
  */
 export async function customerCancellation(agg: OrderAggregate, deps: { quotes: QuoteRepository; now: Date }): Promise<CustomerCancellationView | null> {
   const it = agg.items[0]!;
@@ -56,11 +57,6 @@ export async function customerCancellation(agg: OrderAggregate, deps: { quotes: 
   const b = it.booking;
   if (b.status === 'CANCEL_PENDING' || (b.status === 'UNKNOWN' && b.unknownOperation === 'CANCEL')) return { state: 'IN_PROGRESS' };
   if (agg.status !== 'CONFIRMED' || b.status !== 'CONFIRMED' || !b.providerBookingRef || b.intent) return null;
-  const quote = await deps.quotes.get(it.quoteVersionId);
-  const checkin = (quote?.option as { checkin?: unknown } | undefined)?.checkin;
-  if (typeof checkin !== 'string') return null;
-  // From the first moment of the check-in day anywhere (UTC+14), the stay counts as started.
-  if (deps.now.getTime() >= Date.parse(`${checkin}T00:00:00+14:00`)) return { state: 'NOT_AVAILABLE', reason: 'STAY_STARTED' };
   const preview = await previewCancellation(agg, { quotes: deps.quotes, flights: null, now: deps.now });
   const paid = agg.payment!.amount;
   if (preview.basis === 'NON_REFUNDABLE' || preview.expectedPenalty.currency !== paid.currency || preview.expectedPenalty.minor >= paid.minor) {

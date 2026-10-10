@@ -46,8 +46,8 @@ export class MockHotelConnector implements HotelConnector {
   failSearches = 0;
   /** Test hook: hotels with no bookable offer (sold out). */
   soldOut = new Set<string>();
-  /** Test hook: refundable offers cost one night from 7 days before check-in (the whole stay from 3 days before). */
-  partialCancellationFee = false;
+  /** Test hook: the cancellation steps of refundable offers, as a hotel would set them (default: the whole stay from 3 days before check-in). */
+  refundableSteps: ((checkin: number, price: Money, nights: number) => Array<{ from: string; penalty: Money }>) | null = null;
   /** Test hook: the next cancellation gets this outcome instead of being cancelled. */
   nextCancel: ExternalOutcome<ProviderBookingState & { penalty: Money | null; refundAmount: Money | null }> | null = null;
   /** Calls made, per operation (tests count provider calls). */
@@ -205,10 +205,7 @@ export class MockHotelConnector implements HotelConnector {
           ? {
               timezone: 'UTC',
               refundable: true,
-              steps: [
-                ...(this.partialCancellationFee ? [{ from: new Date(checkin - 7 * 86_400_000).toISOString(), penalty: money(price.currency, price.minor / BigInt(nights)) }] : []),
-                { from: new Date(checkin - 3 * 86_400_000).toISOString(), penalty: price },
-              ],
+              steps: this.refundableSteps ? this.refundableSteps(checkin, price, nights) : [{ from: new Date(checkin - 3 * 86_400_000).toISOString(), penalty: price }],
               providerText: null,
             }
           : { timezone: 'UTC', refundable: false, steps: [{ from: new Date(0).toISOString(), penalty: price }], providerText: null },

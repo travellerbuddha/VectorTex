@@ -7,6 +7,7 @@ import { MockHotelConnector } from '@texholiday/connectors';
 import { PermissionRepository, PolicyRepository, type CoreDatabase } from '@texholiday/db';
 import { BookingApp, type BookingSettings } from '../src/index';
 import { freshDatabase } from '../../db/test/support/db';
+import { money } from '@texholiday/pricing';
 
 /**
  * Online cancellation by the customer (T27, ADR-0021) against PostgreSQL with the MOCK hotel connector: only the order's
@@ -139,7 +140,11 @@ describe('customer cancels a hotel booking online (T27, ADR-0021)', () => {
   });
 
   it('a fee inside the policy must be accepted as shown; a fee that changed while the page was open is shown again first', async () => {
-    hotels.partialCancellationFee = true;
+    // This hotel's terms (as Nuitee passes them on): one night from 7 days before check-in, the whole stay from 3 days.
+    hotels.refundableSteps = (checkin, price, nights) => [
+      { from: new Date(checkin - 7 * 86_400_000).toISOString(), penalty: money(price.currency, price.minor / BigInt(nights)) },
+      { from: new Date(checkin - 3 * 86_400_000).toISOString(), penalty: price },
+    ];
     try {
       at('2027-05-01T10:00:00Z');
       const { orderId, token, total } = await book(/Superior Double/);
@@ -165,25 +170,43 @@ describe('customer cancels a hotel booking online (T27, ADR-0021)', () => {
       );
       expect(audit.rows[0]!.detail).toMatchObject({ customerAcceptedFee: true, expectedPenalty: charged.expectedFee, requestedByCustomer: true });
     } finally {
-      hotels.partialCancellationFee = false;
+      hotels.refundableSteps = null;
     }
   });
 
-  it('not offered online when nothing would be refunded or the stay has started', async () => {
+  it('not offered online when the hotel’s terms refund nothing now (non-refundable rate, or the whole stay due)', async () => {
     at('2027-05-01T10:00:00Z');
     const nonRefundable = await book(/Standard Room/);
     expect(await app.customerCancellation(nonRefundable.orderId, nonRefundable.token)).toEqual({ state: 'NOT_AVAILABLE', reason: 'NO_REFUND' });
     await expect(app.customerCancel(nonRefundable.orderId, nonRefundable.token, { acceptedFee: nonRefundable.total })).rejects.toMatchObject({ code: 'ILLEGAL_TRANSITION' });
 
     const refundable = await book(/Superior Double/);
-    // Inside 3 days the whole stay is due: nothing to refund.
+    // Inside 3 days the whole stay is due under this hotel's terms: nothing to refund.
     at('2027-06-08T10:00:00Z');
     expect(await app.customerCancellation(refundable.orderId, refundable.token)).toEqual({ state: 'NOT_AVAILABLE', reason: 'NO_REFUND' });
-    // From the first moment of the check-in day anywhere (UTC+14 → 9 June 10:00 UTC).
-    at('2027-06-09T10:00:00Z');
-    expect(await app.customerCancellation(refundable.orderId, refundable.token)).toEqual({ state: 'NOT_AVAILABLE', reason: 'STAY_STARTED' });
     // Both stay confirmed.
+    expect((await app.order(nonRefundable.orderId, nonRefundable.token)).stage).toBe('CONFIRMED');
     expect((await app.order(refundable.orderId, refundable.token)).stage).toBe('CONFIRMED');
+  });
+
+  it('only the hotel’s terms from Nuitee decide: free until the evening before arrival means free until then, no rule of ours on top', async () => {
+    // e.g. an Antalya hotel: free cancellation until 18:00 local time (15:00 UTC) the day before arrival.
+    hotels.refundableSteps = (checkin, price) => [{ from: new Date(checkin - 86_400_000 + 15 * 3_600_000).toISOString(), penalty: price }];
+    try {
+      at('2027-05-01T10:00:00Z');
+      const late = await book(/Superior Double/);
+      const other = await book(/Superior Double/);
+      // 9 June 13:00 Antalya time: still inside the hotel's free period.
+      at('2027-06-09T10:00:00Z');
+      const view = await app.customerCancellation(late.orderId, late.token);
+      expect(view).toEqual({ state: 'AVAILABLE', expectedFee: { currency: 'EUR', minor: '0' }, paid: late.total, freeUntil: expect.stringMatching(/^2027-06-09T1[45]:/) });
+      expect((await app.customerCancel(late.orderId, late.token, { acceptedFee: { currency: 'EUR', minor: '0' } })).outcome).toBe('CANCELLED');
+      // After 18:00 local the whole stay is due: no longer offered.
+      at('2027-06-09T15:30:00Z');
+      expect(await app.customerCancellation(other.orderId, other.token)).toEqual({ state: 'NOT_AVAILABLE', reason: 'NO_REFUND' });
+    } finally {
+      hotels.refundableSteps = null;
+    }
   });
 
   it('refused by the provider: the booking stands and a task asks the team to contact the customer', async () => {
