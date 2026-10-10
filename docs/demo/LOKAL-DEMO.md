@@ -185,7 +185,8 @@ Sandbox'ın önerilen satış fiyatları yapaydır. Bu yüzden demoda fiyat pari
 |---|---|
 | "Docker bulunamadı ya da çalışmıyor" | Docker Desktop'ı açın, "Engine running" yazısını bekleyin. |
 | "Node 22 gerekli" ya da `ERR_PNPM_UNSUPPORTED_ENGINE … Expected version: >=22.12.0 <23 · Got: v26…` | Node 22 etkin değil. nvm kurduysanız proje klasöründe `nvm use` yazın; kurmadıysanız 1. bölümdeki nvm adımlarını uygulayın. Sonra `corepack enable` ve `pnpm install`. |
-| Port kullanımda (3000, 8025, 1025) | O portu kullanan programı kapatın. |
+| "3000 portunu başka bir program kullanıyor" ya da `EADDRINUSE … 3000` | Başka bir site ya da önceki demo açık. Hangisi olduğunu görmek için Mac'te `lsof -nP -iTCP:3000 -sTCP:LISTEN`, Windows'ta `netstat -ano \| findstr :3000`. O programı kapatın ya da demoyu başka portta açın: Mac'te `DEMO_PORT=3001 pnpm demo`, Windows PowerShell'de `$env:DEMO_PORT=3001; pnpm demo`. Sonra adreslerde 3000 yerine o portu kullanın, örneğin http://localhost:3001/tr. `pnpm demo:kod` son kullanılan portu gösterir. |
+| Port kullanımda (8025, 1025) | Mailpit portlarıdır. O portu kullanan programı kapatın. |
 | Panel girişinde kod kabul edilmiyor | Kodu yeniden alın: `pnpm demo:kod` (kodlar 30 sn geçerli, her biri bir kez kullanılır). |
 | Ödemeden sonra sipariş sayfası açılmıyor | Adres çubuğunda `localhost:3000` olmalı, `127.0.0.1:3000` değil (sipariş çerezi adrese bağlıdır). |
 | Her şeyi baştan kurmak | `pnpm demo:sifirla` ardından `pnpm demo` |
