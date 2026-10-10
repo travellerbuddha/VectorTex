@@ -5,6 +5,10 @@ import { alertIn, nextCode, signIn } from './admin-support';
 /** MFA recovery codes (ADR-0010): created with a current authenticator code, shown once, each works once. */
 test('a person creates recovery codes and signs in with one when the phone is not at hand', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'shared account');
+  // Two waits for a fresh authenticator step (up to 30 s each, nextCode): signing in right after the pricing test used
+  // the approver's current step, and creating the codes needs the next one. Measured 58.7 s locally; the default 60 s
+  // budget ran out on CI at whatever step came last.
+  test.setTimeout(120_000);
   page.on('dialog', (d) => void d.accept());
   await signIn(page, 'approver');
   await page.getByTestId('recovery-warning').getByRole('link').click();
