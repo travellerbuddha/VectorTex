@@ -60,6 +60,9 @@ export async function hotelMetadata(locale: Locale, slug: string, searchParams: 
   };
 }
 
+/** Photos shown in the mosaic: 1, 2, 3 or 5 (a layout without holes). */
+const galleryCount = (n: number) => (n >= 5 ? 5 : n >= 3 ? 3 : n);
+
 export async function HotelPage({ locale, slug, searchParams }: { locale: Locale; slug: string; searchParams: Record<string, string | undefined> }) {
   if (slug !== slug.toLowerCase()) permanentRedirect(hotelPath(locale, slug.toLowerCase()));
   const view = await load(locale, slug, searchParams);
@@ -131,8 +134,8 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
         )}
       </header>
       {c.images.length > 0 ? (
-        <ul className="gallery" aria-label={c.name}>
-          {c.images.slice(0, 5).map((img, i) => (
+        <ul className={`gallery gallery-${galleryCount(c.images.length)}`} aria-label={c.name}>
+          {c.images.slice(0, galleryCount(c.images.length)).map((img, i) => (
             <li key={img.url}>
               {/* eslint-disable-next-line @next/next/no-img-element -- provider images are https-only; no host allow-list */}
               <img src={img.url} alt={img.caption ?? c.name} loading={i === 0 ? 'eager' : 'lazy'} />
@@ -145,99 +148,101 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
         </div>
       )}
       <div className="hotel-page-layout">
-      <section className="card book-box" aria-labelledby="book-title">
-        <h2 id="book-title">{t.lists.bookTitle}</h2>
-        {view.price && (
-          <>
-            <PriceBlock price={view.price} locale={locale} />
-            <p className="muted small">{t.lists.asOf(formatInstant(view.price.asOf, locale))}</p>
-          </>
-        )}
-        <SearchForm
-          locale={locale}
-          currencies={currencies}
-          countries={countryOptions(locale)}
-          today={today}
-          initial={{
-            place: { placeId: `hotel:${view.hotelId}`, hotelId: view.hotelId, name: c.name, address: c.address ?? '' },
-            checkin,
-            checkout: addDays(checkin, 1),
-            rooms: [{ adults: 2, childAges: [] }],
-            ...(view.nationality ? { nationality: view.nationality } : {}),
-            ...(view.currency ? { currency: view.currency } : {}),
-            boardType: board,
-          }}
-        />
-        {board && <p className="muted small">{boardLabel(board, null, locale)}</p>}
-      </section>
-      {c.description && (
-        <section className="hotel-text hotel-section">
-          {c.description.split('\n\n').map((p, i) => (
-            <p key={i}>
-              {p.split('\n').map((line, j) => (
-                <span key={j}>
-                  {j > 0 && <br />}
-                  {line}
-                </span>
+        <section className="card book-box" aria-labelledby="book-title">
+          <h2 id="book-title">{t.lists.bookTitle}</h2>
+          {view.price && (
+            <>
+              <PriceBlock price={view.price} locale={locale} />
+              <p className="muted small">{t.lists.asOf(formatInstant(view.price.asOf, locale))}</p>
+            </>
+          )}
+          <SearchForm
+            locale={locale}
+            currencies={currencies}
+            countries={countryOptions(locale)}
+            today={today}
+            initial={{
+              place: { placeId: `hotel:${view.hotelId}`, hotelId: view.hotelId, name: c.name, address: c.address ?? '' },
+              checkin,
+              checkout: addDays(checkin, 1),
+              rooms: [{ adults: 2, childAges: [] }],
+              ...(view.nationality ? { nationality: view.nationality } : {}),
+              ...(view.currency ? { currency: view.currency } : {}),
+              boardType: board,
+            }}
+          />
+          {board && <p className="muted small">{boardLabel(board, null, locale)}</p>}
+        </section>
+        <div className="hotel-main">
+          {c.description && (
+            <section className="hotel-text hotel-section">
+              {c.description.split('\n\n').map((p, i) => (
+                <p key={i}>
+                  {p.split('\n').map((line, j) => (
+                    <span key={j}>
+                      {j > 0 && <br />}
+                      {line}
+                    </span>
+                  ))}
+                </p>
               ))}
-            </p>
-          ))}
-        </section>
-      )}
-      {c.facilities.length > 0 && (
-        <section className="hotel-section">
-          <h2>{t.lists.facilities}</h2>
-          <ul className="chips">
-            {c.facilities.map((f) => (
-              <li key={f}>{f}</li>
-            ))}
-          </ul>
-        </section>
-      )}
-      {(c.checkinTime || c.checkoutTime) && (
-        <section className="hotel-section">
-          <h2>{t.lists.times}</h2>
-          <p className="voucher-line">
-            <Clock />
-            {c.checkinTime && `${t.lists.checkin}: ${c.checkinTime}`}
-            {c.checkinTime && c.checkoutTime && ' · '}
-            {c.checkoutTime && `${t.lists.checkout}: ${c.checkoutTime}`}
-          </p>
-        </section>
-      )}
-      {c.importantInformation && (
-        <section className="hotel-section">
-          <h2>{t.lists.important}</h2>
-          {c.importantInformation.split('\n\n').map((p, i) => (
-            <p key={i}>{p}</p>
-          ))}
-        </section>
-      )}
-      {c.nearby.length > 0 && (
-        <section className="hotel-section">
-          <h2>{t.lists.nearby}</h2>
-          <ul>
-            {c.nearby.map((n) => (
-              <li key={n.name}>
-                {n.name}
-                {n.distanceKm !== null ? ` · ${t.lists.km(nf(n.distanceKm))}` : ''}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      {view.lists.length > 0 && (
-        <section className="hotel-section">
-          <h2>{t.lists.inLists}</h2>
-          <ul>
-            {view.lists.map((l) => (
-              <li key={l.cmsId}>
-                <a href={listPath(locale, l.slug)}>{l.title}</a>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+            </section>
+          )}
+          {c.facilities.length > 0 && (
+            <section className="hotel-section">
+              <h2>{t.lists.facilities}</h2>
+              <ul className="chips">
+                {c.facilities.map((f) => (
+                  <li key={f}>{f}</li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {(c.checkinTime || c.checkoutTime) && (
+            <section className="hotel-section">
+              <h2>{t.lists.times}</h2>
+              <p className="voucher-line">
+                <Clock />
+                {c.checkinTime && `${t.lists.checkin}: ${c.checkinTime}`}
+                {c.checkinTime && c.checkoutTime && ' · '}
+                {c.checkoutTime && `${t.lists.checkout}: ${c.checkoutTime}`}
+              </p>
+            </section>
+          )}
+          {c.importantInformation && (
+            <section className="hotel-section">
+              <h2>{t.lists.important}</h2>
+              {c.importantInformation.split('\n\n').map((p, i) => (
+                <p key={i}>{p}</p>
+              ))}
+            </section>
+          )}
+          {c.nearby.length > 0 && (
+            <section className="hotel-section">
+              <h2>{t.lists.nearby}</h2>
+              <ul>
+                {c.nearby.map((n) => (
+                  <li key={n.name}>
+                    {n.name}
+                    {n.distanceKm !== null ? ` · ${t.lists.km(nf(n.distanceKm))}` : ''}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {view.lists.length > 0 && (
+            <section className="hotel-section">
+              <h2>{t.lists.inLists}</h2>
+              <ul>
+                {view.lists.map((l) => (
+                  <li key={l.cmsId}>
+                    <a href={listPath(locale, l.slug)}>{l.title}</a>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
       </div>
       <p className="muted small">
         {t.lists.code}: <code>{view.hotelId}</code>

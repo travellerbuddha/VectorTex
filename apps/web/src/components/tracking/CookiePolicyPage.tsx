@@ -87,7 +87,8 @@ export async function CookiePolicyPage({ locale }: { locale: Locale }) {
         <section key={cat} aria-labelledby={`cookies-${cat}`}>
           <h2 id={`cookies-${cat}`}>{t.categories[cat].title}</h2>
           <p className="muted">{t.categories[cat].text}</p>
-          <div className="table-wrap">
+          {/* On narrow screens the table scrolls sideways; the region is focusable so it can be scrolled with keys. */}
+          <div className="table-wrap" tabIndex={0} role="region" aria-labelledby={`cookies-${cat}`}>
             <table data-testid={`cookies-${cat}`}>
               <thead>
                 <tr>
