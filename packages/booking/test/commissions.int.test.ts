@@ -174,8 +174,7 @@ describe('payouts recorded by finance (ADR-0019)', () => {
     await expect(app.commissions.recordPayout(finance, { ...req, receivedOn: '2027-02-30' })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
     await expect(app.commissions.recordPayout(finance, { ...req, amount: money('USD', 100n) })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
     await expect(app.commissions.recordPayout(finance, { ...req, commissionIds: [] })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
-    // Not earned yet (stay not over) or voided: cannot be settled.
-    await expect(app.commissions.recordPayout(finance, { ...req, commissionIds: [(await commission(orders.later!)).id] })).rejects.toMatchObject({ code: 'VERSION_CONFLICT' });
+    // A cancelled booking's commission (never paid) cannot be settled.
     await expect(app.commissions.recordPayout(finance, { ...req, commissionIds: [(await commission(orders.c!)).id] })).rejects.toMatchObject({ code: 'VERSION_CONFLICT' });
     // A difference needs a note.
     await expect(app.commissions.recordPayout(finance, { ...req, amount: money('EUR', BigInt(a.amount) - 50n) })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
@@ -224,6 +223,61 @@ describe('payouts recorded by finance (ADR-0019)', () => {
     expect(view.payouts).toEqual([
       expect.objectContaining({ reference: 'NUITEE-PAYOUT-2027-W24', count: 2, receivedOn: '2027-06-14', amount: { currency: 'EUR', minor: received.toString() }, difference: { currency: 'EUR', minor: '-125' }, recordedBy: 'staff:finance' }),
     ]);
-    expect(view.totals).toEqual(expect.arrayContaining([expect.objectContaining({ status: 'RECEIVED', count: 2, amount: { currency: 'EUR', minor: sum.toString() } }), expect.objectContaining({ status: 'VOIDED', count: 2 }), expect.objectContaining({ status: 'EARNED', count: 1 })]));
+    expect(view.totals).toEqual(expect.arrayContaining([expect.objectContaining({ bucket: 'RECEIVED', count: 2, amount: { currency: 'EUR', minor: sum.toString() } }), expect.objectContaining({ bucket: 'VOIDED', count: 2 }), expect.objectContaining({ bucket: 'EARNED', count: 1 })]));
+  });
+});
+
+describe('paid when Nuitee collects the payment, before the stay (ADR-0019 rev. 2)', () => {
+  it('an advance until the stay ends; a cancellation owes it back; a later payout nets it; earning moves the advance to revenue', async () => {
+    clock.now = new Date('2027-07-10T10:00:00Z');
+    const e = await book('idem-commission-0101', '2027-08-01', '2027-08-03');
+    const f = await book('idem-commission-0102', '2027-08-01', '2027-08-03');
+    const g = await book('idem-commission-0103', '2027-08-01', '2027-08-05');
+    const ce = await commission(e);
+    const cf = await commission(f);
+    const cg = await commission(g);
+    expect(BigInt(cg.amount)).toBeGreaterThan(BigInt(cf.amount));
+    const before = { advance: BigInt(await balance('liability:commission_received_in_advance:nuitee')), revenue: BigInt(await balance('revenue:provider_commission:nuitee')) };
+
+    // Nuitee pays the commissions of e and f right after collecting the payments: settled as an advance.
+    clock.now = new Date('2027-07-12T10:00:00Z');
+    const first = await app.commissions.recordPayout(finance, { providerId: 'nuitee', reference: 'NUITEE-2027-07-12', amount: money('EUR', BigInt(ce.amount) + BigInt(cf.amount)), receivedOn: '2027-07-12', commissionIds: [ce.id, cf.id] });
+    expect(first.difference).toEqual(money('EUR', 0n));
+    expect(await commission(e)).toMatchObject({ status: 'RECEIVED', earned_at: null });
+    expect(BigInt(await balance('liability:commission_received_in_advance:nuitee')) - before.advance).toBe(-(BigInt(ce.amount) + BigInt(cf.amount)));
+    expect(BigInt(await balance('revenue:provider_commission:nuitee'))).toBe(before.revenue); // not revenue yet
+    expect((await app.commissions.overview(finance)).totals).toEqual(expect.arrayContaining([expect.objectContaining({ bucket: 'RECEIVED_ADVANCE', count: 2 })]));
+
+    // f is cancelled before the stay: its commission is owed back.
+    expect((await app.staff.cancel(ops, f, 'Misafir planını değiştirdi', { customerAcceptedFee: true })).outcome).toBe('CANCELLED');
+    expect((await commission(f)).status).toBe('VOIDED');
+    expect(await balance('liability:commission_refund_due:nuitee')).toBe((-BigInt(cf.amount)).toString());
+    const due = await app.commissions.overview(finance, { view: 'REFUND_DUE' });
+    expect(due.rows.map((r) => r.orderId)).toEqual([f]);
+    expect(due.rows[0]).toMatchObject({ bucket: 'REFUND_DUE', payoutReference: 'NUITEE-2027-07-12', clawbackReference: null });
+
+    // The next payout pays g's commission minus f's: recorded with f netted, no difference.
+    clock.now = new Date('2027-07-19T10:00:00Z');
+    await expect(app.commissions.recordPayout(finance, { providerId: 'nuitee', reference: 'NUITEE-2027-07-19', amount: money('EUR', BigInt(cg.amount) - BigInt(cf.amount)), receivedOn: '2027-07-19', commissionIds: [cg.id], clawbackIds: [ce.id] })).rejects.toMatchObject({
+      code: 'VERSION_CONFLICT',
+    }); // e is not a cancelled commission
+    const second = await app.commissions.recordPayout(finance, { providerId: 'nuitee', reference: 'NUITEE-2027-07-19', amount: money('EUR', BigInt(cg.amount) - BigInt(cf.amount)), receivedOn: '2027-07-19', commissionIds: [cg.id], clawbackIds: [cf.id] });
+    expect(second).toMatchObject({ commissions: money('EUR', BigInt(cg.amount)), clawbacks: money('EUR', BigInt(cf.amount)), difference: money('EUR', 0n) });
+    expect(await balance('liability:commission_refund_due:nuitee')).toBe('0');
+    expect((await app.commissions.overview(finance, { view: 'REFUND_DUE' })).rows).toEqual([]);
+    expect((await app.commissions.overview(finance, { view: 'VOIDED' })).rows.find((r) => r.orderId === f)).toMatchObject({ clawbackReference: 'NUITEE-2027-07-19' });
+    expect((await app.commissions.overview(finance)).payouts.find((p) => p.reference === 'NUITEE-2027-07-19')).toMatchObject({ count: 1, clawbackCount: 1, difference: { currency: 'EUR', minor: '0' } });
+    // Netted once only.
+    await expect(app.commissions.recordPayout(finance, { providerId: 'nuitee', reference: 'NUITEE-2027-07-26', amount: money('EUR', 100n), receivedOn: '2027-07-19', note: 'deneme mahsubu', commissionIds: [], clawbackIds: [cf.id] })).rejects.toMatchObject({ code: 'VERSION_CONFLICT' });
+
+    // After the stays: e and g are earned — the advance becomes revenue; they stay RECEIVED.
+    clock.now = new Date('2027-08-06T09:00:00Z');
+    expect(await app.commissions.earnDue()).toMatchObject({ earned: 2, skipped: 0 });
+    expect(await commission(e)).toMatchObject({ status: 'RECEIVED' });
+    expect((await commission(e)).earned_at).not.toBeNull();
+    expect(BigInt(await balance('liability:commission_received_in_advance:nuitee'))).toBe(before.advance);
+    expect(BigInt(await balance('revenue:provider_commission:nuitee')) - before.revenue).toBe(-(BigInt(ce.amount) + BigInt(cg.amount)));
+    expect(await app.commissions.earnDue()).toMatchObject({ due: 0 });
+    expect(await unbalancedJournals()).toEqual([]);
   });
 });

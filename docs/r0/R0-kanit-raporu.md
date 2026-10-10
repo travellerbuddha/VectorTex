@@ -140,7 +140,7 @@ Kod etkisi: 2001 artık prebook için kesin red (yeniden arama) olarak sınıfla
 | `clientReference` ile sorgu | CONFIRMED, komisyon 138,27 EUR | — |
 | İptal | CANCELLED, ceza 0, iade 1.521,09 EUR (komisyon dahil tam tutar) | — |
 
-Sandbox gizli test kartı kullanıldığı için kart ekstresi görülemez: kartın komisyon dahil tutarla yüklendiği yanıttaki `price` alanından ve dokümandan çıkarılmıştır. Komisyonun haftalık payout ile check-out sonrası ödenmesi yalnız doküman kanıtıdır (production'da doğrulanacak; soru metni `saglayici-sorulari.md`).
+Sandbox gizli test kartı kullanıldığı için kart ekstresi görülemez: kartın komisyon dahil tutarla yüklendiği yanıttaki `price` alanından ve dokümandan çıkarılmıştır. Komisyonun haftalık payout ile check-out sonrası ödenmesi doküman kanıtıdır. Hesap sahibi ise Nuitee tahsilatlı satışta komisyonun, Nuitee müşterinin ödemesini aldığında hesaba geçtiğini bildirdi (2026-10-10). Sistem iki durumu da karşılar: ödeme konaklamadan önce gelirse peşin tahsil (avans) sayılır, konaklama bitince gelire geçer (ADR-0019, 2. sürüm). İptalde komisyonun geri alınma biçimi açık sorudur (`saglayici-sorulari.md` soru 24).
 
 ### 10.2 ADR-0008 akışı — Nuitee tahsilatlı ödeme (9 Ekim 2026)
 
