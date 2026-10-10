@@ -1,0 +1,19 @@
+{
+  "name": "@texholiday/booking",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Application services: hotel search, server-side quotes, provider-managed checkout and order status.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@texholiday/connectors": "workspace:*",
+    "@texholiday/contracts": "workspace:*",
+    "@texholiday/db": "workspace:*",
+    "@texholiday/domain": "workspace:*",
+    "@texholiday/pricing": "workspace:*",
+    "drizzle-orm": "0.45.2",
+    "zod": "4.6.5"
+  }
+}

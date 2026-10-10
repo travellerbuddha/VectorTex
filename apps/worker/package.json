@@ -1,0 +1,27 @@
+{
+  "name": "@texholiday/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Long-running worker: outbox relay, BullMQ consumers, reconciliation and recovery.",
+  "scripts": {
+    "start": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@texholiday/admin": "workspace:*",
+    "@texholiday/booking": "workspace:*",
+    "@texholiday/config": "workspace:*",
+    "@texholiday/connectors": "workspace:*",
+    "@texholiday/contracts": "workspace:*",
+    "@texholiday/db": "workspace:*",
+    "@texholiday/domain": "workspace:*",
+    "@texholiday/payments": "workspace:*",
+    "bullmq": "5.81.5",
+    "drizzle-orm": "0.45.2",
+    "ioredis": "5.11.1"
+  },
+  "devDependencies": {
+    "tsx": "4.20.6",
+    "pg": "8.20.0"
+  }
+}

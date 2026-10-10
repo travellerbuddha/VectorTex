@@ -1,0 +1,13 @@
+{
+  "name": "@texholiday/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Environment/config validation with production fail-fast.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "zod": "4.6.5"
+  }
+}
