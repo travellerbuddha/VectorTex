@@ -1,7 +1,9 @@
 import { isDomainError } from '@texholiday/contracts';
+import { Clock } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import { CheckoutForm } from '../../../../components/CheckoutForm';
 import { QuoteSummary } from '../../../../components/QuoteSummary';
+import { BookingSteps } from '../../../../components/ui/HotelBits';
 import { dict, type Locale } from '../../../../i18n/dictionaries';
 import { formatInstant } from '../../../../i18n/format';
 import { TrackEvent } from '../../../../components/tracking/TrackEvent';
@@ -27,6 +29,7 @@ export default async function Checkout({ params }: { params: Promise<{ locale: s
   return (
     <div className="page checkout">
       {!expired && <TrackEvent event="begin_checkout" params={quoteEcommerce(quote)} />}
+      <BookingSteps current="details" locale={locale} />
       <h1>{t.checkout.title}</h1>
       <div className="two-col">
         <QuoteSummary quote={quote} locale={locale} />
@@ -37,7 +40,10 @@ export default async function Checkout({ params }: { params: Promise<{ locale: s
             </p>
           ) : (
             <>
-              <p className="muted">{t.checkout.expiresAt(formatInstant(quote.expiresAt, locale))}</p>
+              <p className="hold-note">
+                <Clock />
+                {t.checkout.expiresAt(formatInstant(quote.expiresAt, locale))}
+              </p>
               <CheckoutForm locale={locale} quoteVersionId={quote.quoteVersionId} termsVersion={quote.termsVersion} roomNumbers={quote.rooms.map((r) => r.occupancyNumber)} />
             </>
           )}

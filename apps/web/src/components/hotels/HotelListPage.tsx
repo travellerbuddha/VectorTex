@@ -12,6 +12,8 @@ import { cmsMetadata, PreviewBanner } from '../cms/CmsPage';
 import { TrackEvent } from '../tracking/TrackEvent';
 import { listEcommerce } from '../../server/analytics';
 import { RichText } from '../cms/RichText';
+import { HotelMedia, Stars } from '../ui/HotelBits';
+import { MapPin } from 'lucide-react';
 
 /**
  * Hotel list page (ADR-0014): editor text from the CMS, hotels and prices from the core copy of the published list.
@@ -122,17 +124,19 @@ export async function HotelListPage({ locale, slug }: { locale: Locale; slug: st
         <ol className="hotel-cards" data-testid="hotel-cards">
           {hotels.map((h) => (
             <li key={h.hotelId} className="card hotel-card">
-              {h.image && (
-                // eslint-disable-next-line @next/next/no-img-element -- provider images are https-only; no host allow-list
-                <img src={h.image} alt={h.name} loading="lazy" className="hotel-photo" />
-              )}
+              <HotelMedia hotelId={h.hotelId} photo={h.image} />
               <div className="hotel-body">
                 <h2>
                   <a href={hotelPath(locale, h.slug)}>{h.name}</a>
                 </h2>
-                <p className="muted">
-                  {h.stars ? `${'★'.repeat(Math.round(h.stars))} ${t.lists.stars(Math.round(h.stars))}` : ''}
-                  {h.city ? `${h.stars ? ' · ' : ''}${h.city}` : ''}
+                <p className="hotel-meta">
+                  <Stars stars={h.stars} locale={locale} />
+                  {h.city && (
+                    <span className="hotel-where">
+                      <MapPin />
+                      {h.city}
+                    </span>
+                  )}
                 </p>
                 {h.rating !== null && h.reviewCount !== null && h.reviewCount > 0 && <p className="muted small">{t.lists.rating(h.rating.toLocaleString(locale === 'tr' ? 'tr-TR' : 'en-GB'), h.reviewCount.toLocaleString(locale === 'tr' ? 'tr-TR' : 'en-GB'))}</p>}
                 {h.facilities.length > 0 && (
@@ -175,6 +179,22 @@ export async function HotelListPage({ locale, slug }: { locale: Locale; slug: st
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbList(origin(), crumbs)) }} />
     </div>
   );
+}
+
+/** The newest published lists for the home page, with their cover image; empty without the CMS or on a CMS error. */
+export async function featuredLists(locale: Locale, limit: number): Promise<Array<{ title: string; slug: string; intro: string | null; image: { url: string; alt: string | null } | null }>> {
+  if (!cmsEnabled()) return [];
+  try {
+    const payload = await cms();
+    const res = await payload.find({ collection: 'hotel-lists', locale, fallbackLocale: false, depth: 1, limit, sort: '-updatedAt', overrideAccess: false, select: { title: true, slug: true, intro: true, heroImage: true } });
+    return (res.docs as Array<{ title?: string; slug?: string; intro?: string | null; heroImage?: Media }>).flatMap((d) =>
+      d.title && d.slug
+        ? [{ title: d.title, slug: d.slug, intro: d.intro ?? null, image: d.heroImage && typeof d.heroImage === 'object' && d.heroImage.url ? { url: d.heroImage.url, alt: d.heroImage.alt ?? null } : null }]
+        : [],
+    );
+  } catch {
+    return [];
+  }
 }
 
 /** /tr/oteller and /en/hotels: every published list in the language. */

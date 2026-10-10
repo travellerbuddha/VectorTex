@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { ArrowRight, CalendarDays, Mail } from 'lucide-react';
 import { dict, type Locale } from '../../i18n/dictionaries';
 import { formatDate, formatInstant, formatMoney } from '../../i18n/format';
 import { customerSignOutAction, requestCodeAction, restartSignInAction, verifyCodeAction } from '../../server/account-actions';
@@ -17,6 +18,7 @@ export async function AccountPage({ locale, state }: { locale: Locale; state: st
         <h1>{t.title}</h1>
         <form action={customerSignOutAction} className="account-who">
           <input type="hidden" name="locale" value={locale} />
+          <Mail />
           <span>{t.signedInAs(signedIn.email)}</span>{' '}
           <button type="submit" className="secondary small">
             {t.signOut}
@@ -27,26 +29,35 @@ export async function AccountPage({ locale, state }: { locale: Locale; state: st
         ) : (
           <ul className="account-orders" data-testid="account-orders">
             {signedIn.orders.map((o) => (
-              <li key={o.id} className="card">
-                <h2>{o.title ?? t.order}</h2>
-                <p>
-                  {o.checkin && o.checkout ? `${formatDate(o.checkin, locale)} → ${formatDate(o.checkout, locale)}` : o.checkin ? formatDate(o.checkin, locale) : ''}
-                </p>
-                <p>
-                  <strong>{formatMoney(o.total, locale)}</strong> · {t.statuses[o.status] ?? o.status}
-                  {o.providerBookingRef ? (
-                    <>
-                      {' '}
-                      · {t.reference}: {o.providerBookingRef}
-                    </>
-                  ) : null}
-                </p>
-                <p className="muted small">
-                  {t.created}: {formatInstant(o.createdAt, locale)}
-                </p>
-                <a className="button" href={`/${locale}/orders/${o.id}`}>
-                  {t.open}
-                </a>
+              <li key={o.id} className="offer account-order">
+                <div className="offer-info">
+                  <h2>{o.title ?? t.order}</h2>
+                  {o.checkin && (
+                    <p className="voucher-line">
+                      <CalendarDays />
+                      <span>{o.checkout ? `${formatDate(o.checkin, locale)} → ${formatDate(o.checkout, locale)}` : formatDate(o.checkin, locale)}</span>
+                    </p>
+                  )}
+                  <p>
+                    <span className={`tag${o.status === 'CONFIRMED' ? ' ok' : o.status === 'CANCELLED' ? ' warn' : ''}`}>{t.statuses[o.status] ?? o.status}</span>
+                    {o.providerBookingRef ? (
+                      <span className="muted small">
+                        {' '}
+                        · {t.reference}: {o.providerBookingRef}
+                      </span>
+                    ) : null}
+                  </p>
+                  <p className="muted small">
+                    {t.created}: {formatInstant(o.createdAt, locale)}
+                  </p>
+                </div>
+                <div className="price">
+                  <strong>{formatMoney(o.total, locale)}</strong>
+                  <a className="button" href={`/${locale}/orders/${o.id}`}>
+                    {t.open}
+                    <ArrowRight />
+                  </a>
+                </div>
               </li>
             ))}
           </ul>

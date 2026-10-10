@@ -3,6 +3,7 @@ import { LanguageSwitch, PanelNav } from '../../../components/admin/PanelNav';
 import { adminDict, adminLocale } from '../../../i18n/admin';
 import { requireStaff } from '../../../server/admin';
 import { signOutAction } from '../actions';
+import { BrandMark } from '../../../components/ui/Art';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     <div className="panel">
       <header className="panel-head">
         <a className="admin-brand" href="/yonetim">
+          <BrandMark size={28} />
           {t.brand}
         </a>
         <a className="who" data-testid="staff-name" href="/yonetim/hesap" title={t.nav.account}>

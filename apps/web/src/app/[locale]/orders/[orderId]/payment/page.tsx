@@ -1,9 +1,11 @@
 import { isDomainError } from '@texholiday/contracts';
+import { Clock, ShieldCheck } from 'lucide-react';
 import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { MockPayment } from '../../../../../components/MockPayment';
 import { NuiteePayment } from '../../../../../components/NuiteePayment';
 import { OrderQuoteSummary } from '../../../../../components/QuoteSummary';
+import { BookingSteps } from '../../../../../components/ui/HotelBits';
 import { dict, type Locale } from '../../../../../i18n/dictionaries';
 import { formatInstant } from '../../../../../i18n/format';
 import { TrackEvent } from '../../../../../components/tracking/TrackEvent';
@@ -35,6 +37,7 @@ export default async function Payment({ params }: { params: Promise<{ locale: st
   return (
     <div className="page payment">
       {session.state === 'READY' && <TrackEvent event="add_payment_info" params={{ ...quoteEcommerce(order.quote), payment_type: 'card' }} once={`pay_${orderId}`} />}
+      <BookingSteps current="payment" locale={locale} product={order.quote.product} />
       <h1>{t.payment.title}</h1>
       <div className="two-col">
         <OrderQuoteSummary quote={order.quote} locale={locale} />
@@ -46,8 +49,16 @@ export default async function Payment({ params }: { params: Promise<{ locale: st
           )}
           {session.state === 'READY' && (
             <>
-              {session.payBy && <p className="muted">{t.payment.payBy(formatInstant(session.payBy, locale))}</p>}
-              <p>{t.payment.secure}</p>
+              {session.payBy && (
+                <p className="hold-note">
+                  <Clock />
+                  {t.payment.payBy(formatInstant(session.payBy, locale))}
+                </p>
+              )}
+              <p className="secure-note">
+                <ShieldCheck />
+                <span>{t.payment.secure}</span>
+              </p>
               {session.publicKey === 'mock' ? (
                 <MockPayment locale={locale} orderId={orderId} returnUrl={returnUrl} />
               ) : (

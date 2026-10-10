@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { CalendarDays, MapPin, Plus, Search, Users } from 'lucide-react';
 import { dict, errorMessage, type Locale } from '../i18n/dictionaries';
 import { boardLabel } from '../i18n/format';
 import { api, ApiError } from './api';
@@ -107,111 +108,118 @@ export function SearchForm({
   if (currencies.length === 0) return <p className="notice">{t.search.noCurrency}</p>;
 
   return (
-    <form className="card search" onSubmit={submit} noValidate aria-describedby={error ? 'search-error' : undefined}>
-      <div className="field combo">
-        <label htmlFor={ids.dest}>{t.search.destination}</label>
-        <input
-          id={ids.dest}
-          role="combobox"
-          aria-autocomplete="list"
-          aria-expanded={suggestions.length > 0}
-          aria-controls={ids.list}
-          aria-describedby={ids.hint}
-          aria-activedescendant={active >= 0 ? `${ids.list}-${active}` : undefined}
-          autoComplete="off"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setPlace(null);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowDown') {
-              e.preventDefault();
-              setActive((a) => Math.min(a + 1, suggestions.length - 1));
-            } else if (e.key === 'ArrowUp') {
-              e.preventDefault();
-              setActive((a) => Math.max(a - 1, 0));
-            } else if (e.key === 'Enter' && active >= 0 && suggestions[active]) {
-              e.preventDefault();
-              choose(suggestions[active]!);
-            } else if (e.key === 'Escape') setSuggestions([]);
-          }}
-          required
-        />
-        <small id={ids.hint}>{t.search.destinationHint}</small>
-        {suggestions.length > 0 && (
-          <ul id={ids.list} role="listbox" className="suggestions">
-            {suggestions.map((s, i) => (
-              <li key={s.placeId} id={`${ids.list}-${i}`} role="option" aria-selected={i === active} onMouseDown={(e) => e.preventDefault()} onClick={() => choose(s)}>
-                <strong>{s.name}</strong>
-                <span>{s.address}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div className="row">
-        <div className="field">
-          <label htmlFor="checkin">{t.search.checkin}</label>
-          <input id="checkin" type="date" value={checkin} min={today} onChange={(e) => setCheckin(e.target.value)} required />
+    <form className="card search search-card" onSubmit={submit} noValidate aria-describedby={error ? 'search-error' : undefined}>
+      <div className="search-main">
+        <div className="field combo seg seg-dest">
+          <label htmlFor={ids.dest}>
+            <MapPin />
+            {t.search.destination}
+          </label>
+          <input
+            id={ids.dest}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={suggestions.length > 0}
+            aria-controls={ids.list}
+            aria-describedby={ids.hint}
+            aria-activedescendant={active >= 0 ? `${ids.list}-${active}` : undefined}
+            autoComplete="off"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPlace(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setActive((a) => Math.min(a + 1, suggestions.length - 1));
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setActive((a) => Math.max(a - 1, 0));
+              } else if (e.key === 'Enter' && active >= 0 && suggestions[active]) {
+                e.preventDefault();
+                choose(suggestions[active]!);
+              } else if (e.key === 'Escape') setSuggestions([]);
+            }}
+            required
+          />
+          <small id={ids.hint}>{t.search.destinationHint}</small>
+          {suggestions.length > 0 && (
+            <ul id={ids.list} role="listbox" className="suggestions">
+              {suggestions.map((s, i) => (
+                <li key={s.placeId} id={`${ids.list}-${i}`} role="option" aria-selected={i === active} onMouseDown={(e) => e.preventDefault()} onClick={() => choose(s)}>
+                  <strong>{s.name}</strong>
+                  <span>{s.address}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-        <div className="field">
-          <label htmlFor="checkout">{t.search.checkout}</label>
-          <input id="checkout" type="date" value={checkout} min={checkin} onChange={(e) => setCheckout(e.target.value)} required />
+        <div className="seg-dates">
+          <div className="field seg">
+            <label htmlFor="checkin">
+              <CalendarDays />
+              {t.search.checkin}
+            </label>
+            <input id="checkin" type="date" value={checkin} min={today} onChange={(e) => setCheckin(e.target.value)} required />
+          </div>
+          <div className="field seg">
+            <label htmlFor="checkout">
+              <CalendarDays />
+              {t.search.checkout}
+            </label>
+            <input id="checkout" type="date" value={checkout} min={checkin} onChange={(e) => setCheckout(e.target.value)} required />
+          </div>
         </div>
       </div>
 
       <fieldset className="rooms">
-        <legend>{t.search.rooms}</legend>
+        <legend>
+          <Users />
+          {t.search.rooms}
+        </legend>
         {rooms.map((room, i) => (
           <div className="room" key={i}>
             <span className="room-title">
               {t.search.room} {i + 1}
             </span>
-            <div className="row">
-              <div className="field">
-                <label htmlFor={`adults-${i}`}>{t.search.adults}</label>
-                <select id={`adults-${i}`} value={room.adults} onChange={(e) => updateRoom(i, { adults: Number(e.target.value) })}>
-                  {[1, 2, 3, 4, 5, 6].map((n) => (
-                    <option key={n}>{n}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="field">
-                <label htmlFor={`children-${i}`}>{t.search.children}</label>
-                <select
-                  id={`children-${i}`}
-                  value={room.childAges.length}
-                  onChange={(e) => {
-                    const n = Number(e.target.value);
-                    updateRoom(i, { childAges: Array.from({ length: n }, (_, k) => room.childAges[k] ?? 8) });
-                  }}
-                >
-                  {[0, 1, 2, 3, 4].map((n) => (
-                    <option key={n}>{n}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            {room.childAges.length > 0 && (
-              <div className="row wrap">
-                {room.childAges.map((age, k) => (
-                  <div className="field small" key={k}>
-                    <label htmlFor={`age-${i}-${k}`}>
-                      {t.search.childAge} {k + 1}
-                    </label>
-                    <select id={`age-${i}-${k}`} value={age} onChange={(e) => updateRoom(i, { childAges: room.childAges.map((a, m) => (m === k ? Number(e.target.value) : a)) })}>
-                      {Array.from({ length: 18 }, (_, n) => (
-                        <option key={n} value={n}>
-                          {n}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+            <div className="field">
+              <label htmlFor={`adults-${i}`}>{t.search.adults}</label>
+              <select id={`adults-${i}`} value={room.adults} onChange={(e) => updateRoom(i, { adults: Number(e.target.value) })}>
+                {[1, 2, 3, 4, 5, 6].map((n) => (
+                  <option key={n}>{n}</option>
                 ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor={`children-${i}`}>{t.search.children}</label>
+              <select
+                id={`children-${i}`}
+                value={room.childAges.length}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  updateRoom(i, { childAges: Array.from({ length: n }, (_, k) => room.childAges[k] ?? 8) });
+                }}
+              >
+                {[0, 1, 2, 3, 4].map((n) => (
+                  <option key={n}>{n}</option>
+                ))}
+              </select>
+            </div>
+            {room.childAges.map((age, k) => (
+              <div className="field small" key={k}>
+                <label htmlFor={`age-${i}-${k}`}>
+                  {t.search.childAge} {k + 1}
+                </label>
+                <select id={`age-${i}-${k}`} value={age} onChange={(e) => updateRoom(i, { childAges: room.childAges.map((a, m) => (m === k ? Number(e.target.value) : a)) })}>
+                  {Array.from({ length: 18 }, (_, n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
               </div>
-            )}
+            ))}
             {rooms.length > 1 && (
               <button type="button" className="link" onClick={() => setRooms(rooms.filter((_, j) => j !== i))}>
                 {t.search.removeRoom}
@@ -220,13 +228,19 @@ export function SearchForm({
           </div>
         ))}
         {rooms.length < 5 && (
-          <button type="button" className="secondary" onClick={() => setRooms([...rooms, { adults: 2, childAges: [] }])}>
+          <button type="button" className="secondary small add-room" onClick={() => setRooms([...rooms, { adults: 2, childAges: [] }])}>
+            <Plus />
             {t.search.addRoom}
           </button>
         )}
       </fieldset>
+      {initial?.boardType && (
+        <label className="check">
+          <input type="checkbox" checked={boardType !== null} onChange={(e) => setBoardType(e.target.checked ? (initial.boardType ?? null) : null)} /> {t.search.onlyBoard(boardLabel(initial.boardType, null, locale) ?? initial.boardType)}
+        </label>
+      )}
 
-      <div className="row">
+      <div className="search-foot">
         <div className="field">
           <label htmlFor={ids.nat}>{t.search.nationality}</label>
           <select id={ids.nat} value={nationality} onChange={(e) => setNationality(e.target.value)} aria-describedby="nat-hint">
@@ -246,21 +260,16 @@ export function SearchForm({
             ))}
           </select>
         </div>
+        <button type="submit" className="primary search-submit" disabled={busy}>
+          <Search />
+          {busy ? t.search.searching : t.search.submit}
+        </button>
+        {error && (
+          <p id="search-error" className="error" role="alert">
+            {error}
+          </p>
+        )}
       </div>
-
-      {initial?.boardType && (
-        <label className="check">
-          <input type="checkbox" checked={boardType !== null} onChange={(e) => setBoardType(e.target.checked ? (initial.boardType ?? null) : null)} /> {t.search.onlyBoard(boardLabel(initial.boardType, null, locale) ?? initial.boardType)}
-        </label>
-      )}
-      {error && (
-        <p id="search-error" className="error" role="alert">
-          {error}
-        </p>
-      )}
-      <button type="submit" className="primary" disabled={busy}>
-        {busy ? t.search.searching : t.search.submit}
-      </button>
     </form>
   );
 }

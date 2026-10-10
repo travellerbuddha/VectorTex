@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { CalendarDays, PlaneLanding, PlaneTakeoff, Search, Users } from 'lucide-react';
 import { dict, errorMessage, type Locale } from '../i18n/dictionaries';
 import { api, ApiError } from './api';
 
@@ -16,7 +17,7 @@ const addDays = (isoDate: string, n: number) => new Date(Date.parse(`${isoDate}T
 const airportLabel = (a: Airport) => `${a.city ?? a.name} (${a.iata})`;
 
 /** Airport combobox on the provider's airport search; the IATA code of a picked suggestion is what is searched. */
-function AirportField({ label, hint, value, onChange }: { label: string; hint: string; value: Airport | null; onChange: (a: Airport | null) => void }) {
+function AirportField({ label, hint, value, onChange, icon }: { label: string; hint: string; value: Airport | null; onChange: (a: Airport | null) => void; icon?: React.ReactNode }) {
   const ids = { input: useId(), list: useId(), hint: useId() };
   const [query, setQuery] = useState(value ? airportLabel(value) : '');
   const [suggestions, setSuggestions] = useState<Airport[]>([]);
@@ -48,8 +49,11 @@ function AirportField({ label, hint, value, onChange }: { label: string; hint: s
   };
 
   return (
-    <div className="field combo">
-      <label htmlFor={ids.input}>{label}</label>
+    <div className="field combo seg">
+      <label htmlFor={ids.input}>
+        {icon}
+        {label}
+      </label>
       <input
         id={ids.input}
         role="combobox"
@@ -160,7 +164,7 @@ export function FlightSearchForm({ locale, currencies, today, initial }: { local
   );
 
   return (
-    <form className="card search" onSubmit={submit} noValidate aria-describedby={error ? 'flight-search-error' : undefined}>
+    <form className="card search search-card flight-search" onSubmit={submit} noValidate aria-describedby={error ? 'flight-search-error' : undefined}>
       <fieldset className="trip-type">
         <legend className="visually-hidden">{f.roundTrip}</legend>
         <label className="check">
@@ -170,23 +174,33 @@ export function FlightSearchForm({ locale, currencies, today, initial }: { local
           <input type="radio" name="trip" checked={!roundTrip} onChange={() => setRoundTrip(false)} /> {f.oneWay}
         </label>
       </fieldset>
-      <div className="row">
-        <AirportField label={f.from} hint={f.airportHint} value={origin} onChange={setOrigin} />
-        <AirportField label={f.to} hint={f.airportHint} value={destination} onChange={setDestination} />
-      </div>
-      <div className="row">
-        <div className="field">
-          <label htmlFor="depart">{f.depart}</label>
-          <input id="depart" type="date" value={departDate} min={today} onChange={(e) => setDepartDate(e.target.value)} required />
-        </div>
-        {roundTrip && (
-          <div className="field">
-            <label htmlFor="return">{f.return}</label>
-            <input id="return" type="date" value={returnDate} min={departDate} onChange={(e) => setReturnDate(e.target.value)} required />
+      <div className="search-main flight-main">
+        <AirportField label={f.from} hint={f.airportHint} value={origin} onChange={setOrigin} icon={<PlaneTakeoff />} />
+        <AirportField label={f.to} hint={f.airportHint} value={destination} onChange={setDestination} icon={<PlaneLanding />} />
+        <div className="seg-dates">
+          <div className="field seg">
+            <label htmlFor="depart">
+              <CalendarDays />
+              {f.depart}
+            </label>
+            <input id="depart" type="date" value={departDate} min={today} onChange={(e) => setDepartDate(e.target.value)} required />
           </div>
-        )}
+          {roundTrip && (
+            <div className="field seg">
+              <label htmlFor="return">
+                <CalendarDays />
+                {f.return}
+              </label>
+              <input id="return" type="date" value={returnDate} min={departDate} onChange={(e) => setReturnDate(e.target.value)} required />
+            </div>
+          )}
+        </div>
       </div>
-      <div className="row">
+      <p className="pax-title">
+        <Users />
+        {f.passengers}
+      </p>
+      <div className="row row3">
         {count(f.adults, 'adults', adults, 9, 1, (n) => {
           setAdults(n);
           setInfantAges(infantAges.slice(0, n));
@@ -222,7 +236,7 @@ export function FlightSearchForm({ locale, currencies, today, initial }: { local
           ))}
         </div>
       )}
-      <div className="row">
+      <div className="search-foot">
         <div className="field">
           <label htmlFor="cabin">{f.cabin}</label>
           <select id="cabin" value={cabin} onChange={(e) => setCabin(e.target.value)}>
@@ -242,15 +256,16 @@ export function FlightSearchForm({ locale, currencies, today, initial }: { local
             ))}
           </select>
         </div>
+        <button type="submit" className="primary search-submit" disabled={busy}>
+          <Search />
+          {busy ? t.search.searching : t.search.submit}
+        </button>
+        {error && (
+          <p id="flight-search-error" className="error" role="alert">
+            {error}
+          </p>
+        )}
       </div>
-      {error && (
-        <p id="flight-search-error" className="error" role="alert">
-          {error}
-        </p>
-      )}
-      <button type="submit" className="primary" disabled={busy}>
-        {busy ? t.search.searching : t.search.submit}
-      </button>
     </form>
   );
 }

@@ -112,6 +112,7 @@ MOCK biçiminde, sırayla:
 1. **Arama.**
    - http://localhost:3000/tr adresinde "Nereye?" kutusuna `Antalya` yazın ve listeden **Antalya (MOCK)** seçin.
    - Tarih ve kişi seçip **Ara**'ya basın.
+   - Sonuç sayfasında **Filtrele ve sırala** ile ücretsiz iptal, pansiyon ve yıldıza göre daraltıp fiyata ya da puana göre sıralayın, sonra **Uygula**'ya basın. Telefonda bu bölüm başlığına dokununca açılır. Filtreler yalnız gelen sonuçları daraltır; fiyat değişmez.
 2. **Teklif seçimi.** "MOCK Kaleiçi Boutique – MOCK Superior Double" için **Seç**'e basın. Bu teklif ücretsiz iptallidir.
 3. **Rezervasyon formu.**
    - Ad, soyad, e-posta (ör. `deneme@ornek.test`) ve telefonu (`+905321112233`) girin.

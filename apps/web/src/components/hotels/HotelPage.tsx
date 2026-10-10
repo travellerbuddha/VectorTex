@@ -10,6 +10,9 @@ import { TrackEvent } from '../tracking/TrackEvent';
 import { booking } from '../../server/booking';
 import { breadcrumbList, hotelPage as hotelMarkup, jsonLd } from '../../server/structured-data';
 import { SearchForm } from '../SearchForm';
+import { HotelArt } from '../ui/Art';
+import { RatingBadge, Stars } from '../ui/HotelBits';
+import { Clock, MapPin } from 'lucide-react';
 import { hotelPath, hubPath, listPath, PriceBlock } from './HotelListPage';
 
 /**
@@ -56,6 +59,9 @@ export async function hotelMetadata(locale: Locale, slug: string, searchParams: 
     robots: noindex ? { index: false, follow: true } : undefined,
   };
 }
+
+/** Photos shown in the mosaic: 1, 2, 3 or 5 (a layout without holes). */
+const galleryCount = (n: number) => (n >= 5 ? 5 : n >= 3 ? 3 : n);
 
 export async function HotelPage({ locale, slug, searchParams }: { locale: Locale; slug: string; searchParams: Record<string, string | undefined> }) {
   if (slug !== slug.toLowerCase()) permanentRedirect(hotelPath(locale, slug.toLowerCase()));
@@ -111,114 +117,133 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
       </nav>
       <header>
         <h1>{c.name}</h1>
-        <p className="muted">
-          {c.stars ? `${'★'.repeat(Math.round(c.stars))} ${t.lists.stars(Math.round(c.stars))} · ` : ''}
-          {c.address}
+        <p className="hotel-meta">
+          <Stars stars={c.stars} locale={locale} />
+          {c.address && (
+            <span className="hotel-where">
+              <MapPin />
+              {c.address}
+            </span>
+          )}
         </p>
-        {c.rating !== null && c.reviewCount !== null && c.reviewCount > 0 && <p className="muted small">{t.lists.rating(nf(c.rating), nf(c.reviewCount))}</p>}
+        {c.rating !== null && c.reviewCount !== null && c.reviewCount > 0 && (
+          <>
+            <RatingBadge rating={c.rating} reviews={c.reviewCount} locale={locale} />
+            <p className="muted small">{t.lists.rating(nf(c.rating), nf(c.reviewCount))}</p>
+          </>
+        )}
       </header>
-      {c.images.length > 0 && (
-        <ul className="gallery" aria-label={c.name}>
-          {c.images.slice(0, 8).map((img, i) => (
+      {c.images.length > 0 ? (
+        <ul className={`gallery gallery-${galleryCount(c.images.length)}`} aria-label={c.name}>
+          {c.images.slice(0, galleryCount(c.images.length)).map((img, i) => (
             <li key={img.url}>
               {/* eslint-disable-next-line @next/next/no-img-element -- provider images are https-only; no host allow-list */}
               <img src={img.url} alt={img.caption ?? c.name} loading={i === 0 ? 'eager' : 'lazy'} />
             </li>
           ))}
         </ul>
+      ) : (
+        <div className="hotel-art-hero">
+          <HotelArt seed={view.hotelId} />
+        </div>
       )}
-      <section className="card book-box" aria-labelledby="book-title">
-        <h2 id="book-title">{t.lists.bookTitle}</h2>
-        {view.price && (
-          <>
-            <PriceBlock price={view.price} locale={locale} />
-            <p className="muted small">{t.lists.asOf(formatInstant(view.price.asOf, locale))}</p>
-          </>
-        )}
-        <SearchForm
-          locale={locale}
-          currencies={currencies}
-          countries={countryOptions(locale)}
-          today={today}
-          initial={{
-            place: { placeId: `hotel:${view.hotelId}`, hotelId: view.hotelId, name: c.name, address: c.address ?? '' },
-            checkin,
-            checkout: addDays(checkin, 1),
-            rooms: [{ adults: 2, childAges: [] }],
-            ...(view.nationality ? { nationality: view.nationality } : {}),
-            ...(view.currency ? { currency: view.currency } : {}),
-            boardType: board,
-          }}
-        />
-        {board && <p className="muted small">{boardLabel(board, null, locale)}</p>}
-      </section>
-      {c.description && (
-        <section className="hotel-text">
-          {c.description.split('\n\n').map((p, i) => (
-            <p key={i}>
-              {p.split('\n').map((line, j) => (
-                <span key={j}>
-                  {j > 0 && <br />}
-                  {line}
-                </span>
+      <div className="hotel-page-layout">
+        <section className="card book-box" aria-labelledby="book-title">
+          <h2 id="book-title">{t.lists.bookTitle}</h2>
+          {view.price && (
+            <>
+              <PriceBlock price={view.price} locale={locale} />
+              <p className="muted small">{t.lists.asOf(formatInstant(view.price.asOf, locale))}</p>
+            </>
+          )}
+          <SearchForm
+            locale={locale}
+            currencies={currencies}
+            countries={countryOptions(locale)}
+            today={today}
+            initial={{
+              place: { placeId: `hotel:${view.hotelId}`, hotelId: view.hotelId, name: c.name, address: c.address ?? '' },
+              checkin,
+              checkout: addDays(checkin, 1),
+              rooms: [{ adults: 2, childAges: [] }],
+              ...(view.nationality ? { nationality: view.nationality } : {}),
+              ...(view.currency ? { currency: view.currency } : {}),
+              boardType: board,
+            }}
+          />
+          {board && <p className="muted small">{boardLabel(board, null, locale)}</p>}
+        </section>
+        <div className="hotel-main">
+          {c.description && (
+            <section className="hotel-text hotel-section">
+              {c.description.split('\n\n').map((p, i) => (
+                <p key={i}>
+                  {p.split('\n').map((line, j) => (
+                    <span key={j}>
+                      {j > 0 && <br />}
+                      {line}
+                    </span>
+                  ))}
+                </p>
               ))}
-            </p>
-          ))}
-        </section>
-      )}
-      {c.facilities.length > 0 && (
-        <section>
-          <h2>{t.lists.facilities}</h2>
-          <ul className="chips">
-            {c.facilities.map((f) => (
-              <li key={f}>{f}</li>
-            ))}
-          </ul>
-        </section>
-      )}
-      {(c.checkinTime || c.checkoutTime) && (
-        <section>
-          <h2>{t.lists.times}</h2>
-          <p>
-            {c.checkinTime && `${t.lists.checkin}: ${c.checkinTime}`}
-            {c.checkinTime && c.checkoutTime && ' · '}
-            {c.checkoutTime && `${t.lists.checkout}: ${c.checkoutTime}`}
-          </p>
-        </section>
-      )}
-      {c.importantInformation && (
-        <section>
-          <h2>{t.lists.important}</h2>
-          {c.importantInformation.split('\n\n').map((p, i) => (
-            <p key={i}>{p}</p>
-          ))}
-        </section>
-      )}
-      {c.nearby.length > 0 && (
-        <section>
-          <h2>{t.lists.nearby}</h2>
-          <ul>
-            {c.nearby.map((n) => (
-              <li key={n.name}>
-                {n.name}
-                {n.distanceKm !== null ? ` · ${t.lists.km(nf(n.distanceKm))}` : ''}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      {view.lists.length > 0 && (
-        <section>
-          <h2>{t.lists.inLists}</h2>
-          <ul>
-            {view.lists.map((l) => (
-              <li key={l.cmsId}>
-                <a href={listPath(locale, l.slug)}>{l.title}</a>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+            </section>
+          )}
+          {c.facilities.length > 0 && (
+            <section className="hotel-section">
+              <h2>{t.lists.facilities}</h2>
+              <ul className="chips">
+                {c.facilities.map((f) => (
+                  <li key={f}>{f}</li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {(c.checkinTime || c.checkoutTime) && (
+            <section className="hotel-section">
+              <h2>{t.lists.times}</h2>
+              <p className="voucher-line">
+                <Clock />
+                {c.checkinTime && `${t.lists.checkin}: ${c.checkinTime}`}
+                {c.checkinTime && c.checkoutTime && ' · '}
+                {c.checkoutTime && `${t.lists.checkout}: ${c.checkoutTime}`}
+              </p>
+            </section>
+          )}
+          {c.importantInformation && (
+            <section className="hotel-section">
+              <h2>{t.lists.important}</h2>
+              {c.importantInformation.split('\n\n').map((p, i) => (
+                <p key={i}>{p}</p>
+              ))}
+            </section>
+          )}
+          {c.nearby.length > 0 && (
+            <section className="hotel-section">
+              <h2>{t.lists.nearby}</h2>
+              <ul>
+                {c.nearby.map((n) => (
+                  <li key={n.name}>
+                    {n.name}
+                    {n.distanceKm !== null ? ` · ${t.lists.km(nf(n.distanceKm))}` : ''}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {view.lists.length > 0 && (
+            <section className="hotel-section">
+              <h2>{t.lists.inLists}</h2>
+              <ul>
+                {view.lists.map((l) => (
+                  <li key={l.cmsId}>
+                    <a href={listPath(locale, l.slug)}>{l.title}</a>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+      </div>
       <p className="muted small">
         {t.lists.code}: <code>{view.hotelId}</code>
       </p>

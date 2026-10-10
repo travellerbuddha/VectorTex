@@ -1,7 +1,9 @@
 import { isDomainError } from '@texholiday/contracts';
+import { Clock } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import { FlightCheckoutForm } from '../../../../../components/FlightCheckoutForm';
 import { FlightQuoteSummary } from '../../../../../components/FlightQuoteSummary';
+import { BookingSteps } from '../../../../../components/ui/HotelBits';
 import { countryOptions } from '../../../../../i18n/countries';
 import { dict, type Locale } from '../../../../../i18n/dictionaries';
 import { formatInstant } from '../../../../../i18n/format';
@@ -26,6 +28,7 @@ export default async function FlightCheckout({ params }: { params: Promise<{ loc
   const expired = new Date(quote.expiresAt).getTime() <= Date.now();
   return (
     <div className="page checkout">
+      <BookingSteps current="details" locale={locale} product="FLIGHT" />
       <h1>{t.flight.checkoutTitle}</h1>
       <div className="two-col">
         <FlightQuoteSummary quote={quote} locale={locale} />
@@ -36,7 +39,10 @@ export default async function FlightCheckout({ params }: { params: Promise<{ loc
             </p>
           ) : (
             <>
-              <p className="muted">{t.checkout.expiresAt(formatInstant(quote.expiresAt, locale))}</p>
+              <p className="hold-note">
+                <Clock />
+                {t.checkout.expiresAt(formatInstant(quote.expiresAt, locale))}
+              </p>
               <FlightCheckoutForm
                 locale={locale}
                 quoteVersionId={quote.quoteVersionId}

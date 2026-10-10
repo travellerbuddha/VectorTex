@@ -1,4 +1,5 @@
 import type { FlightQuoteView } from '@texholiday/booking';
+import { Ticket, Users } from 'lucide-react';
 import { dict, type Locale } from '../i18n/dictionaries';
 import { formatMoney } from '../i18n/format';
 import { FlightBaggage, FlightJourney, FlightTerms } from './FlightJourney';
@@ -10,18 +11,26 @@ export function FlightQuoteSummary({ quote, locale }: { quote: FlightQuoteView; 
   const p = quote.passengers;
   return (
     <section className="card summary" aria-labelledby="summary-title">
-      <h2 id="summary-title">{t.checkout.summary}</h2>
-      <p className="hotel-name">{quote.title}</p>
-      {quote.journeys.map((j) => (
-        <FlightJourney key={j.direction} j={j} locale={locale} />
-      ))}
-      <p className="muted">
-        {f.passengers}: {f.pax(p.adults, p.childAges.length, p.infantAges.length)}
-        {quote.cabinClass ? ` · ${f.cabins[quote.cabinClass] ?? quote.cabinClass}` : ''}
-        {quote.fareFamily ? ` · ${quote.fareFamily}` : ''}
-      </p>
-      <FlightTerms terms={quote.terms} locale={locale} />
-      <FlightBaggage baggage={quote.baggage} locale={locale} />
+      <h2 id="summary-title">
+        <Ticket />
+        {t.checkout.summary}
+      </h2>
+      <div className="voucher-body">
+        <p className="hotel-name voucher-title">{quote.title}</p>
+        {quote.journeys.map((j) => (
+          <FlightJourney key={j.direction} j={j} locale={locale} />
+        ))}
+        <p className="voucher-line muted">
+          <Users />
+          <span>
+            {f.passengers}: {f.pax(p.adults, p.childAges.length, p.infantAges.length)}
+            {quote.cabinClass ? ` · ${f.cabins[quote.cabinClass] ?? quote.cabinClass}` : ''}
+            {quote.fareFamily ? ` · ${quote.fareFamily}` : ''}
+          </span>
+        </p>
+        <FlightTerms terms={quote.terms} locale={locale} />
+        <FlightBaggage baggage={quote.baggage} locale={locale} />
+      </div>
       {quote.priceChangedFrom && (
         <p className="notice" role="status">
           {f.priceChanged(formatMoney(quote.priceChangedFrom, locale))}
