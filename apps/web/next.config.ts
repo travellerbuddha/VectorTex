@@ -23,6 +23,9 @@ const config: NextConfig = {
   transpilePackages: ['@texholiday/admin', '@texholiday/booking', '@texholiday/config', '@texholiday/connectors', '@texholiday/contracts', '@texholiday/db', '@texholiday/domain', '@texholiday/pricing'],
   serverExternalPackages: ['pg'],
   poweredByHeader: false,
+  // Trailing slashes are handled in src/proxy.ts after the old-site redirect map (P17), so "/old-address/" reaches its
+  // new page in a single redirect; other "/path/" requests still get 308 to "/path".
+  skipTrailingSlashRedirect: true,
   async redirects() {
     return [{ source: '/', destination: '/tr', permanent: false }];
   },

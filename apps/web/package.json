@@ -13,7 +13,8 @@
     "e2e:sandbox": "NODE_USE_ENV_PROXY=1 playwright test -c playwright.sandbox.config.ts",
     "cms:migrate": "PAYLOAD_CONFIG_PATH=src/payload.config.ts payload migrate",
     "cms:migrate:create": "PAYLOAD_CONFIG_PATH=src/payload.config.ts payload migrate:create",
-    "cms:importmap": "PAYLOAD_CONFIG_PATH=src/payload.config.ts payload generate:importmap"
+    "cms:importmap": "PAYLOAD_CONFIG_PATH=src/payload.config.ts payload generate:importmap",
+    "cms:redirects:import": "tsx src/scripts/import-redirects.ts"
   },
   "dependencies": {
     "@faceless-ui/modal": "3.0.0",
@@ -44,6 +45,7 @@
     "@types/qrcode": "1.5.5",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.7",
-    "pg": "8.20.0"
+    "pg": "8.20.0",
+    "tsx": "4.20.6"
   }
 }

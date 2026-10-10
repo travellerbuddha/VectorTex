@@ -51,11 +51,4 @@ export async function orderToken(orderId: string): Promise<string | null> {
   return (await cookies()).get(cookieName(orderId))?.value ?? null;
 }
 
-/** Public origin for absolute URLs (provider return URL). PUBLIC_BASE_URL wins; otherwise the request host. */
-export function originOf(headers: { get(name: string): string | null }): string {
-  const configured = process.env.PUBLIC_BASE_URL;
-  if (configured) return configured.replace(/\/$/, '');
-  const host = headers.get('x-forwarded-host') ?? headers.get('host') ?? 'localhost:3000';
-  const proto = headers.get('x-forwarded-proto') ?? (/^(localhost|127\.0\.0\.1)(:|$)/.test(host) ? 'http' : 'https');
-  return `${proto}://${host}`;
-}
+export { originOf } from './origin';

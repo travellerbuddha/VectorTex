@@ -40,6 +40,7 @@ pnpm test                            # unit
 TEST_DATABASE_URL=... TEST_REDIS_URL=... pnpm test:integration   # tek kullanımlık DB/Redis; silinir
 pnpm contracts:pin && pnpm contracts:types   # doküman erişimi açıldığında
 pnpm staff:bootstrap <e-posta> "<Ad Soyad>"   # ilk /yonetim hesabı + kurulum bağlantısı (yalnız bir kez, ADR-0010; DATABASE_URL, STAFF_MFA_KEY, PUBLIC_BASE_URL)
+pnpm cms:redirects:import <dosya.csv> [--apply]   # eski site URL haritası (P17): from,to[,status][,note]; --apply olmadan yalnız denetler, hatasız dosyayı tek işlemde kaydeder
 # İsteğe bağlı, CI dışı (yalnız sandbox anahtarıyla; her test kendi rezervasyonunu iptal eder):
 NUITEE_API_KEY=... NUITEE_KEY_ENVIRONMENT=sandbox pnpm test:sandbox            # bağlayıcı zinciri (hesap kartı)
 NUITEE_API_KEY=... NUITEE_KEY_ENVIRONMENT=sandbox TEST_DATABASE_URL=... pnpm web:e2e:sandbox   # Nuitee ödeme bileşeni + site + uçak (ödeme bileşeni → bilet bekleme → iptal)

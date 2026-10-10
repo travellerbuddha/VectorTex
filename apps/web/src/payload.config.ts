@@ -8,6 +8,7 @@ import { tr } from '@payloadcms/translations/languages/tr';
 import { buildConfig } from 'payload';
 import { CMS_USERS } from './payload/access';
 import { Campaigns, Destinations, Faqs, Media, Pages, Posts } from './payload/collections/content';
+import { Redirects } from './payload/collections/redirects';
 import { CmsUsers } from './payload/collections/users';
 import { Footer, Navigation } from './payload/globals/site';
 
@@ -61,6 +62,7 @@ export default buildConfig({
     Posts,
     Faqs,
     Campaigns,
+    Redirects,
     // Local files (development/test) live outside the source tree; S3 replaces them when configured.
     { ...Media, upload: { ...(Media.upload as object), staticDir: env.CMS_MEDIA_DIR || path.resolve(dirname, '../.media') } },
     CmsUsers,

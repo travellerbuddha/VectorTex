@@ -14,3 +14,4 @@ packages/connectors/src/generated/
 next-env.d.ts
 # Local CMS media (development/test; S3 in staging/production)
 apps/web/.media/
+dump.rdb
