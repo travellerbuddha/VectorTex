@@ -1,4 +1,4 @@
-import type { CollectionConfig, Field } from 'payload';
+import type { CollectionBeforeChangeHook, CollectionConfig, Field } from 'payload';
 import { contentStaff, editors, guardPublish, publishedOrStaff, publishers } from '../access';
 import { PAGE_BLOCKS } from '../blocks';
 import { guardSlug, seoField, slugField } from '../fields';
@@ -8,6 +8,7 @@ export const SITE_PATHS: Record<string, (locale: string, slug: string) => string
   pages: (locale, slug) => `/${locale}/${slug}`,
   destinations: (locale, slug) => `/${locale}/destinations/${slug}`,
   'hotel-lists': (locale, slug) => `/${locale}/${locale === 'tr' ? 'oteller' : 'hotels'}/${slug}`,
+  posts: (locale, slug) => `/${locale}/${locale === 'tr' ? 'rehber' : 'guides'}/${slug}`,
 };
 
 const base = process.env.PUBLIC_BASE_URL?.replace(/\/$/, '') ?? '';
@@ -77,8 +78,18 @@ export const Destinations = editorial({
   ],
 });
 
+/** A guide article published without a date gets the publishing moment (the guide list is newest first). */
+export const stampPublishedAt: CollectionBeforeChangeHook = ({ data, originalDoc }) => {
+  if (data && data._status === 'published' && !data.publishedAt && !(originalDoc as { publishedAt?: string | null } | undefined)?.publishedAt) {
+    data.publishedAt = new Date().toISOString();
+  }
+  return data;
+};
+
 export const Posts = editorial({
   slug: 'posts',
+  previewable: true,
+  hooks: { beforeChange: [stampPublishedAt] },
   labels: { singular: { tr: 'Rehber yazısı', en: 'Guide post' }, plural: { tr: 'Rehber yazıları', en: 'Guide posts' } },
   admin: { useAsTitle: 'title', defaultColumns: ['title', 'slug', '_status', 'publishedAt'] },
   fields: [

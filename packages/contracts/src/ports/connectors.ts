@@ -177,6 +177,16 @@ export interface HotelContent {
   chain: string | null;
 }
 
+/** A hotel found by name (`GET /data/hotels?hotelName=…&countryCode=…`), for editors picking hotel codes. */
+export interface HotelNameMatch {
+  hotelId: string;
+  name: string;
+  city: string | null;
+  countryCode: string | null;
+  address: string | null;
+  stars: number | null;
+}
+
 export interface HotelRoomGuest {
   occupancyNumber: number;
   leadGuest: { firstName: string; lastName: string; email: string };
@@ -191,6 +201,8 @@ export interface HotelConnector {
   searchPlaces(input: { text: string; language: string }): Promise<ExternalOutcome<readonly PlaceSuggestion[]>>;
   /** One place by id with its address (to show editors which "Rome" a list uses); null when unknown. */
   placeDetails(input: { placeId: string; language: string }): Promise<ExternalOutcome<PlaceSuggestion | null>>;
+  /** Hotels whose name loosely matches, in one country (the provider needs a country for a name search). */
+  searchHotelsByName(input: { name: string; countryCode: string; language: string }): Promise<ExternalOutcome<readonly HotelNameMatch[]>>;
   /** Static content of one hotel; null when the provider does not know the hotel. */
   hotelContent(input: { hotelId: string; language: string }): Promise<ExternalOutcome<HotelContent | null>>;
   prebook(input: { offerRef: OpaqueRef; usePaymentSdk: boolean; clientReference: string }): Promise<

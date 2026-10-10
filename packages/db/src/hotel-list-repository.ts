@@ -1,7 +1,7 @@
 import { and, asc, eq, gt, inArray, lt, notInArray, or, sql } from 'drizzle-orm';
 import type { ProviderEnvironment } from '@texholiday/contracts';
 import type { CoreDb } from './client';
-import { hotelContent, hotelListDays, hotelListMembers, hotelListPrices, hotelListScopes, hotelListSettings, hotelLists, rateSlots } from './schema';
+import { hotelContent, hotelListDays, hotelListMembers, hotelListPriceChecks, hotelListPrices, hotelListScopes, hotelListSettings, hotelLists, rateSlots } from './schema';
 
 /**
  * Storage of the hotel list pages (ADR-0014). The list mirror and settings are written by the CMS after a publish; the
@@ -46,6 +46,36 @@ export interface HotelListMemberRow {
   rank: number;
   firstSeenAt: string;
   lastSeenAt: string;
+}
+
+export type PriceCheckOutcome = 'SAME' | 'LIVE_HIGHER' | 'LIVE_LOWER' | 'LIVE_MISSING';
+
+export interface PriceCheckInput {
+  environment: ProviderEnvironment;
+  scopeKey: string;
+  hotelId: string;
+  checkin: string;
+  currency: string;
+  listMinor: bigint;
+  liveMinor: bigint | null;
+  listAsOf: string;
+  shown: boolean;
+  outcome: PriceCheckOutcome;
+}
+
+export interface PriceCheckSummaryRow {
+  currency: string;
+  outcome: PriceCheckOutcome;
+  checks: number;
+  /** Sum of |live - list| over the checks with a live price, in minor units of `currency`. */
+  absDiffMinor: bigint;
+}
+
+export interface PriceCheckRow extends PriceCheckInput {
+  checkedAt: string;
+  /** Turkish hotel page name and address, when the content is cached. */
+  hotelName: string | null;
+  hotelSlug: string | null;
 }
 
 export interface HotelContentRow {
@@ -280,6 +310,95 @@ export class HotelListRepository {
       .innerJoin(hotelListScopes, and(eq(hotelListScopes.scopeKey, hotelListMembers.scopeKey), eq(hotelListScopes.active, true)))
       .where(sql`${hotelListMembers.lastSeenAt} >= ${seenSince.toISOString()}`);
     return rows;
+  }
+
+  /** Active scopes of an environment and currency (to compare live searches with list prices). */
+  async activeScopes(environment: ProviderEnvironment, currency: string): Promise<Array<{ scopeKey: string; scope: unknown }>> {
+    return this.db
+      .select({ scopeKey: hotelListScopes.scopeKey, scope: hotelListScopes.scope })
+      .from(hotelListScopes)
+      .where(and(eq(hotelListScopes.active, true), eq(hotelListScopes.environment, environment), eq(hotelListScopes.currency, currency)));
+  }
+
+  // ------------------------------------------------------------------ list price accuracy
+
+  async recordPriceChecks(rows: readonly PriceCheckInput[], now: Date): Promise<void> {
+    if (rows.length === 0) return;
+    await this.db.insert(hotelListPriceChecks).values(rows.map((r) => ({ ...r, checkedAt: now.toISOString() })));
+  }
+
+  /** Checks since `since` (shown prices only, or all), counted per currency and outcome. */
+  async priceCheckSummary(environment: ProviderEnvironment, since: Date, shownOnly: boolean): Promise<PriceCheckSummaryRow[]> {
+    const rows = await this.db
+      .select({
+        currency: hotelListPriceChecks.currency,
+        outcome: hotelListPriceChecks.outcome,
+        checks: sql<number>`count(*)::int`,
+        absDiffMinor: sql<string>`coalesce(sum(abs(${hotelListPriceChecks.liveMinor} - ${hotelListPriceChecks.listMinor})), 0)::text`,
+      })
+      .from(hotelListPriceChecks)
+      .where(
+        and(
+          eq(hotelListPriceChecks.environment, environment),
+          sql`${hotelListPriceChecks.checkedAt} >= ${since.toISOString()}`,
+          ...(shownOnly ? [eq(hotelListPriceChecks.shown, true)] : []),
+        ),
+      )
+      .groupBy(hotelListPriceChecks.currency, hotelListPriceChecks.outcome)
+      .orderBy(asc(hotelListPriceChecks.currency), asc(hotelListPriceChecks.outcome));
+    return rows.map((r) => ({ ...r, absDiffMinor: BigInt(r.absDiffMinor) }));
+  }
+
+  /**
+   * Checks where the list promised less than the live search (or the hotel was not bookable), largest gap first:
+   * the cases that cost money or trust.
+   */
+  async worstPriceChecks(environment: ProviderEnvironment, since: Date, limit: number): Promise<PriceCheckRow[]> {
+    const rows = await this.db
+      .select({
+        check: hotelListPriceChecks,
+        hotelName: sql<string | null>`${hotelContent.content}->>'name'`,
+        hotelSlug: hotelContent.slug,
+      })
+      .from(hotelListPriceChecks)
+      .leftJoin(
+        hotelContent,
+        and(eq(hotelContent.environment, hotelListPriceChecks.environment), eq(hotelContent.hotelId, hotelListPriceChecks.hotelId), eq(hotelContent.language, 'tr')),
+      )
+      .where(
+        and(
+          eq(hotelListPriceChecks.environment, environment),
+          sql`${hotelListPriceChecks.checkedAt} >= ${since.toISOString()}`,
+          inArray(hotelListPriceChecks.outcome, ['LIVE_HIGHER', 'LIVE_MISSING']),
+        ),
+      )
+      .orderBy(
+        sql`${hotelListPriceChecks.shown} DESC`,
+        sql`(${hotelListPriceChecks.liveMinor} - ${hotelListPriceChecks.listMinor})::numeric / ${hotelListPriceChecks.listMinor} DESC NULLS FIRST`,
+        sql`${hotelListPriceChecks.checkedAt} DESC`,
+      )
+      .limit(limit);
+    return rows.map(({ check: c, hotelName, hotelSlug }) => ({
+      environment: c.environment,
+      scopeKey: c.scopeKey,
+      hotelId: c.hotelId,
+      checkin: c.checkin,
+      currency: c.currency,
+      listMinor: c.listMinor,
+      liveMinor: c.liveMinor,
+      listAsOf: iso(c.listAsOf),
+      shown: c.shown,
+      outcome: c.outcome,
+      checkedAt: iso(c.checkedAt),
+      hotelName,
+      hotelSlug,
+    }));
+  }
+
+  /** Housekeeping: drops checks older than `before`. */
+  async prunePriceChecks(before: Date): Promise<number> {
+    const rows = await this.db.delete(hotelListPriceChecks).where(lt(hotelListPriceChecks.checkedAt, before.toISOString())).returning({ id: hotelListPriceChecks.id });
+    return rows.length;
   }
 
   /** Day states of the scopes (for the panel and tests). */

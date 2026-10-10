@@ -167,6 +167,18 @@ describe('Nuitee data for hotel list pages (ADR-0014, pinned hotel-data examples
     expect((await c.hotelContent({ hotelId: 'lp1/../x', language: 'tr' })).kind).toBe('CAPABILITY_NOT_AVAILABLE');
   });
 
+  it('hotel name search needs a country (sandbox 4000 without one) and maps matches; deleted hotels are left out', async () => {
+    const { c, t } = connector([
+      res(200, { data: [{ id: 'lp36ea1', name: 'Swandor Hotels & Resorts - Topkapi Palace', city: 'Lara', country: 'TR', stars: 5, address: 'Lara' }, { id: 'lpX', name: 'Old', deletedAt: '2026-01-01' }], total: 2 }),
+    ]);
+    const out = await c.searchHotelsByName({ name: 'Swandor', countryCode: 'TR', language: 'tr' });
+    expect(t.requests[0]!.url).toBe('https://api.liteapi.travel/v3.0/data/hotels?hotelName=Swandor&countryCode=TR&language=tr&limit=20');
+    expect(out.kind === 'SUCCEEDED' && out.value).toEqual([{ hotelId: 'lp36ea1', name: 'Swandor Hotels & Resorts - Topkapi Palace', city: 'Lara', countryCode: 'TR', address: 'Lara', stars: 5 }]);
+    expect((await c.searchHotelsByName({ name: 'Swandor', countryCode: 'tr', language: 'tr' })).kind).toBe('CAPABILITY_NOT_AVAILABLE');
+    expect((await c.searchHotelsByName({ name: 'S', countryCode: 'TR', language: 'tr' })).kind).toBe('CAPABILITY_NOT_AVAILABLE');
+    expect(t.requests).toHaveLength(1);
+  });
+
   it('a hotel answer for another id is never used', async () => {
     const { c } = connector([res(200, { data: { id: 'lp2', name: 'Other' } })]);
     expect((await c.hotelContent({ hotelId: 'lp1', language: 'en' })).kind).toBe('UNKNOWN');

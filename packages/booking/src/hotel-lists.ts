@@ -19,6 +19,8 @@ import type { HotelListTechSettings } from './settings';
  */
 
 export const SCAN_DAYS = 30;
+/** List price checks (live search vs list price) are kept this long for the panel report. */
+export const PRICE_CHECK_RETENTION_DAYS = 90;
 export const REFERENCE_ADULTS = 2;
 /** Hotels stay on a list this long after a scan last found them (availability changes; pages must not flap). */
 export const MEMBER_GRACE_DAYS = 14;
@@ -141,6 +143,7 @@ function hotelSummaryJson(h: HotelSummary | undefined, id: string): Record<strin
  */
 export class HotelListScanner {
   private lastSync = 0;
+  private lastPrune = 0;
   private readonly contentRetry = new Map<string, number>();
   private readonly clock: () => Date;
   private readonly sleep: (ms: number) => Promise<void>;
@@ -179,6 +182,11 @@ export class HotelListScanner {
       } catch (err) {
         if (!(err instanceof CapabilityNotAvailableError)) throw err;
       }
+    }
+    if (now.getTime() - this.lastPrune >= 3_600_000) {
+      // List price checks (ADR-0014) are kept for the panel report only.
+      await this.deps.repo.prunePriceChecks(new Date(now.getTime() - PRICE_CHECK_RETENTION_DAYS * 86_400_000));
+      this.lastPrune = now.getTime();
     }
     this.lastSync = now.getTime();
     return { scopes: scopes.size };
@@ -604,6 +612,41 @@ export class HotelListPages {
   }
 
   /** Published lists and the hotels they show, per language (sitemap). */
+  /**
+   * Pages for an ads page feed: every published list page and every hotel page those lists show, per language, with
+   * labels to target them (type, language, the lists holding a hotel, the list board, whether a price is shown now).
+   */
+  async adsPages(): Promise<Array<{ kind: 'LIST' | 'HOTEL'; locale: HotelListLocale; slug: string; labels: string[] }>> {
+    const out: Array<{ kind: 'LIST' | 'HOTEL'; locale: HotelListLocale; slug: string; labels: string[] }> = [];
+    const lists = (await this.deps.repo.publishedLists()).sort((a, b) => a.cmsId.localeCompare(b.cmsId));
+    for (const l of HOTEL_LIST_LOCALES) {
+      const hotels = new Map<string, { slug: string; labels: Set<string> }>();
+      for (const list of lists) {
+        const listSlug = list.slugs[l];
+        if (!listSlug) continue;
+        const view = await this.list(list.cmsId, l, null);
+        if (!view) continue;
+        const cfg = hotelListConfigSchema.safeParse(list.config);
+        const board = cfg.success && cfg.data.boardType ? [`pansiyon-${cfg.data.boardType.toLowerCase()}`] : [];
+        const priced = view.hotels.some((h) => h.price !== null);
+        out.push({ kind: 'LIST', locale: l, slug: listSlug, labels: ['liste', l, `liste-${listSlug}`, ...board, ...(priced ? ['fiyatli'] : [])] });
+        for (const h of view.hotels) {
+          const entry = hotels.get(h.hotelId) ?? { slug: h.slug, labels: new Set<string>(['otel', l]) };
+          entry.labels.add(`liste-${listSlug}`);
+          for (const b of board) entry.labels.add(b);
+          if (h.price) entry.labels.add('fiyatli');
+          hotels.set(h.hotelId, entry);
+        }
+      }
+      for (const h of [...hotels.values()].sort((a, b) => a.slug.localeCompare(b.slug))) {
+        // "fiyatli" last, whatever list order added it.
+        const labels = [...h.labels].filter((x) => x !== 'fiyatli');
+        out.push({ kind: 'HOTEL', locale: l, slug: h.slug, labels: h.labels.has('fiyatli') ? [...labels, 'fiyatli'] : labels });
+      }
+    }
+    return out;
+  }
+
   async sitemap(): Promise<{ lists: Array<{ slugs: Record<string, string>; updatedAt: string }>; hotels: Array<{ slugs: Record<string, string>; updatedAt: string }> }> {
     const lists = await this.deps.repo.publishedLists();
     const shownIn = new Map<string, Set<HotelListLocale>>();

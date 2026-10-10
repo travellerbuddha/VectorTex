@@ -201,10 +201,25 @@ Kısa, okunur ve sayfa dilinde adresler kullanılır. Her sayfa tipinin kendi di
 
 - Sayfalar arama reklamlarında nihai URL olarak kullanılabilir.
 - Reklamdaki fiyat sayfadaki koşullu fiyatla aynı olmalıdır. Taze olmayan fiyat gösterilmez; reklama da yazılmamalıdır.
-- Sonraki iş paketleri:
-  - dinamik arama reklamları için sayfa feed'i;
-  - Search Console doğrulama etiketi;
-  - fiyat doğruluğu ölçümü: canlı aramada görülen fiyatın liste fiyatıyla karşılaştırılması.
+- Search Console doğrulama etiketi işletme girdisidir (hesap sahibi verir).
+
+**Reklam sayfa feed'i (P17c).**
+- `/yonetim/raporlar/reklam-sayfalari` (`content.edit` / `content.publish`) Google Ads sayfa feed'i CSV'sini indirir: `Page URL`, `Custom label`; etiketler `;` ile ayrılır.
+- Satırlar: yayındaki her liste sayfası ve bu listelerin gösterdiği her otel sayfası, dil başına ayrı; tam adres `PUBLIC_BASE_URL` ile. Adres tanımsızsa dosya üretilmez.
+- Etiketler: `liste`/`otel`, dil, `liste-{adres}` (otelin yer aldığı her liste), `pansiyon-{kod}`, `fiyatli` (sayfada şu an fiyat var), `noindex` (CMS'te noindex liste ya da `HOTEL_PAGES_NOINDEX` açıkken otel sayfaları: Dinamik Arama Ağı yalnız dizindeki sayfalarda çıkar).
+- Satırlar sitedeki okuma modelinden (`HotelListPages.adsPages`) gelir; sayfada olmayan adres feed'e girmez. Hücreler RFC 4180'e göre tırnaklanır, formül işaretiyle başlayan hücre kaçırılır.
+- Dosya personel oturumu ister; Google Ads'in zamanlanmış URL yüklemesi bu yüzden şimdilik yok (elle yükleme).
+
+**Fiyat doğruluğu ölçümü (P17c).**
+- Ziyaretçinin canlı otel araması liste referansıyla aynıysa (1 oda, 2 yetişkin, çocuksuz, 1 gece; etkin bir kapsamın para birimi, uyruğu ve pansiyonu), aramadaki her otelin en düşük fiyatı aynı otel ve tarihin saklı liste fiyatıyla karşılaştırılır ve `core.hotel_list_price_checks`'e yazılır. **Sağlayıcıya ek çağrı yoktur.**
+- Yalnız bugünkü fiyatlama parmak iziyle hesaplanmış liste fiyatları karşılaştırılır (diğerleri zaten gösterilmez). Fiyat sayfada gösterilecek kadar tazeyse `shown` işaretlenir.
+- Sonuç: `SAME`, `LIVE_HIGHER` (liste canlıdan ucuz göründü: reklam ve güven riski), `LIVE_LOWER`, `LIVE_MISSING` (yalnız o otel için yapılan aramada müsaitlik yok; bölge aramasında sonuç sınırı yüzünden eksik otel sayılmaz).
+- Karşılaştırma aramayı asla bozmaz: hata yalnız sunucu günlüğüne yazılır. Arama başına en çok 100 satır; kayıtlar 90 gün tutulur (tarayıcı saatte bir siler).
+- `/yonetim/raporlar/liste-fiyatlari` (içerik, fiyat politikası veya finansal görüntüleme izni): 7/30/90 gün; para birimi başına gösterilen ve tüm fiyatlar için aynı/yüksek/düşük/müsait değil sayıları ve ortalama fark; "dikkat gerektirenler": müsait olmayanlar ve en büyük yüzde fark önce, otel sayfası bağlantısıyla.
+
+**Panelde otel adıyla bulma (P17c).**
+- Liste düzenleme ekranında "Otel adıyla bul": ülke kodu (varsayılan TR) ve adın bir kısmı; sonuçta ad, yıldız, adres ve kod. "Ekle", "Başa sabitle", "Çıkar" kodu ilgili alana yazar; bir kod tek alanda durur.
+- Arama `GET /data/hotels?hotelName&countryCode` ile yapılır (sandbox ülkesiz aramayı 4000 ile reddetti, R0 §11). Uç nokta `/api/v1/staff/hotel-names` yalnız içerik personeline açıktır (her istek sağlayıcı çağrısıdır), kişi başına dakikada 60 arama.
 
 ## Sonuçlar
 

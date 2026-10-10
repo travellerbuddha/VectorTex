@@ -96,6 +96,74 @@ export function breadcrumbList(origin: string, items: ReadonlyArray<{ name: stri
   };
 }
 
+/** Plain text of CMS rich text (Lexical JSON): paragraphs and list items on their own lines, for structured data. */
+export function lexicalText(data: unknown, max = 5000): string {
+  const blocks: string[] = [];
+  const walk = (node: unknown, into: string[]): void => {
+    if (!node || typeof node !== 'object') return;
+    const n = node as { type?: string; text?: unknown; children?: unknown[] };
+    if (typeof n.text === 'string') into.push(n.text);
+    if (n.type === 'linebreak') into.push(' ');
+    const children = Array.isArray(n.children) ? n.children : [];
+    if (n.type === 'paragraph' || n.type === 'heading' || n.type === 'listitem' || n.type === 'quote') {
+      const parts: string[] = [];
+      for (const c of children) walk(c, parts);
+      const text = parts.join('').replace(/\s+/g, ' ').trim();
+      if (text) blocks.push(text);
+      return;
+    }
+    for (const c of children) walk(c, into);
+  };
+  const root = (data as { root?: unknown } | null)?.root;
+  const rest: string[] = [];
+  walk(root, rest);
+  const loose = rest.join('').replace(/\s+/g, ' ').trim();
+  const text = [...blocks, ...(loose ? [loose] : [])].join('\n');
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+/** `FAQPage` of the questions shown on the page (answers as plain text); null without questions. */
+export function faqPage(items: ReadonlyArray<{ question: string; answer: string }>): Record<string, unknown> | null {
+  const qs = items.filter((i) => i.question.trim() && i.answer.trim());
+  if (qs.length === 0) return null;
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: qs.map((q) => ({ '@type': 'Question', name: q.question, acceptedAnswer: { '@type': 'Answer', text: q.answer } })),
+  };
+}
+
+/** `Article` of a guide page: headline, address, images, dates and the site as author and publisher. */
+export function guideArticle(input: {
+  origin: string;
+  url: string;
+  headline: string;
+  description: string | null;
+  images: readonly string[];
+  datePublished: string | null;
+  dateModified: string | null;
+  language: string;
+  siteName: string;
+}): Record<string, unknown> {
+  const url = absoluteUrl(input.origin, input.url);
+  const images = input.images.map((i) => absoluteUrl(input.origin, i)).filter((i): i is string => i !== null);
+  const iso = (v: string | null) => (v && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : undefined);
+  const site = { '@type': 'Organization', name: input.siteName, url: absoluteUrl(input.origin, '/') };
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: input.headline.slice(0, 110),
+    ...(url ? { url, mainEntityOfPage: url } : {}),
+    ...(input.description ? { description: input.description } : {}),
+    ...(images.length > 0 ? { image: images } : {}),
+    ...(iso(input.datePublished) ? { datePublished: iso(input.datePublished) } : {}),
+    ...(iso(input.dateModified) ? { dateModified: iso(input.dateModified) } : {}),
+    inLanguage: input.language,
+    author: site,
+    publisher: site,
+  };
+}
+
 /** JSON for a <script type="application/ld+json">: "<" is escaped so provider text cannot close the script. */
 export function jsonLd(data: Record<string, unknown>): string {
   return JSON.stringify(data)

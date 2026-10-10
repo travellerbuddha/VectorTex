@@ -10,6 +10,7 @@ import {
   type HotelConnector,
   type HotelContent,
   type HotelFunding,
+  type HotelNameMatch,
   type HotelOffer,
   type HotelRoomGuest,
   HOTEL_BOARD_TYPES,
@@ -104,6 +105,7 @@ export class NuiteeHotelConnector implements HotelConnector {
       operations: {
         searchRates: { effect: 'READ_ONLY', lostResponse: 'NONE' },
         placeDetails: { effect: 'READ_ONLY', lostResponse: 'NONE' },
+        searchHotelsByName: { effect: 'READ_ONLY', lostResponse: 'NONE' },
         hotelContent: { effect: 'READ_ONLY', lostResponse: 'NONE' },
         prebook: { effect: 'CREATES_PROVIDER_SESSION', lostResponse: 'NONE' },
         // clientReference "acts as an idempotency key"; a repeat returns 4005 (booking OpenAPI).
@@ -392,6 +394,33 @@ export class NuiteeHotelConnector implements HotelConnector {
       .filter((x): x is string => x !== null && x !== name);
     const types = Array.isArray(d.types) ? (d.types as unknown[]).filter((t): t is string => typeof t === 'string') : [];
     return { kind: 'SUCCEEDED', value: { placeId: input.placeId, name, address: [...new Set(address)].join(', '), types }, evidence: http.evidence };
+  }
+
+  /**
+   * GET /data/hotels with `hotelName` (loose, case-insensitive) and `countryCode`: the sandbox refused a name search
+   * without a country (4000, 2026-10-10). At most 20 matches; for editors choosing hotel codes.
+   */
+  async searchHotelsByName(input: { name: string; countryCode: string; language: string }): Promise<ExternalOutcome<readonly HotelNameMatch[]>> {
+    const name = input.name.trim();
+    if (name.length < 2 || name.length > 80) return notAvailable('HOTEL_NAME', 'Type 2-80 characters');
+    if (!/^[A-Z]{2}$/.test(input.countryCode)) return notAvailable('COUNTRY', 'ISO 3166-1 alpha-2 country code');
+    if (!/^[a-z]{2}$/.test(input.language)) return notAvailable('LANGUAGE', 'ISO 639-1 language code');
+    const url = `${this.cfg.searchBaseUrl}/data/hotels?hotelName=${encodeURIComponent(name)}&countryCode=${input.countryCode}&language=${input.language}&limit=20`;
+    const http = await this.send('searchHotelsByName', 'GET', url, null, 10, true);
+    if (!http.ok) return http.outcome;
+    if (http.status >= 400) return { kind: 'REJECTED', code: `HTTP_${http.status}`, message: this.errorOf(http.json)?.message ?? 'refused', evidence: http.evidence };
+    const data = (http.json as Json | null)?.data;
+    if (data === undefined || data === null) return { kind: 'SUCCEEDED', value: [], evidence: http.evidence };
+    if (!Array.isArray(data)) return this.unknown(http.evidence, 'MALFORMED_RESPONSE');
+    const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+    const out: HotelNameMatch[] = [];
+    for (const h of data as Json[]) {
+      const hotelId = str(h.id);
+      const hotelName = str(h.name);
+      if (!hotelId || !hotelName || h.deletedAt) continue;
+      out.push({ hotelId, name: hotelName, city: str(h.city), countryCode: str(h.country), address: str(h.address), stars: num(h.stars) });
+    }
+    return { kind: 'SUCCEEDED', value: out.slice(0, 20), evidence: http.evidence };
   }
 
   /**

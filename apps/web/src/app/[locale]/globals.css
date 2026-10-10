@@ -682,3 +682,40 @@ a.button.primary {
     grid-template-columns: 1fr;
   }
 }
+
+/* Guide articles and FAQ (P06) */
+.guide-cards {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+.guide-cards img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.guide-cards h2 {
+  font-size: 1.15rem;
+  margin: 0.5rem 0 0.25rem;
+}
+.pager {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: center;
+  margin: 1.5rem 0;
+}
+.faq-page .faq details {
+  border-bottom: 1px solid #e3e6ea;
+  padding: 0.6rem 0;
+}
+.faq-page .faq summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.6rem 0;
+  line-height: 1.5;
+}

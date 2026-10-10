@@ -5,6 +5,7 @@ import {
   type FlightConnector,
   type HotelConnector,
   type ProductType,
+  type HotelNameMatch,
   type HotelOffer,
   type HotelSummary,
   type PlaceSuggestion,
@@ -30,6 +31,7 @@ import { canAccessOrder, orderAccessToken } from './access';
 import { priceHotelOffer, type StoredOffer } from './hotel-offer-pricing';
 import { HotelPricing, providerManagedRoute } from './hotel-pricing';
 import { HotelListPages, HotelListScanner } from './hotel-lists';
+import { HotelListPriceChecks } from './hotel-list-accuracy';
 import { cancellationView, loadOrderView, orderStage, quoteView } from './order-view';
 import { NuiteeHotelProviderManagedPort } from './nuitee-pm-port';
 import { NuiteeFlightProviderManagedPort, ProductProviderManagedPort, TransientPassengerDetails } from './nuitee-flight-pm-port';
@@ -59,6 +61,8 @@ export interface BookingAppDeps {
   settings: BookingSettings;
   clock?: () => Date;
   workerId?: string;
+  /** Side work that must never fail a customer request reports here (e.g. list price checks). */
+  log?: { warn(msg: string, meta?: Record<string, unknown>): void };
 }
 
 const notFound = () => new DomainError('NOT_FOUND', 'Not found', { httpStatus: 404 });
@@ -85,6 +89,8 @@ export class BookingApp {
   /** Read model of the hotel list and hotel pages (ADR-0014). */
   readonly hotelLists: HotelListPages;
   readonly hotelListRepository: HotelListRepository;
+  /** Live searches compared with list prices, and the panel report (ADR-0014). */
+  readonly hotelListPriceChecks: HotelListPriceChecks;
   private readonly policies: PolicyRepository;
   private readonly quotes: QuoteRepository;
   private readonly checkout: CheckoutRepository;
@@ -127,6 +133,7 @@ export class BookingApp {
     });
     this.hotelListRepository = new HotelListRepository(deps.db);
     this.hotelLists = new HotelListPages({ repo: this.hotelListRepository, pricing: this.hotelPricing, clock: this.clock });
+    this.hotelListPriceChecks = new HotelListPriceChecks({ repo: this.hotelListRepository, pricing: this.hotelPricing, clock: this.clock });
     this.staff = new StaffOrderCommands(deps.db, this.store, this.orchestrator, s.environment, this.clock, deps.flights ?? null);
     this.flights = deps.flights
       ? new FlightSales({
@@ -177,6 +184,16 @@ export class BookingApp {
     throw providerUnavailable();
   }
 
+  /** Hotels by name in one country, for editors picking hotel codes of a list (ADR-0014); staff routes only. */
+  async hotelsByName(name: string, countryCode: string, language: 'tr' | 'en'): Promise<readonly HotelNameMatch[]> {
+    const out = await this.deps.hotels.searchHotelsByName({ name, countryCode, language });
+    if (out.kind === 'SUCCEEDED') return out.value;
+    if (out.kind === 'CAPABILITY_NOT_AVAILABLE' || out.kind === 'REJECTED') {
+      throw new DomainError('VALIDATION_FAILED', 'Type 2-80 characters of the hotel name and pick a country', { httpStatus: 422, action: 'FIX_FIELDS' });
+    }
+    throw providerUnavailable();
+  }
+
   async searchHotels(raw: unknown): Promise<HotelSearchView> {
     const input: HotelSearchInput = parse(hotelSearchInput, raw);
     const now = this.clock();
@@ -220,6 +237,7 @@ export class BookingApp {
       capabilityId,
       hidden,
     };
+    await this.checkListPrices(input, stored);
     const expiresAt = new Date(now.getTime() + this.deps.settings.searchTtlSeconds * 1000).toISOString();
     const sessionId = await this.searches.create({
       productType: 'HOTEL',
@@ -233,6 +251,24 @@ export class BookingApp {
       expiresAt,
     });
     return this.searchView(sessionId, expiresAt, input, results, hidden);
+  }
+
+  /** Compares this search with the stored list prices; never fails the search (ADR-0014). */
+  private async checkListPrices(input: HotelSearchInput, offers: readonly StoredOffer[]): Promise<void> {
+    try {
+      await this.hotelListPriceChecks.record({
+        currency: input.currency,
+        nationality: input.nationality,
+        checkin: input.checkin,
+        checkout: input.checkout,
+        rooms: input.rooms,
+        boardType: input.boardType,
+        requestedHotelIds: 'hotelIds' in input.target ? input.target.hotelIds : null,
+        offers,
+      });
+    } catch (err) {
+      this.deps.log?.warn('list price check not recorded', { error: err instanceof Error ? err.message : String(err) });
+    }
   }
 
   /** One customer price per offer, exactly as hotel list pages price it (ADR-0014). */
