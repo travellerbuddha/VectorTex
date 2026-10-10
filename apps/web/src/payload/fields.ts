@@ -1,7 +1,7 @@
 import { ValidationError, type CollectionBeforeChangeHook, type Field } from 'payload';
 
 /** Site paths that belong to the booking engine and panel; a page may not take them. */
-export const RESERVED_SLUGS: ReadonlySet<string> = new Set(['checkout', 'hotels', 'orders', 'terms', 'destinations', 'api', 'yonetim', 'tr', 'en', 'search', 'flights', 'oteller', 'otel', 'hotel', 'rehber', 'guides', 'sss', 'faq']);
+export const RESERVED_SLUGS: ReadonlySet<string> = new Set(['checkout', 'hotels', 'orders', 'terms', 'destinations', 'api', 'yonetim', 'tr', 'en', 'search', 'flights', 'oteller', 'otel', 'hotel', 'rehber', 'guides', 'sss', 'faq', 'hesabim', 'account']);
 
 export function slugProblem(value: unknown): string | null {
   if (typeof value !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) || value.length > 80) return 'Küçük harf, rakam ve tire kullanın (en fazla 80 karakter).';

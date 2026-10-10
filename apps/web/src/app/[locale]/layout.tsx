@@ -4,6 +4,7 @@ import { safeHref } from '../../components/cms/RichText';
 import { dict, isLocale, LOCALES } from '../../i18n/dictionaries';
 import { booking } from '../../server/booking';
 import { siteChrome } from '../../server/cms-content';
+import { ACCOUNT_DIR } from '../../server/seo';
 import './globals.css';
 
 export const metadata: Metadata = { title: 'TexHoliday', description: 'Otel, uçak, tur ve transfer rezervasyonu' };
@@ -45,6 +46,9 @@ export default async function LocaleLayout({ children, params }: { children: Rea
               </a>
             ))}
           </nav>
+          <a className="account-link" href={`/${locale}/${ACCOUNT_DIR[locale]}`}>
+            {t.account.nav}
+          </a>
           <a className="lang" href={`/${other}`} hrefLang={other} lang={other}>
             {other.toUpperCase()}
           </a>

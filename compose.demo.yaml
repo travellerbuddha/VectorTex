@@ -1,0 +1,40 @@
+# Local demo services (docs/demo/LOKAL-DEMO.md): `pnpm demo` starts them. Never used in staging or production.
+# Ports are off the defaults so an existing local PostgreSQL/Redis does not clash.
+name: texholiday-demo
+
+services:
+  postgres:
+    image: postgres:16.15-alpine3.23
+    environment:
+      POSTGRES_USER: texholiday
+      POSTGRES_PASSWORD: texholiday_demo_local
+      POSTGRES_DB: texholiday_demo
+    ports:
+      - '127.0.0.1:55432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U texholiday -d texholiday_demo']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7.4.11
+    ports:
+      - '127.0.0.1:56379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Catches every e-mail the demo sends (customer mails, sign-in codes, staff links): http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.31.4
+    ports:
+      - '127.0.0.1:1025:1025'
+      - '127.0.0.1:8025:8025'
+
+volumes:
+  postgres-data:

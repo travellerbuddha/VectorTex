@@ -149,15 +149,24 @@ Ağ izinleri verildikten sonra Nuitee ödeme bileşeni (`payment-wrapper.liteapi
 | Adım | Sonuç | Referans |
 |---|---|---|
 | Ödemeden önce book (`TRANSACTION_ID`) | REJECTED 2014 "payment not completed" | — |
-| Ödeme bileşeni (publicKey `sandbox`) | `redirect_status=succeeded`, dönüş URL'sine yönlendirme | EUR, USD, GBP |
+| Ödeme bileşeni (publicKey `sandbox`) | `redirect_status=succeeded`, dönüş URL'sine yönlendirme | EUR, USD, GBP, TRY |
 | Ödemeden sonra **aynı** `clientReference` | 4005 (yinelenen); sorguda rezervasyon **yok** → referans tükenmiş | — |
-| **Yeni** `clientReference` ile book | CONFIRMED; maliyet = prebook fiyatı; komisyon raporlandı | EUR `NUmPV1UB8`/`u_hFBKBsZ`, USD `3oOlJ5Q30`/`WH6UdsdyB`, GBP `zWf6l2QAB`/`1glSxRgyt` |
+| **Yeni** `clientReference` ile book | CONFIRMED; maliyet = prebook fiyatı; komisyon raporlandı | EUR `NUmPV1UB8`/`u_hFBKBsZ`, USD `3oOlJ5Q30`/`WH6UdsdyB`, GBP `zWf6l2QAB`/`1glSxRgyt`, TRY `dvRi7AhKe`/`mGPpbtdQd` |
 | Aynı referansla tekrar | 4005 → sorgu aynı rezervasyonu buldu | — |
 | Aynı işlemle üçüncü referans | 2014 → işlem tek kullanımlık, ikinci rezervasyon yok | — |
 | İptal (iade edilebilir oran) | CANCELLED, ceza 0 | — |
 | Kendi sitemiz, masaüstü ve 320 px: arama → teklif → misafir → ödeme → dönüş → onay | CONFIRMED; sitemizin CSP'si ihlal üretmedi; iptal cezası 0 | sipariş `a4cc0db3…` / `roaGBtWE9`, `eb5fccb2…` / `azYhTLiRy` |
 | /yonetim "Durumu kontrol et" (`GET /bookings/{id}`), ödenmiş SDK rezervasyonu | CONFIRMED, değişiklik yok | sipariş `3efbd73f…` / `lobIb_dn4` |
 | /yonetim "Rezervasyonu iptal et" (`PUT /bookings/{id}`) | CANCELLED; `cancellation_fee` 0; `refund_amount` 173,36 EUR (müşterinin ödediği tutarın tamamı). Sipariş iptal, ödeme "iade sürüyor", iade doğrulama görevi açıldı; müşteri sayfası iptali gösterdi | aynı |
+
+**TRY (10 Ekim 2026, `SANDBOX_PAYMENT_CURRENCIES=TRY`):**
+- Fiyat araması TRY döndü (200 teklif).
+- Prebook `dvRi7AhKe`: 68.020,24 TRY. Bu tutara %10 API marjımız (6.183,64 TRY) dahil.
+- Ödeme bileşeni Stripe test kartıyla TRY tahsil etti (`redirect_status=succeeded`).
+- Book `mGPpbtdQd` CONFIRMED oldu. Maliyet ve komisyon TRY olarak raporlandı.
+- İptal: CANCELLED, ceza 0.
+- Sonuç: Nuitee TRY'yi doğrudan fiyatlar ve tahsil eder; bizim tarafta kur çevrimi gerekmez.
+- Matriste bu yeteneğin TRY tahsilatı `VERIFIED` oldu. Ancak K13 gereği TRY tahsilatı kendi gateway'imize (iyzico) yönlenir. Rota kuralı 3 bunu kodda uygular; bu yüzden TRY satışı iyzico gelene kadar kapalı kalır. Kanıt, K13 değişirse ya da iyzico gelmeden önce bir karar gerekirse içindir.
 
 **Kod etkisi (hata düzeltmesi):** ADR-0008 ilk tasarımı 2014'ten sonra aynı `clientReference` ile yeniden deniyordu. Sandbox, bu referansın tükendiğini gösterdi: müşteri ödese bile sipariş hiç rezerve edilemezdi. Artık 2014'ten sonra her deneme yeni referansla yapılıyor. Vazgeçmeden önce gönderilmiş **tüm** referanslar sorgulanıyor; çift rezervasyona karşı güvence işlemin tek kullanımlık olması (sandbox kanıtı). Mock bağlayıcı da aynı davranışı taklit ediyor.
 

@@ -940,3 +940,37 @@ export const hotelListPriceChecks = core.table(
   },
   (t) => [index('hotel_list_price_checks_at_idx').on(t.checkedAt), check('hotel_list_price_checks_list_positive', sql`${t.listMinor} > 0`)],
 );
+
+// ------------------------------------------------------------------ customer accounts (ADR-0017)
+
+/**
+ * One-time sign-in codes e-mailed to customers ("Rezervasyonlarım"). Only an HMAC of the code is stored; a code is
+ * used once, expires in minutes and allows a few wrong tries.
+ */
+export const customerLoginCodes = core.table(
+  'customer_login_codes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    environment: environmentEnum('environment').notNull(),
+    email: text('email').notNull(),
+    codeHash: text('code_hash').notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    expiresAt: ts('expires_at').notNull(),
+    consumedAt: ts('consumed_at'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('customer_login_codes_email_idx').on(t.environment, t.email, t.createdAt)],
+);
+
+/** Signed-in customer sessions: only a SHA-256 of the cookie token is stored. */
+export const customerSessions = core.table(
+  'customer_sessions',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    environment: environmentEnum('environment').notNull(),
+    email: text('email').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    expiresAt: ts('expires_at').notNull(),
+  },
+  (t) => [index('customer_sessions_expiry_idx').on(t.expiresAt)],
+);

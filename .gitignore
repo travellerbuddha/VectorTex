@@ -15,3 +15,5 @@ next-env.d.ts
 # Local CMS media (development/test; S3 in staging/production)
 apps/web/.media/
 dump.rdb
+# Local demo (pnpm demo): random secrets, accounts and media of this computer
+.demo/
