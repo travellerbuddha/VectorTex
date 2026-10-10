@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { OrderStatus } from '../../../../../components/OrderStatus';
 import { OrderQuoteSummary } from '../../../../../components/QuoteSummary';
 import { dict, type Locale } from '../../../../../i18n/dictionaries';
+import { quoteEcommerce } from '../../../../../server/analytics';
 import { booking } from '../../../../../server/booking';
 import { orderToken } from '../../../../../server/http';
 
@@ -25,7 +26,7 @@ export default async function PaymentReturn({ params }: { params: Promise<{ loca
     <div className="page order">
       <h1>{dict(locale).order.title}</h1>
       <div className="two-col">
-        <OrderStatus locale={locale} initial={order} finalizeWhileOpen />
+        <OrderStatus locale={locale} initial={order} finalizeWhileOpen purchase={quoteEcommerce(order.quote)} />
         <OrderQuoteSummary quote={order.quote} locale={locale} />
       </div>
     </div>

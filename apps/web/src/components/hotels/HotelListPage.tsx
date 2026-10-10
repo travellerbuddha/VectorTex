@@ -9,6 +9,8 @@ import { loadBySlug } from '../../server/cms-content';
 import { HOTEL_LIST_DIR, PATHS } from '../../server/seo';
 import { breadcrumbList, hotelItemList, jsonLd } from '../../server/structured-data';
 import { cmsMetadata, PreviewBanner } from '../cms/CmsPage';
+import { TrackEvent } from '../tracking/TrackEvent';
+import { listEcommerce } from '../../server/analytics';
 import { RichText } from '../cms/RichText';
 
 /**
@@ -91,6 +93,7 @@ export async function HotelListPage({ locale, slug }: { locale: Locale; slug: st
   return (
     <div className="page hotel-list">
       {loaded.preview && <PreviewBanner locale={locale} />}
+      <TrackEvent event="view_item_list" params={listEcommerce(slug, title, hotels)} />
       <nav aria-label="breadcrumb" className="breadcrumbs">
         <ol>
           {crumbs.map((c, i) => (

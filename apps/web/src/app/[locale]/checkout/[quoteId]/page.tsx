@@ -4,6 +4,8 @@ import { CheckoutForm } from '../../../../components/CheckoutForm';
 import { QuoteSummary } from '../../../../components/QuoteSummary';
 import { dict, type Locale } from '../../../../i18n/dictionaries';
 import { formatInstant } from '../../../../i18n/format';
+import { TrackEvent } from '../../../../components/tracking/TrackEvent';
+import { quoteEcommerce } from '../../../../server/analytics';
 import { booking } from '../../../../server/booking';
 
 export const dynamic = 'force-dynamic';
@@ -24,6 +26,7 @@ export default async function Checkout({ params }: { params: Promise<{ locale: s
   const expired = new Date(quote.expiresAt).getTime() <= Date.now();
   return (
     <div className="page checkout">
+      {!expired && <TrackEvent event="begin_checkout" params={quoteEcommerce(quote)} />}
       <h1>{t.checkout.title}</h1>
       <div className="two-col">
         <QuoteSummary quote={quote} locale={locale} />

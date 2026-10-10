@@ -1,15 +1,21 @@
 import type { NextConfig } from 'next';
 import { withPayload } from '@payloadcms/next/withPayload';
 
+// Tag hosts (ADR-0018): Google Tag Manager/GA4/Google Ads and the Meta and Yandex tags managed inside GTM. They only
+// load after the visitor's consent (or, in ADVANCED consent mode, in the denied state).
+const tagScripts = 'https://www.googletagmanager.com https://*.googletagmanager.com https://www.google-analytics.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://www.google.com https://connect.facebook.net https://mc.yandex.ru https://mc.yandex.com https://yastatic.net';
+const tagConnect = 'https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.g.doubleclick.net https://*.doubleclick.net https://www.google.com https://www.google.com.tr https://pagead2.googlesyndication.com https://www.googleadservices.com https://*.facebook.com https://connect.facebook.net https://mc.yandex.ru https://mc.yandex.com';
+const tagFrames = 'https://www.googletagmanager.com https://td.doubleclick.net https://*.doubleclick.net https://www.facebook.com https://mc.yandex.ru https://mc.yandex.com';
+
 /**
  * Content Security Policy. The Nuitee payment component (payment-wrapper.liteapi.travel) renders a Stripe-based
  * form, so its script/frame/connect hosts are allowed; everything else stays on our origin.
  */
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://payment-wrapper.liteapi.travel https://js.stripe.com",
-  "frame-src https://js.stripe.com https://hooks.stripe.com https://*.liteapi.travel",
-  "connect-src 'self' https://api.stripe.com https://*.liteapi.travel https://*.stripe.com",
+  `script-src 'self' 'unsafe-inline' https://payment-wrapper.liteapi.travel https://js.stripe.com ${tagScripts}`,
+  `frame-src https://js.stripe.com https://hooks.stripe.com https://*.liteapi.travel ${tagFrames}`,
+  `connect-src 'self' https://api.stripe.com https://*.liteapi.travel https://*.stripe.com ${tagConnect}`,
   "img-src 'self' data: https:",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",

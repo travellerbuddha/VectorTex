@@ -7,6 +7,8 @@ import { countryOptions } from '../../../../../i18n/countries';
 import { dict, type Locale } from '../../../../../i18n/dictionaries';
 import { boardLabel, formatDate, formatMoney } from '../../../../../i18n/format';
 import { booking } from '../../../../../server/booking';
+import { TrackEvent } from '../../../../../components/tracking/TrackEvent';
+import { searchEcommerce } from '../../../../../server/analytics';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,6 +57,8 @@ export default async function Results({ params, searchParams }: { params: Promis
 
   return (
     <div className="page results">
+      <TrackEvent event="search" params={{ search_term: place?.name ?? 'hotel search' }} />
+      <TrackEvent event="view_item_list" params={searchEcommerce(view.hotels)} />
       <details className="refine">
         <summary>
           {formatDate(criteria.checkin, locale)} → {formatDate(criteria.checkout, locale)} · {t.results.nights(view.nights)}

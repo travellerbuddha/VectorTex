@@ -6,6 +6,8 @@ import { NuiteePayment } from '../../../../../components/NuiteePayment';
 import { OrderQuoteSummary } from '../../../../../components/QuoteSummary';
 import { dict, type Locale } from '../../../../../i18n/dictionaries';
 import { formatInstant } from '../../../../../i18n/format';
+import { TrackEvent } from '../../../../../components/tracking/TrackEvent';
+import { quoteEcommerce } from '../../../../../server/analytics';
 import { booking } from '../../../../../server/booking';
 import { orderToken, originOf } from '../../../../../server/http';
 
@@ -32,6 +34,7 @@ export default async function Payment({ params }: { params: Promise<{ locale: st
   const returnUrl = `${originOf(await headers())}/${locale}/orders/${orderId}/return`;
   return (
     <div className="page payment">
+      {session.state === 'READY' && <TrackEvent event="add_payment_info" params={{ ...quoteEcommerce(order.quote), payment_type: 'card' }} once={`pay_${orderId}`} />}
       <h1>{t.payment.title}</h1>
       <div className="two-col">
         <OrderQuoteSummary quote={order.quote} locale={locale} />
