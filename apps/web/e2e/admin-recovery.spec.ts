@@ -26,7 +26,12 @@ test('a person creates recovery codes and signs in with one when the phone is no
   await expect(page.getByTestId('recovery-codes')).toHaveCount(0); // shown once
   await expect(page.getByTestId('recovery-status')).toContainText('10 koddan 10 tanesi kullanılmadı.');
 
-  // Sign out; sign in with the password and a recovery code instead of the authenticator.
+  // Sign out (waiting for it: navigating away at once can cancel the sign-out request and keep the session, CI
+  // 2026-10-10); then sign in with the password and a recovery code instead of the authenticator.
+  const signOut = async () => {
+    await page.getByRole('button', { name: 'Çıkış' }).click();
+    await expect(page.getByText('Çıkış yaptınız.')).toBeVisible();
+  };
   const viaRecovery = async (value: string) => {
     await page.goto('/yonetim/giris');
     await page.getByLabel('E-posta').fill('approver@e2e.test');
@@ -36,13 +41,13 @@ test('a person creates recovery codes and signs in with one when the phone is no
     await page.getByLabel('Kurtarma kodu').fill(value);
     await page.getByRole('button', { name: 'Giriş yap' }).click();
   };
-  await page.getByRole('button', { name: 'Çıkış' }).click();
+  await signOut();
   await viaRecovery(code.toUpperCase());
   await expect(page).toHaveURL(/\/yonetim\/hesap\?kurtarma=9$/);
   await expect(page.locator('#admin-main').getByRole('status')).toContainText('9 kodunuz kaldı');
 
   // The same code does not work twice.
-  await page.getByRole('button', { name: 'Çıkış' }).click();
+  await signOut();
   await viaRecovery(code);
   await expect(page).toHaveURL(/\/yonetim\/giris\/kurtarma\?durum=hata$/);
   await expect(page.getByText('Kod kabul edilmedi.')).toBeVisible();
