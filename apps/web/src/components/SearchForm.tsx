@@ -3,12 +3,15 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { dict, errorMessage, type Locale } from '../i18n/dictionaries';
+import { boardLabel } from '../i18n/format';
 import { api, ApiError } from './api';
 
 interface Place {
   placeId: string;
   name: string;
   address: string;
+  /** A single hotel (hotel pages): searched by its provider code instead of a place. */
+  hotelId?: string;
 }
 interface RoomInput {
   adults: number;
@@ -32,7 +35,7 @@ export function SearchForm({
   currencies: string[];
   countries: ReadonlyArray<{ code: string; name: string }>;
   today: string;
-  initial?: { place?: Place; checkin?: string; checkout?: string; rooms?: RoomInput[]; nationality?: string; currency?: string };
+  initial?: { place?: Place; checkin?: string; checkout?: string; rooms?: RoomInput[]; nationality?: string; currency?: string; boardType?: string | null };
 }) {
   const t = dict(locale);
   const router = useRouter();
@@ -46,6 +49,8 @@ export function SearchForm({
   const [rooms, setRooms] = useState<RoomInput[]>(initial?.rooms ?? [{ adults: 2, childAges: [] }]);
   const [nationality, setNationality] = useState(initial?.nationality ?? (locale === 'tr' ? 'TR' : 'GB'));
   const [currency, setCurrency] = useState(initial?.currency && currencies.includes(initial.currency) ? initial.currency : (currencies[0] ?? 'EUR'));
+  // A list's board filter (e.g. all inclusive) travels with its "see prices" link so the list price can be found.
+  const [boardType, setBoardType] = useState<string | null>(initial?.boardType ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -85,12 +90,14 @@ export function SearchForm({
     }
     setBusy(true);
     try {
+      const target = place.hotelId ? { hotelIds: [place.hotelId] } : { placeId: place.placeId };
       const r = await api<{ sessionId: string }>('/api/v1/search/hotel', {
         method: 'POST',
-        body: { target: { placeId: place.placeId }, checkin, checkout, rooms, nationality, currency, locale },
+        body: { target, checkin, checkout, rooms, nationality, currency, locale, ...(boardType ? { boardType } : {}) },
       });
-      const q = new URLSearchParams({ place: place.placeId, placeName: place.name });
-      router.push(`/${locale}/hotels/${r.sessionId}?${q.toString()}`);
+      const q = new URLSearchParams(place.hotelId ? { hotel: place.hotelId, hotelName: place.name } : { place: place.placeId, placeName: place.name });
+      if (boardType) q.set('board', boardType);
+      router.push(`/${locale}/search/hotels/${r.sessionId}?${q.toString()}`);
     } catch (err) {
       setError(errorMessage(locale, err instanceof ApiError ? err.code : undefined));
       setBusy(false);
@@ -241,6 +248,11 @@ export function SearchForm({
         </div>
       </div>
 
+      {initial?.boardType && (
+        <label className="check">
+          <input type="checkbox" checked={boardType !== null} onChange={(e) => setBoardType(e.target.checked ? (initial.boardType ?? null) : null)} /> {t.search.onlyBoard(boardLabel(initial.boardType, null, locale) ?? initial.boardType)}
+        </label>
+      )}
       {error && (
         <p id="search-error" className="error" role="alert">
           {error}

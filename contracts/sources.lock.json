@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-09T10:37:44.917Z",
+  "updatedAt": "2026-10-10T12:52:06.011Z",
   "note": "PINNED means the body was fetched and hashed by scripts/pin-contracts.mjs. UNREACHABLE means it was not fetched; nothing in this repository may stand in for it. A pinned document is documentation evidence only: it never proves account permissions.",
   "sources": [
     {
@@ -642,6 +642,36 @@
       "integrity": "sha512-xiTKk4Gnxt8tuRovlIQZchbuutxVh6DCaT2YURnnS0TV7vzY8OlPJQIYu1lgvrxwmovAgSbrwIioFK59KrZHPg==",
       "shasum": "99c058f0a18d3ea14abf4c3870ca84b1cc64b7d0",
       "usedFor": "Corroborates hotel base URLs and paths (/hotels/rates, /rates/prebook, /rates/book, /bookings?clientReference=, /bookings/{id}). Published 2025-03; does not contain current payment enums. Not a substitute for api-booking.json."
+    },
+    {
+      "id": "nuitee-ref-rate-limiting",
+      "provider": "nuitee",
+      "kind": "guide",
+      "url": "https://docs.liteapi.travel/reference/rate-limiting.md",
+      "requiredFor": [
+        "connector:nuitee-hotel"
+      ],
+      "status": "PINNED",
+      "lastAttemptAt": "2026-10-10T12:52:06.011Z",
+      "lastError": null,
+      "sha256": "2b8355f56334a684ee428649df95970b2d06236e6db907561d432998223dbc07",
+      "fetchedAt": "2026-10-10T12:52:06.011Z",
+      "storedAs": "contracts/sources/nuitee-ref-rate-limiting.md"
+    },
+    {
+      "id": "nuitee-guide-performance-rate-limiting",
+      "provider": "nuitee",
+      "kind": "guide",
+      "url": "https://docs.liteapi.travel/docs/performance-reliability-rate-limiting.md",
+      "requiredFor": [
+        "connector:nuitee-hotel"
+      ],
+      "status": "PINNED",
+      "lastAttemptAt": "2026-10-10T12:52:06.011Z",
+      "lastError": null,
+      "sha256": "d95562f28657094df6f03c5195c071aff45dd73ea8a558568f89e3b9b6b32ef5",
+      "fetchedAt": "2026-10-10T12:52:06.011Z",
+      "storedAs": "contracts/sources/nuitee-guide-performance-rate-limiting.md"
     }
   ]
 }

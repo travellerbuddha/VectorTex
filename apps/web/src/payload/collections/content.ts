@@ -7,6 +7,7 @@ import { guardSlug, seoField, slugField } from '../fields';
 export const SITE_PATHS: Record<string, (locale: string, slug: string) => string> = {
   pages: (locale, slug) => `/${locale}/${slug}`,
   destinations: (locale, slug) => `/${locale}/destinations/${slug}`,
+  'hotel-lists': (locale, slug) => `/${locale}/${locale === 'tr' ? 'oteller' : 'hotels'}/${slug}`,
 };
 
 const base = process.env.PUBLIC_BASE_URL?.replace(/\/$/, '') ?? '';

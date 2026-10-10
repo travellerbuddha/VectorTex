@@ -29,12 +29,32 @@ async function main(): Promise<void> {
     }
   };
   const running = loop();
+  // Hotel list prices (ADR-0014): one unit of work at a time at the shared provider pace; idle polls are slow.
+  const pause = async (ms: number) => {
+    // In one-second steps so a shutdown does not wait for the whole pause.
+    for (let left = ms; left > 0 && !stopping; left -= 1000) await new Promise((r) => setTimeout(r, Math.min(1000, left)));
+  };
+  const scanLoop = async () => {
+    const scanner = runtime.hotelListScanner;
+    if (!scanner) return;
+    while (!stopping) {
+      try {
+        const step = await scanner.tick();
+        if (step === 'IDLE') await pause(30_000);
+      } catch (err) {
+        log.error('hotel list scan failed', { error: String(err) });
+        await pause(30_000);
+      }
+    }
+  };
+  const scanning = scanLoop();
 
   const shutdown = async (signal: string) => {
     if (stopping) return;
     stopping = true;
     log.info('worker stopping', { signal });
     await running;
+    await scanning;
     await consumer.close();
     await relay.close();
     await runtime.close();

@@ -6,20 +6,28 @@ import { mailSettingsFromEnv } from '@texholiday/admin';
 import {
   CUSTOMER_MAIL_EVENTS,
   CustomerNotifier,
+  HotelListScanner,
+  HotelPricing,
+  hotelListTechSettingsFromEnv,
+  hotelPricingSettingsFromEnv,
   NuiteeFlightProviderManagedPort,
   NuiteeHotelProviderManagedPort,
   ProductProviderManagedPort,
   TransientPassengerDetails,
   loadOrderView,
 } from '@texholiday/booking';
-import { NuiteeFlightConnector, NuiteeHotelConnector } from '@texholiday/connectors';
-import { DomainError, parseSourceLock, type FlightConnector, type HotelConnector, type SourceLock } from '@texholiday/contracts';
-import { CheckoutRepository, DrizzleOrderStore, NotificationRepository, OutboxRepository, PolicyRepository, QuoteRepository, createCoreDatabase, type CoreDatabase } from '@texholiday/db';
+import { NuiteeFlightConnector, NuiteeHotelConnector, NUITEE_HOTEL_TIMEOUTS } from '@texholiday/connectors';
+import { DomainError, parseCapabilityMatrix, parseSourceLock, type FlightConnector, type HotelConnector, type SourceLock } from '@texholiday/contracts';
+import { CheckoutRepository, DrizzleOrderStore, HotelListRepository, NotificationRepository, OutboxRepository, PolicyRepository, QuoteRepository, createCoreDatabase, type CoreDatabase } from '@texholiday/db';
 import { PackageOrchestrator, ProviderManagedOrchestrator, type ItemBookingPort, type OrchestrationPolicy, type OrderItemState } from '@texholiday/domain';
 import { GatewayRegistry, IYZICO_REQUIRED_SOURCES, IyzicoGateway } from '@texholiday/payments';
 import type { EventHandler, Logger } from './relay';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+
+export function loadCapabilityMatrix() {
+  return parseCapabilityMatrix(JSON.parse(readFileSync(join(repoRoot, 'contracts', 'capability-matrix.json'), 'utf8')));
+}
 
 export function loadSourceLock(): SourceLock {
   return parseSourceLock(JSON.parse(readFileSync(join(repoRoot, 'contracts', 'sources.lock.json'), 'utf8')));
@@ -70,6 +78,8 @@ export interface Runtime {
   outbox: OutboxRepository;
   gateways: GatewayRegistry;
   handlers: Record<string, EventHandler>;
+  /** Hotel list price scanner (ADR-0014); null without a hotel connector. Runs in its own loop, not on the outbox. */
+  hotelListScanner: HotelListScanner | null;
   close(): Promise<void>;
 }
 
@@ -117,8 +127,7 @@ export async function createRuntime(
           environment: config.nuitee.keyEnvironment,
           searchBaseUrl: config.nuitee.searchBaseUrl,
           bookBaseUrl: config.nuitee.bookBaseUrl,
-          searchTimeoutSeconds: 6,
-          bookTimeoutSeconds: 120,
+          ...NUITEE_HOTEL_TIMEOUTS,
         })
       : null);
   const flights =
@@ -204,5 +213,22 @@ export async function createRuntime(
     },
   };
 
-  return { core, outbox: new OutboxRepository(core.db), gateways, handlers, close: () => core.close() };
+  // Hotel list prices are computed exactly like the web search (same settings parser, pricing and timeouts).
+  const hotelListScanner = hotels
+    ? new HotelListScanner({
+        repo: new HotelListRepository(core.db),
+        hotels,
+        pricing: new HotelPricing({
+          matrix: loadCapabilityMatrix(),
+          sourceLock: lock,
+          policies,
+          settings: hotelPricingSettingsFromEnv(env, config.providerEnvironment, tech.policyId),
+        }),
+        tech: hotelListTechSettingsFromEnv(env),
+        workerId: env.WORKER_ID ?? `worker-${process.pid}`,
+        log,
+      })
+    : null;
+
+  return { core, outbox: new OutboxRepository(core.db), gateways, handlers, hotelListScanner, close: () => core.close() };
 }

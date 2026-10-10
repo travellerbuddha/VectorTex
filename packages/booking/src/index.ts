@@ -9,3 +9,6 @@ export * from './order-view';
 export * from './customer-mail';
 export * from './nuitee-flight-pm-port';
 export * from './flights';
+export * from './hotel-pricing';
+export * from './hotel-offer-pricing';
+export * from './hotel-lists';

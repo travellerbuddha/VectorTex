@@ -254,3 +254,26 @@ Komut: `pnpm web:e2e:sandbox` (`flight-payment.sandbox.spec.ts`, "a seat and a b
 
 Soru 22.
 
+## 11. Otel liste sayfaları için Nuitee verisi (10 Ekim 2026)
+
+Komut: sandbox anahtarıyla yalnız okuma çağrıları; rezervasyon yok. Ham çıktı paylaşılmadı (anahtar yazdırılmadı).
+
+| Çağrı | Sonuç | Kod etkisi |
+|---|---|---|
+| `GET /data/places?textQuery=Antalya&language=tr` | İlk sonuç "Antalya" (`locality`, `ChIJwa2t3a6awxQRMy7j-XOfxpU`) | Antalya bir şehir; Belek, Kemer, Side ayrı yerler. Bir liste birden çok yer alır. |
+| `GET /data/places?textQuery=Rome` | İlk sonuç **Rome, Georgia (ABD)**; `/data/places/{id}` adres bileşenleri bunu gösterdi. "Roma" (TR) → Roma, İtalya | Panel yer seçerken adres/ülke gösterir. Yer kimliği yazmak yerine öneriden seçilir. |
+| `POST /hotels/rates` `placeId` (Antalya, 1 gece, 2 yetişkin, EUR, TR, marj %10, `maxRatesPerHotel` 8, `limit` 50) | 200; 38 otel, 182 oran; 11,2 sn; 0,56 MB | Bölge üyeleri fiyat aramasından bulunur. Çağrı başına bir tarih. |
+| Aynı, `boardType: "AI"` | 200; 11 otel, 31 oranın hepsi `AI` | "Her şey dahil" listesi `boardType` ile taranır. Canlı aramaya da `boardType` eklendi; müşteri aynı fiyatı bulabilir. |
+| `placeId` Mısır / Rome | 46 otel / 9 otel (ABD'deki Rome) | Yer seçimi kanıtı yukarıda. |
+| `GET /data/hotel?hotelId=…&language=tr` / `en` | 200; Türkçe/İngilizce açıklama (HTML), 72 görsel (`static.cupid.travel`), 96 olanak, puan 8/10, 1000 yorum, konum, giriş/çıkış | İçerik düz metne çevrilir; yalnız https görseller. Puan sayfada kaynağıyla gösterilir, işaretlenmez. |
+| `/data/hotels` `placeId` belgesi | "merkezin 1 km çevresi" | Bölge listesi için kullanılmaz. |
+| `/hotels/min-rates` belgesi | `margin` parametresi yok | Onaylı marjla fiyat vermediği için kullanılmaz. |
+| Hız sınırı belgeleri (sabitlendi) | Sandbox 5 istek/sn; production 250 ya da 500 istek/sn (iki belge farklı) | Tarama varsayılan 1 istek/sn ve süreçler arası ortak hızla çalışır. |
+
+**Kanıtlanamayanlar:**
+- arama çağrısı ücreti veya bakma/satma oranı sınırı;
+- production hız sınırının kesin değeri;
+- içeriklerin kamuya açık, indekslenen sayfalarda kullanım izninin yazılı teyidi (işletme 10 Ekim 2026'da kullanımı onayladı).
+
+Soru 23.
+

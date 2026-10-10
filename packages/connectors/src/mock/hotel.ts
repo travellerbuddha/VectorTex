@@ -5,6 +5,7 @@ import {
   type ConnectorDescriptor,
   type ExternalOutcome,
   type HotelConnector,
+  type HotelContent,
   type HotelFunding,
   type HotelOffer,
   type HotelRoomGuest,
@@ -38,6 +39,12 @@ export class MockHotelConnector implements HotelConnector {
   /** Test hooks: force the next book/prebook outcome. */
   nextBook: ExternalOutcome<ProviderBookingState> | null = null;
   nextPrebookPriceChange = false;
+  /** Test hook: per check-in date change of every net price, in basis points (e.g. -1000 = 10 % cheaper). */
+  priceAdjustBp: (checkin: string) => bigint = () => 0n;
+  /** Test hook: the next searches fail as a lost answer (timeout). */
+  failSearches = 0;
+  /** Calls made, per operation (tests count provider calls). */
+  readonly calls: Record<string, number> = {};
 
   descriptor(): ConnectorDescriptor {
     return {
@@ -49,6 +56,8 @@ export class MockHotelConnector implements HotelConnector {
       requiredSources: [],
       operations: {
         searchRates: { effect: 'READ_ONLY', lostResponse: 'NONE' },
+        placeDetails: { effect: 'READ_ONLY', lostResponse: 'NONE' },
+        hotelContent: { effect: 'READ_ONLY', lostResponse: 'NONE' },
         prebook: { effect: 'CREATES_PROVIDER_SESSION', lostResponse: 'NONE' },
         book: { effect: 'CREATES_PROVIDER_RESERVATION', lostResponse: 'CLIENT_REFERENCE_LOOKUP' },
         lookupByClientReference: { effect: 'READ_ONLY', lostResponse: 'NONE' },
@@ -69,7 +78,18 @@ export class MockHotelConnector implements HotelConnector {
   private static readonly HOTELS: readonly HotelSummary[] = [
     { hotelId: 'MOCK-H1', name: 'MOCK Lara Beach Resort', mainPhoto: null, thumbnail: null, address: 'MOCK Lara, Antalya', city: 'Antalya', countryCode: 'TR', rating: 8.7, stars: 5 },
     { hotelId: 'MOCK-H2', name: 'MOCK Kaleiçi Boutique', mainPhoto: null, thumbnail: null, address: 'MOCK Kaleiçi, Antalya', city: 'Antalya', countryCode: 'TR', rating: 9.1, stars: 4 },
+    { hotelId: 'MOCK-H3', name: 'MOCK Belek Golf Resort', mainPhoto: null, thumbnail: null, address: 'MOCK Belek, Serik, Antalya', city: 'Belek', countryCode: 'TR', rating: 8.9, stars: 5 },
   ];
+
+  /** MOCK places: Antalya holds H1 and H2 (as every search did before), Belek holds H3. */
+  private static readonly PLACES: Record<string, { name: string; address: string; hotels: readonly string[] }> = {
+    'MOCK-PLACE-ANTALYA': { name: 'Antalya (MOCK)', address: 'Antalya, Türkiye', hotels: ['MOCK-H1', 'MOCK-H2'] },
+    'MOCK-PLACE-BELEK': { name: 'Belek (MOCK)', address: 'Serik, Antalya, Türkiye', hotels: ['MOCK-H3'] },
+  };
+
+  private count(op: string): void {
+    this.calls[op] = (this.calls[op] ?? 0) + 1;
+  }
 
   /** Marks the simulated payment of a transaction as completed (mock payment page / tests). */
   markPaid(transactionId: string): void {
@@ -77,8 +97,55 @@ export class MockHotelConnector implements HotelConnector {
   }
 
   async searchPlaces(input: { text: string; language: string }): Promise<ExternalOutcome<readonly PlaceSuggestion[]>> {
-    if (input.text.trim().length < 2) return notAvailable('PLACE_QUERY', 'Type 2-100 characters');
-    return { kind: 'SUCCEEDED', value: [{ placeId: 'MOCK-PLACE-ANTALYA', name: 'Antalya (MOCK)', address: 'Antalya, Türkiye', types: ['locality'] }], evidence: this.evidence('places') };
+    const text = input.text.trim().toLocaleLowerCase('tr');
+    if (text.length < 2) return notAvailable('PLACE_QUERY', 'Type 2-100 characters');
+    const belek = MockHotelConnector.PLACES['MOCK-PLACE-BELEK']!;
+    const places: PlaceSuggestion[] = [{ placeId: 'MOCK-PLACE-ANTALYA', name: 'Antalya (MOCK)', address: 'Antalya, Türkiye', types: ['locality'] }];
+    if (text.startsWith('bel')) places.unshift({ placeId: 'MOCK-PLACE-BELEK', name: belek.name, address: belek.address, types: ['locality'] });
+    return { kind: 'SUCCEEDED', value: places, evidence: this.evidence('places') };
+  }
+
+  async placeDetails(input: { placeId: string; language: string }): Promise<ExternalOutcome<PlaceSuggestion | null>> {
+    this.count('placeDetails');
+    const p = MockHotelConnector.PLACES[input.placeId];
+    return { kind: 'SUCCEEDED', value: p ? { placeId: input.placeId, name: p.name, address: p.address, types: ['locality'] } : null, evidence: this.evidence('placeDetails') };
+  }
+
+  /** MOCK content (invented, labelled); images are the site's own placeholder so pages render offline. */
+  async hotelContent(input: { hotelId: string; language: string }): Promise<ExternalOutcome<HotelContent | null>> {
+    this.count('hotelContent');
+    const h = MockHotelConnector.HOTELS.find((x) => x.hotelId === input.hotelId);
+    if (!h) return { kind: 'SUCCEEDED', value: null, evidence: this.evidence('hotelContent') };
+    const tr = input.language === 'tr';
+    const n = h.hotelId.slice(-1);
+    return {
+      kind: 'SUCCEEDED',
+      value: {
+        hotelId: h.hotelId,
+        language: input.language,
+        name: h.name,
+        description: tr ? `MOCK açıklama: ${h.name} denize yakın, test amaçlı uydurma bir oteldir.\n\nMOCK ikinci paragraf.` : `MOCK description: ${h.name} is an invented test hotel near the sea.\n\nMOCK second paragraph.`,
+        stars: h.stars,
+        rating: h.rating,
+        reviewCount: 100 * Number(n),
+        address: h.address,
+        city: h.city,
+        country: 'tr',
+        location: { latitude: 36.85 + Number(n) / 100, longitude: 30.85 + Number(n) / 100 },
+        images: [
+          { url: `/mock/hotel-${n}.svg`, caption: tr ? 'MOCK görsel' : 'MOCK image' },
+          { url: `/mock/hotel-${n}-b.svg`, caption: null },
+        ],
+        facilities: tr ? ['MOCK Açık havuz', 'MOCK Ücretsiz Wi-Fi', 'MOCK Spa', 'MOCK Otopark'] : ['MOCK Outdoor pool', 'MOCK Free Wi-Fi', 'MOCK Spa', 'MOCK Parking'],
+        checkinTime: '14:00',
+        checkoutTime: '12:00',
+        importantInformation: tr ? 'MOCK: Giriş için kimlik gerekir.' : 'MOCK: ID required at check-in.',
+        nearby: [{ name: tr ? 'MOCK Antalya Havalimanı' : 'MOCK Antalya Airport', category: 'airport', distanceKm: 12 + Number(n) }],
+        hotelType: 'Hotel',
+        chain: null,
+      },
+      evidence: this.evidence('hotelContent'),
+    };
   }
 
   async searchRates(criteria: HotelSearchCriteria): Promise<ExternalOutcome<readonly HotelOffer[]>> {
@@ -87,12 +154,24 @@ export class MockHotelConnector implements HotelConnector {
   }
 
   async searchHotelRates(criteria: HotelSearchCriteria): Promise<ExternalOutcome<{ offers: readonly HotelOffer[]; hotels: readonly HotelSummary[] }>> {
+    this.count('searchHotelRates');
+    if (this.failSearches > 0) {
+      this.failSearches -= 1;
+      return { kind: 'UNKNOWN', reason: 'TIMEOUT', evidence: this.evidence('search') };
+    }
+    // Target: given hotel ids, a MOCK place, or (any other target) Antalya's hotels as before.
+    const inScope = new Set(
+      criteria.hotelIds ? criteria.hotelIds : criteria.placeId && MockHotelConnector.PLACES[criteria.placeId] ? MockHotelConnector.PLACES[criteria.placeId]!.hotels : ['MOCK-H1', 'MOCK-H2'],
+    );
+    const adjust = this.priceAdjustBp(criteria.checkin);
     const nights = Math.max(1, Math.round((Date.parse(criteria.checkout) - Date.parse(criteria.checkin)) / 86_400_000));
     const rooms = criteria.occupancies.length;
     const bp = BigInt(criteria.margin?.basisPoints ?? 0);
     const offers: HotelOffer[] = [];
     const mk = (hotelId: string, roomName: string, board: [string, string], netPerNight: bigint, refundable: boolean, sspFactorBp: bigint | null) => {
-      const net = money(criteria.currency, netPerNight * BigInt(nights) * BigInt(rooms));
+      if (!inScope.has(hotelId) || (criteria.boardType && criteria.boardType !== board[0])) return;
+      const base = money(criteria.currency, netPerNight * BigInt(nights) * BigInt(rooms));
+      const net = adjust === 0n ? base : add(base, percentOf(base, adjust, 'HALF_EVEN'));
       const commission = percentOf(net, bp, 'HALF_EVEN');
       const price = add(net, commission);
       this.seq += 1;
@@ -122,7 +201,9 @@ export class MockHotelConnector implements HotelConnector {
     mk('MOCK-H2', 'MOCK Superior Double', ['BI', 'Breakfast Included'], 9000n, true, null);
     // Suggested selling price far above the price: hidden on public pages (rate parity).
     mk('MOCK-H2', 'MOCK Suite', ['BI', 'Breakfast Included'], 20000n, true, 9000n);
-    return { kind: 'SUCCEEDED', value: { offers, hotels: MockHotelConnector.HOTELS }, evidence: this.evidence('search') };
+    mk('MOCK-H3', 'MOCK Golf Room', ['AI', 'All Inclusive'], 16000n, true, null);
+    const priced = new Set(offers.map((o) => o.hotelId));
+    return { kind: 'SUCCEEDED', value: { offers, hotels: MockHotelConnector.HOTELS.filter((h) => priced.has(h.hotelId)) }, evidence: this.evidence('search') };
   }
 
   async prebook(input: { offerRef: OpaqueRef; usePaymentSdk: boolean; clientReference: string }): Promise<

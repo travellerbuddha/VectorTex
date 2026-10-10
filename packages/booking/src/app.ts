@@ -10,28 +10,26 @@ import {
   type PlaceSuggestion,
   type SourceLock,
 } from '@texholiday/contracts';
-import { CheckoutRepository, DrizzleOrderStore, IdempotencyRepository, PolicyRepository, QuoteRepository, SearchSessionRepository, type CoreDb } from '@texholiday/db';
+import { CheckoutRepository, DrizzleOrderStore, HotelListRepository, IdempotencyRepository, PolicyRepository, QuoteRepository, SearchSessionRepository, type CoreDb } from '@texholiday/db';
 import {
   ProviderManagedOrchestrator,
   QuoteError,
   assertQuoteUsable,
-  selectPaymentRoutes,
   type OrderAggregate,
   type QuoteVersionSnapshot,
   type RouteOption,
 } from '@texholiday/domain';
 import {
-  PricingPolicyError,
-  computeSellPrice,
   fromJson,
   money,
   providerMarginForSearch,
   toJson,
-  type Money,
-  type MoneyJson,
   type PricingPolicyVersion,
 } from '@texholiday/pricing';
 import { canAccessOrder, orderAccessToken } from './access';
+import { priceHotelOffer, type StoredOffer } from './hotel-offer-pricing';
+import { HotelPricing, providerManagedRoute } from './hotel-pricing';
+import { HotelListPages, HotelListScanner } from './hotel-lists';
 import { cancellationView, loadOrderView, orderStage, quoteView } from './order-view';
 import { NuiteeHotelProviderManagedPort } from './nuitee-pm-port';
 import { NuiteeFlightProviderManagedPort, ProductProviderManagedPort, TransientPassengerDetails } from './nuitee-flight-pm-port';
@@ -43,24 +41,6 @@ import type { CancellationView, HotelOfferView, HotelResultView, HotelSearchView
 
 const HOTEL_PROVIDER = 'nuitee';
 const HOTEL_CONNECTOR_ID = 'nuitee-hotel';
-/** Payment type of the Nuitee payment SDK on an offer; offers without it cannot be paid online through Nuitee. */
-const PROVIDER_PAYMENT_TYPE = 'NUITEE_PAY';
-
-interface StoredOffer {
-  key: string;
-  hotelId: string;
-  offerRef: string;
-  price: MoneyJson;
-  commission: MoneyJson;
-  sell: MoneyJson;
-  payAtProperty: MoneyJson[];
-  cancellation: { timezone: string; refundable: boolean; steps: Array<{ from: string; penalty: MoneyJson }>; providerText: string | null };
-  occupancyNumbers: number[];
-  room: { name: string | null; boardType: string | null; boardName: string | null };
-  /** Rate parity record (ADR-0009): the hotel's suggested selling price and whether our price is below it. */
-  rateParity: { suggestedSellingPrice: MoneyJson | null; belowSuggestedPrice: boolean };
-}
-
 interface StoredResults {
   hotels: HotelSummary[];
   offers: StoredOffer[];
@@ -100,6 +80,11 @@ export class BookingApp {
   readonly staff: StaffOrderCommands;
   /** Customer flight sales (null when no flight connector is configured). */
   readonly flights: FlightSales | null;
+  /** Hotel prices as the search computes them, with their fingerprint (ADR-0014). */
+  readonly hotelPricing: HotelPricing;
+  /** Read model of the hotel list and hotel pages (ADR-0014). */
+  readonly hotelLists: HotelListPages;
+  readonly hotelListRepository: HotelListRepository;
   private readonly policies: PolicyRepository;
   private readonly quotes: QuoteRepository;
   private readonly checkout: CheckoutRepository;
@@ -134,6 +119,14 @@ export class BookingApp {
         maxAutomaticLookups: s.maxAutomaticLookups,
       },
     });
+    this.hotelPricing = new HotelPricing({
+      matrix: deps.matrix,
+      sourceLock: deps.sourceLock,
+      policies: this.policies,
+      settings: { environment: s.environment, policyId: s.policyId, currencies: s.currencies, maxRatesPerHotel: s.maxRatesPerHotel, enforceRateParity: s.enforceRateParity },
+    });
+    this.hotelListRepository = new HotelListRepository(deps.db);
+    this.hotelLists = new HotelListPages({ repo: this.hotelListRepository, pricing: this.hotelPricing, clock: this.clock });
     this.staff = new StaffOrderCommands(deps.db, this.store, this.orchestrator, s.environment, this.clock, deps.flights ?? null);
     this.flights = deps.flights
       ? new FlightSales({
@@ -160,24 +153,15 @@ export class BookingApp {
     return p;
   }
 
-  /** The route is chosen on the server (§4.1). Only the provider-managed route exists until the own gateway is integrated. */
+  /** The route is chosen on the server (§4.1); shared with the hotel list scanner (ADR-0014). */
   private async route(currency: string, policy: PricingPolicyVersion, productType: ProductType = 'HOTEL'): Promise<RouteOption> {
-    const s = this.deps.settings;
-    if (!s.currencies.includes(currency)) throw new CapabilityNotAvailableError(`Currency ${currency} is not offered`, [`currency ${currency} not offered`]);
-    const decision = selectPaymentRoutes({
-      items: [{ itemId: productType.toLowerCase(), productType, providerId: HOTEL_PROVIDER }],
-      chargeCurrency: currency,
-      environment: s.environment,
-      matrix: this.deps.matrix,
-      sourceLock: this.deps.sourceLock,
-      gateways: [],
-      pricingPolicy: policy,
-      riskPolicy: await this.policies.activeRisk(s.policyId),
-    });
-    if (!decision.available) throw new CapabilityNotAvailableError('No payment route for this currency', decision.reasons);
-    const pm = [decision.defaultOption, ...decision.alternatives].find((o) => o.route.mode === 'PROVIDER_MANAGED');
-    if (!pm) throw new CapabilityNotAvailableError('Only provider-managed payment is available', ['own gateway not integrated (ADR-0008)']);
-    return pm;
+    return providerManagedRoute({ ...this.deps, policies: this.policies }, currency, policy, productType);
+  }
+
+  /** A list price scanner on this process's hotel connector (the worker runs it; the MOCK web uses it in tests). */
+  hotelListScanner(workerId: string, opts: { sleep?: (ms: number) => Promise<void> } = {}): HotelListScanner {
+    const tech = this.deps.settings.hotelLists ?? { refreshHours: 24, callsPerSecond: 1, candidates: 100, contentRefreshDays: 7 };
+    return new HotelListScanner({ repo: this.hotelListRepository, hotels: this.deps.hotels, pricing: this.hotelPricing, tech, workerId, clock: this.clock, ...opts });
   }
 
   private supportsApiMargin(capabilityId: string): boolean {
@@ -215,6 +199,7 @@ export class BookingApp {
       margin,
       maxRatesPerHotel: this.deps.settings.maxRatesPerHotel,
       limit: this.deps.settings.maxHotels,
+      ...(input.boardType ? { boardType: input.boardType } : {}),
     });
     if (out.kind === 'REJECTED' || out.kind === 'CAPABILITY_NOT_AVAILABLE') {
       throw new DomainError('VALIDATION_FAILED', 'The search could not be run with these criteria', { httpStatus: 422, action: 'FIX_FIELDS' });
@@ -250,48 +235,9 @@ export class BookingApp {
     return this.searchView(sessionId, expiresAt, input, results, hidden);
   }
 
-  /** One customer price per offer: the provider price with our policy margin, checked against the hotel's public floor. */
+  /** One customer price per offer, exactly as hotel list pages price it (ADR-0014). */
   private priceOffer(offer: HotelOffer, policy: PricingPolicyVersion, capabilityId: string, hidden: HotelSearchView['hidden']): Omit<StoredOffer, 'key'> | null {
-    if (!offer.paymentTypes.includes(PROVIDER_PAYMENT_TYPE)) {
-      hidden.notPayableOnline += 1;
-      return null;
-    }
-    let sell: Money;
-    try {
-      sell = computeSellPrice({
-        productType: 'HOTEL',
-        paymentMode: 'PROVIDER_MANAGED',
-        providerPrice: offer.price,
-        providerAppliedMargin: offer.providerAppliedMargin,
-        providerSupportsApiMargin: this.supportsApiMargin(capabilityId),
-        policy,
-      }).sell;
-    } catch (err) {
-      if (!(err instanceof PricingPolicyError)) throw err;
-      hidden.notPriced += 1;
-      return null;
-    }
-    // Rate parity: with the provider collecting the payment we cannot raise the price to the hotel's suggested
-    // selling price. Below-SSP offers are hidden unless the approved policy says to show them (ADR-0009); either
-    // way the comparison is recorded on the offer and, once selected, on the quote.
-    const ssp = offer.suggestedSellingPrice;
-    const belowSuggestedPrice = ssp !== null && (ssp.currency !== sell.currency || sell.minor < ssp.minor);
-    if (belowSuggestedPrice && this.deps.settings.enforceRateParity && policy.allowBelowSspProviderManaged !== true) {
-      hidden.belowSuggestedPrice += 1;
-      return null;
-    }
-    return {
-      hotelId: offer.hotelId,
-      offerRef: offer.offerRef,
-      price: toJson(offer.price),
-      commission: toJson(offer.providerAppliedMargin),
-      sell: toJson(sell),
-      payAtProperty: offer.payAtProperty.map(toJson),
-      cancellation: { ...offer.cancellation, steps: offer.cancellation.steps.map((s) => ({ from: s.from, penalty: toJson(s.penalty) })) },
-      occupancyNumbers: [...offer.occupancyNumbers],
-      room: offer.room,
-      rateParity: { suggestedSellingPrice: ssp ? toJson(ssp) : null, belowSuggestedPrice },
-    };
+    return priceHotelOffer(offer, policy, { supportsApiMargin: this.supportsApiMargin(capabilityId), enforceRateParity: this.deps.settings.enforceRateParity }, hidden);
   }
 
   private searchView(sessionId: string, expiresAt: string, input: HotelSearchInput, results: StoredResults, hidden: HotelSearchView['hidden']): HotelSearchView {

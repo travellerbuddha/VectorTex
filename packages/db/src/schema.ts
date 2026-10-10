@@ -3,6 +3,7 @@ import {
   bigint,
   check,
   bigserial,
+  foreignKey,
   boolean,
   char,
   index,
@@ -784,3 +785,132 @@ export const fxRateSnapshots = core.table('fx_rate_snapshots', {
   observedAt: ts('observed_at').notNull(),
   createdAt: ts('created_at').notNull().defaultNow(),
 });
+
+// ------------------------------------------------------------------ hotel list pages (ADR-0014)
+
+/**
+ * Hotel lists as last published in the CMS (`cms.hotel_lists`), written by the CMS after the publish commits: the
+ * worker and the pages read only this copy (ADR-0003). `config` holds the sources and filters.
+ */
+export const hotelLists = core.table('hotel_lists', {
+  cmsId: text('cms_id').primaryKey(),
+  /** Address and title per language ({ tr: 'antalya' }); a language without an address has no page. */
+  slugs: jsonb('slugs').notNull(),
+  titles: jsonb('titles').notNull(),
+  config: jsonb('config').notNull(),
+  published: boolean('published').notNull(),
+  /** The CMS document's updatedAt when mirrored: a page whose CMS copy differs shows no prices. */
+  cmsUpdatedAt: text('cms_updated_at').notNull(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+/** Price display settings per language (singleton row 'default'), mirrored from the CMS global. */
+export const hotelListSettings = core.table('hotel_list_settings', {
+  id: text('id').primaryKey(),
+  settings: jsonb('settings').notNull(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+/**
+ * What one price scan covers: places and/or hotel ids, board type, currency, nationality, environment. Lists with the
+ * same sources share a scope (and its provider calls). Inactive scopes keep their rows until housekeeping.
+ */
+export const hotelListScopes = core.table('hotel_list_scopes', {
+  scopeKey: text('scope_key').primaryKey(),
+  scope: jsonb('scope').notNull(),
+  environment: environmentEnum('environment').notNull(),
+  currency: ccy('currency').notNull(),
+  active: boolean('active').notNull(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+/**
+ * One check-in date of a scope (1 night): the unit of work of the scanner. A day is claimed with a lease; only a
+ * fully answered day replaces its prices (an UNKNOWN answer keeps the previous ones and retries later).
+ */
+export const hotelListDays = core.table(
+  'hotel_list_days',
+  {
+    scopeKey: text('scope_key')
+      .notNull()
+      .references(() => hotelListScopes.scopeKey, { onDelete: 'cascade' }),
+    checkin: text('checkin').notNull(),
+    nextDueAt: ts('next_due_at').notNull(),
+    lockedUntil: ts('locked_until'),
+    lockedBy: text('locked_by'),
+    attempts: integer('attempts').notNull().default(0),
+    /** When the prices of this day were last replaced, and the pricing fingerprint they were computed with. */
+    lastSuccessAt: ts('last_success_at'),
+    fingerprint: text('fingerprint'),
+    lastError: text('last_error'),
+  },
+  (t) => [primaryKey({ columns: [t.scopeKey, t.checkin] }), index('hotel_list_days_due_idx').on(t.nextDueAt)],
+);
+
+/** Lowest customer price of a hotel on a scope's check-in date, in the scope currency. */
+export const hotelListPrices = core.table(
+  'hotel_list_prices',
+  {
+    scopeKey: text('scope_key').notNull(),
+    checkin: text('checkin').notNull(),
+    hotelId: text('hotel_id').notNull(),
+    sellMinor: minor('sell_minor').notNull(),
+    /** Amount the guest pays at the hotel on top (city tax etc.) in the scope currency, when the provider states one. */
+    payAtPropertyMinor: minor('pay_at_property_minor'),
+    /** The provider states amounts payable at the hotel in another currency (shown as "plus local taxes"). */
+    payAtPropertyOtherCurrency: boolean('pay_at_property_other_currency').notNull().default(false),
+    boardType: text('board_type'),
+  },
+  (t) => [
+    primaryKey({ columns: [t.scopeKey, t.checkin, t.hotelId] }),
+    foreignKey({ columns: [t.scopeKey, t.checkin], foreignColumns: [hotelListDays.scopeKey, hotelListDays.checkin] }).onDelete('cascade'),
+    check('hotel_list_prices_positive', sql`${t.sellMinor} > 0`),
+  ],
+);
+
+/**
+ * Hotels a scope has found, kept for a while after they stop appearing (availability changes daily; pages must not
+ * flap in and out of the index).
+ */
+export const hotelListMembers = core.table(
+  'hotel_list_members',
+  {
+    scopeKey: text('scope_key')
+      .notNull()
+      .references(() => hotelListScopes.scopeKey, { onDelete: 'cascade' }),
+    hotelId: text('hotel_id').notNull(),
+    summary: jsonb('summary').notNull(),
+    /** The provider's order (top picks or price) on the latest day it was seen. */
+    rank: integer('rank').notNull(),
+    firstSeenAt: ts('first_seen_at').notNull(),
+    lastSeenAt: ts('last_seen_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.scopeKey, t.hotelId] })],
+);
+
+/** Shared pace of provider calls across worker processes (one row per budget). */
+export const rateSlots = core.table('rate_slots', {
+  name: text('name').primaryKey(),
+  nextAt: ts('next_at').notNull(),
+});
+
+/** Static hotel content per language for hotel pages (`/data/hotel`); fetched slowly by the worker, never on request. */
+export const hotelContent = core.table(
+  'hotel_content',
+  {
+    environment: environmentEnum('environment').notNull(),
+    hotelId: text('hotel_id').notNull(),
+    language: text('language').notNull(),
+    /** Address of the hotel page in this language ("akra-antalya-lp1897"). */
+    slug: text('slug').notNull(),
+    status: text('status', { enum: ['OK', 'NOT_FOUND'] }).notNull(),
+    content: jsonb('content'),
+    fetchedAt: ts('fetched_at').notNull(),
+    nextFetchAt: ts('next_fetch_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.environment, t.hotelId, t.language] }),
+    uniqueIndex('hotel_content_slug_uq').on(t.environment, t.language, t.slug),
+    index('hotel_content_next_idx').on(t.nextFetchAt),
+  ],
+);
