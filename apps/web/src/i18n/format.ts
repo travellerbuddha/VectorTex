@@ -51,3 +51,9 @@ export function formatDuration(minutes: number, locale: Locale): string {
   const m = minutes % 60;
   return locale === 'tr' ? `${h} sa ${m} dk` : `${h}h ${m}m`;
 }
+
+/** Amount as a number for analytics events only (never for money arithmetic). */
+export function analyticsValue(m: { currency: string; minor: string }): number {
+  const exp = EXPONENT[m.currency] ?? 2;
+  return Number(m.minor) / 10 ** exp;
+}

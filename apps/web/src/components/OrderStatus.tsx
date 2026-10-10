@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { OrderView } from '@texholiday/booking';
 import { dict, type Locale } from '../i18n/dictionaries';
 import { api } from './api';
+import { pushEvent, type AnalyticsItem } from './tracking/TrackEvent';
 
 const OPEN = new Set(['PREPARING_PAYMENT', 'AWAITING_PAYMENT', 'CONFIRMING', 'ISSUING']);
 
@@ -11,7 +12,18 @@ const OPEN = new Set(['PREPARING_PAYMENT', 'AWAITING_PAYMENT', 'CONFIRMING', 'IS
  * Shows the server's order stage. After a return from the payment page it keeps asking the server to finalize
  * for a while; the worker continues afterwards even if the page is closed.
  */
-export function OrderStatus({ locale, initial, finalizeWhileOpen }: { locale: Locale; initial: OrderView; finalizeWhileOpen: boolean }) {
+export function OrderStatus({
+  locale,
+  initial,
+  finalizeWhileOpen,
+  purchase,
+}: {
+  locale: Locale;
+  initial: OrderView;
+  finalizeWhileOpen: boolean;
+  /** Return page only (ADR-0018): GA4 purchase sent once per order from this browser when the booking is confirmed. */
+  purchase?: { currency: string; value: number; items: AnalyticsItem[] };
+}) {
   const t = dict(locale);
   const [order, setOrder] = useState(initial);
   const [tries, setTries] = useState(0);
@@ -33,6 +45,10 @@ export function OrderStatus({ locale, initial, finalizeWhileOpen }: { locale: Lo
     }, delay);
     return () => clearTimeout(timer);
   }, [open, giveUp, tries, order.orderId, finalizeWhileOpen]);
+
+  useEffect(() => {
+    if (purchase && order.stage === 'CONFIRMED') pushEvent('purchase', { transaction_id: order.orderId, ...purchase }, `purchase_${order.orderId}`);
+  }, [purchase, order.stage, order.orderId]);
 
   return (
     <section aria-live="polite" className={`status status-${order.stage.toLowerCase()}`}>

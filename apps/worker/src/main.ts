@@ -1,16 +1,20 @@
 import { loadConfig } from '@texholiday/config';
+import { errorMessage, jsonLogger } from '@texholiday/contracts';
+import { MockFlightConnector, MockHotelConnector } from '@texholiday/connectors';
+import { CustomerAccountRepository } from '@texholiday/db';
 import { OutboxRelay, startConsumer, type Logger } from './relay';
 import { createRuntime } from './runtime';
 
-const log: Logger = {
-  info: (msg, meta) => console.log(JSON.stringify({ level: 'info', msg, ...meta })),
-  warn: (msg, meta) => console.warn(JSON.stringify({ level: 'warn', msg, ...meta })),
-  error: (msg, meta) => console.error(JSON.stringify({ level: 'error', msg, ...meta })),
-};
+// One JSON line per entry; personal data and secrets masked (T31).
+const log: Logger = jsonLogger({ service: 'worker' });
 
 async function main(): Promise<void> {
   const config = loadConfig(process.env); // fail-fast: invalid/placeholder secrets stop the process here
-  const runtime = await createRuntime(config, process.env, log);
+  // MOCK environment (local development and demo; refused in production by loadConfig): the same MOCK connectors as
+  // the web process, so the hotel list scan and checkout deadlines run without a provider. MOCK bookings live in the
+  // memory of the process that made them: a checkout abandoned before payment ends here as "not booked".
+  const mock = config.providerEnvironment === 'mock';
+  const runtime = await createRuntime(config, process.env, log, new Map(), mock ? new MockHotelConnector() : null, mock ? new MockFlightConnector() : null);
   const connection = { url: config.redis.url, maxRetriesPerRequest: null };
   const relayOpts = { batchSize: 100, dispatchLeaseSeconds: 600, maxAttempts: 12, retryDelaySeconds: (attempt: number) => Math.min(5 * 2 ** attempt, 900) };
   const relay = new OutboxRelay(runtime.outbox, connection, relayOpts, log);
@@ -23,7 +27,7 @@ async function main(): Promise<void> {
         const n = await relay.tick();
         if (n === 0) await new Promise((r) => setTimeout(r, 500));
       } catch (err) {
-        log.error('relay tick failed', { error: String(err) });
+        log.error('relay tick failed', { error: errorMessage(err) });
         await new Promise((r) => setTimeout(r, 2000));
       }
     }
@@ -42,12 +46,31 @@ async function main(): Promise<void> {
         const step = await scanner.tick();
         if (step === 'IDLE') await pause(30_000);
       } catch (err) {
-        log.error('hotel list scan failed', { error: String(err) });
+        log.error('hotel list scan failed', { error: errorMessage(err) });
         await pause(30_000);
       }
     }
   };
   const scanning = scanLoop();
+  // Hourly: expired customer sessions and old sign-in codes (ADR-0017); commissions whose stay has ended (ADR-0019).
+  const housekeepingLoop = async () => {
+    const accounts = new CustomerAccountRepository(runtime.core.db);
+    while (!stopping) {
+      try {
+        await accounts.prune(new Date());
+      } catch (err) {
+        log.error('housekeeping failed', { error: errorMessage(err) });
+      }
+      try {
+        const run = await runtime.commissions.earnDue(200);
+        if (run.due > 0) log.info('commission earning', { ...run });
+      } catch (err) {
+        log.error('commission earning failed', { error: errorMessage(err) });
+      }
+      await pause(3_600_000);
+    }
+  };
+  const housekeeping = housekeepingLoop();
 
   const shutdown = async (signal: string) => {
     if (stopping) return;
@@ -55,6 +78,7 @@ async function main(): Promise<void> {
     log.info('worker stopping', { signal });
     await running;
     await scanning;
+    await housekeeping;
     await consumer.close();
     await relay.close();
     await runtime.close();
@@ -65,6 +89,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  log.error('worker failed to start', { error: String(err instanceof Error ? err.message : err) });
+  log.error('worker failed to start', { error: errorMessage(err) });
   process.exit(1);
 });

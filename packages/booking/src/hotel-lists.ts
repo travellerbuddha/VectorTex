@@ -49,6 +49,8 @@ const localeSettings = z.object({ currency: z.string().regex(/^[A-Z]{3}$/), nati
 export const hotelListSettingsSchema = z.object({
   locales: z.object({ tr: localeSettings.nullable(), en: localeSettings.nullable() }),
   maxPriceAgeHours: z.number().int().min(1).max(168),
+  /** Alert when a live search is this much above a shown list price (basis points); null = no alert (no default). */
+  priceAlertBasisPoints: z.number().int().min(1).max(100_000).nullable().optional(),
 });
 export type HotelListSettings = z.infer<typeof hotelListSettingsSchema>;
 

@@ -113,7 +113,7 @@ describe('P17 sitemap and robots', () => {
     expect(robotsRules('production', undefined)).toEqual({ rules: { userAgent: '*', disallow: '/' } });
     const prod = robotsRules('production', 'https://www.example.test/');
     expect(prod.sitemap).toBe('https://www.example.test/sitemap.xml');
-    expect(prod.rules).toMatchObject({ allow: '/', disallow: expect.arrayContaining(['/yonetim', '/api/', '/tr/checkout/', '/en/orders/', '/tr/search/']) });
+    expect(prod.rules).toMatchObject({ allow: '/', disallow: expect.arrayContaining(['/yonetim', '/api/', '/tr/checkout/', '/en/orders/', '/tr/search/', '/tr/hesabim', '/en/account']) });
     expect((prod.rules as { disallow: string[] }).disallow).not.toContain('/en/hotels/');
   });
 });

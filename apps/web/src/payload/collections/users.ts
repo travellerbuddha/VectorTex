@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload';
 import { CMS_USERS, contentStaff } from '../access';
+import { attachCurrentPermissions } from '../scheduled-publish';
 import { staffStrategy } from '../staff-strategy';
 
 /**
@@ -16,6 +17,8 @@ export const CmsUsers: CollectionConfig = {
   },
   auth: { disableLocalStrategy: true, strategies: [staffStrategy] },
   access: { admin: ({ req }) => contentStaff({ req } as never) === true, read: contentStaff, create: () => false, update: () => false, delete: () => false },
+  // Scheduled publishing runs as the person who planned it, with their permissions at that moment (ADR-0020).
+  hooks: { afterRead: [attachCurrentPermissions] },
   fields: [
     { name: 'staffId', type: 'text', required: true, unique: true, index: true, admin: { readOnly: true } },
     { name: 'email', type: 'text', required: true, admin: { readOnly: true } },

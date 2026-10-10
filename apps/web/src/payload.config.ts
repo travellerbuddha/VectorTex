@@ -12,6 +12,8 @@ import { HotelListSettings, HotelLists } from './payload/collections/hotel-lists
 import { Redirects } from './payload/collections/redirects';
 import { CmsUsers } from './payload/collections/users';
 import { Footer, Navigation } from './payload/globals/site';
+import { TrackingSettings } from './payload/globals/tracking';
+import { jobsConfig } from './payload/scheduled-publish';
 
 /**
  * Payload CMS (P06, ADR-0003): site and editorial content only, in the `cms` schema; bookings and money stay in `core`.
@@ -69,7 +71,9 @@ export default buildConfig({
     { ...Media, upload: { ...(Media.upload as object), staticDir: env.CMS_MEDIA_DIR || path.resolve(dirname, '../.media') } },
     CmsUsers,
   ],
-  globals: [Navigation, Footer, HotelListSettings],
+  globals: [Navigation, Footer, HotelListSettings, TrackingSettings],
+  // Scheduled publish/unpublish of drafts (ADR-0020).
+  jobs: jobsConfig,
   graphQL: { disable: true },
   // The site reads documents with runtime checks; no generated type file is kept in the repository.
   typescript: { autoGenerate: false },

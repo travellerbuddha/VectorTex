@@ -133,6 +133,11 @@ export default async function FinanceReportPage({ searchParams }: { searchParams
             {table('finance-commissions', report.commissions, true)}
             <h3>{f.openTitle}</h3>
             {table('finance-open-commissions', report.openCommissions, true)}
+            <h3>{f.payoutsTitle}</h3>
+            {table('finance-payouts', report.payouts, false)}
+            <p className="muted">
+              <a href="/yonetim/raporlar/komisyonlar">{t.reports.items.commissions!.title}</a>
+            </p>
           </section>
           <section className="card">
             <h2>{f.cancellationsTitle}</h2>

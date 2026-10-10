@@ -41,5 +41,5 @@ Sandbox'ta `margin: 0` ile aranan net fiyatlar prebook'ta 7 denemenin 7'sinde re
 
 - **Risk ve çalışma sermayesi:** Hesap kartı komisyon dahil tutarla yüklenir. Komisyon, konaklama sonrasına kadar Nuitee'den alacak olarak kalır. **İşletme kararı (9 Ekim 2026): komisyon alacağı için üst limit yoktur.** Bekleyen komisyon toplamı yine de `provider_commissions` kayıtlarından izlenebilir (P15 raporu).
 - **İptal:** Ücretsiz iptalde Nuitee tutarın tamamını (komisyon dahil) iade etti (sandbox kanıtı). Cezalı iptalde komisyon ödenip ödenmediği belgede yok. Kayıt temkinli olarak `VOIDED` yapılır; soru Nuitee'ye iletildi (`docs/r0/saglayici-sorulari.md`).
-- **Mutabakat:** `EXPECTED → EARNED → RECEIVED` geçişleri, payout ekstresi eşleştirmesi ve muhasebe kayıtları P15 kapsamındadır. Fatura/vergi modeli G06'ya (finans/hukuk) bağlıdır.
+- **Mutabakat:** `EXPECTED → EARNED → RECEIVED` geçişleri ve muhasebe kayıtları ADR-0019 ile geldi (konaklama sonrası yeniden okuma ile hak ediş, finansın payout kaydı). Payout ekstresinin otomatik eşleştirilmesi ve fatura/vergi modeli G06'ya (finans/hukuk) bağlıdır.
 - **Geri dönüş:** Net fiyat yolu (`LOCAL`) kodda korunur. Nuitee `margin: 0` ile prebook'u açarsa finans, yeni bir politika sürümüyle `LOCAL`'a dönebilir; kod değişikliği gerekmez.

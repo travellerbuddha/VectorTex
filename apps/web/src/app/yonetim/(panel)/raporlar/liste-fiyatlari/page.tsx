@@ -24,7 +24,8 @@ export default async function ListPriceAccuracy({ searchParams }: { searchParams
   const asked = Number((await searchParams).gun);
   const days = (PERIODS as readonly number[]).includes(asked) ? asked : 7;
   const { app } = await booking();
-  const report = await app.hotelListPriceChecks.report(days);
+  const [report, alert] = await Promise.all([app.hotelListPriceChecks.report(days), app.hotelListPriceChecks.alert(24)]);
+  const threshold = alert.thresholdBasisPoints === null ? '' : percent(locale).format(alert.thresholdBasisPoints / 10_000);
 
   const row = (label: string, x: PriceAccuracyTotals) => (
     <tr>
@@ -53,6 +54,9 @@ export default async function ListPriceAccuracy({ searchParams }: { searchParams
       </nav>
       <p className="muted">
         {r.environment}: <strong>{report.environment}</strong>
+      </p>
+      <p className={alert.configured && alert.higher + alert.missing > 0 ? 'notice' : 'muted'} data-testid="price-alert-status">
+        {alert.configured ? r.alertOn(threshold, alert.higher, alert.missing) : r.alertOff}
       </p>
       {report.currencies.length === 0 ? (
         <p className="card">{r.none}</p>

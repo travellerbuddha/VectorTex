@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { originOf } from './server/origin';
 import { buildRedirectMap, legacySearchLocation, locationOf, lookupRedirect, type RedirectRule } from './server/redirects';
+import { errorMessage, log } from './server/log';
 
 /**
  * Old-site addresses (P17): a request matching a rule of the CMS redirect map gets a permanent redirect before any page
@@ -20,7 +21,7 @@ async function refresh(origin: string): Promise<void> {
     cache = { map: buildRedirectMap(body.redirects ?? []), until: Date.now() + TTL_MS };
   } catch (err) {
     cache = { map: cache.map, until: Date.now() + RETRY_MS };
-    console.error(JSON.stringify({ level: 'error', msg: 'redirect map unavailable', error: err instanceof Error ? err.message : String(err) }));
+    log.error('redirect map unavailable', { error: errorMessage(err) });
   }
 }
 

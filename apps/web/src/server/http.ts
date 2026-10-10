@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
 import { DomainError, isDomainError } from '@texholiday/contracts';
+import { CUSTOMER_COOKIE, customerAccounts } from './customer';
+import { errorMessage, log } from './log';
 
 /** Error body of the public API (§14): code, message, requestId, retryable, action. No provider internals. */
 export function errorResponse(err: unknown): NextResponse {
@@ -13,7 +15,7 @@ export function errorResponse(err: unknown): NextResponse {
       { status: err.httpStatus },
     );
   }
-  console.error(JSON.stringify({ level: 'error', msg: 'unhandled API error', requestId, error: err instanceof Error ? err.message : String(err) }));
+  log.error('unhandled API error', { requestId, error: errorMessage(err) });
   return NextResponse.json({ code: 'INTERNAL', message: 'Unexpected error', requestId, retryable: true, action: 'RETRY' }, { status: 500 });
 }
 
@@ -47,8 +49,21 @@ export function setOrderCookie(res: NextResponse, orderId: string, token: string
   });
 }
 
+/**
+ * The order access token: from the checkout cookie of this browser, or, for a signed-in customer (ADR-0017), derived
+ * once the order is theirs (same e-mail address).
+ */
 export async function orderToken(orderId: string): Promise<string | null> {
-  return (await cookies()).get(cookieName(orderId))?.value ?? null;
+  const jar = await cookies();
+  const own = jar.get(cookieName(orderId))?.value;
+  if (own) return own;
+  const session = jar.get(CUSTOMER_COOKIE)?.value;
+  if (!session) return null;
+  try {
+    return await (await customerAccounts()).orderToken(session, orderId);
+  } catch {
+    return null;
+  }
 }
 
 export { originOf } from './origin';

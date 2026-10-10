@@ -5,6 +5,7 @@ import { DomainError, parseCapabilityMatrix, parseSourceLock, type FlightConnect
 import matrixJson from '../../../../contracts/capability-matrix.json';
 import lockJson from '../../../../contracts/sources.lock.json';
 import { coreDatabase } from './core';
+import { log } from './log';
 
 export interface Booking {
   app: BookingApp;
@@ -57,7 +58,7 @@ async function create(): Promise<Booking> {
     settings,
     workerId: `web-${process.pid}`,
     // Side work that never fails a visitor's request (list price checks) is reported on the server log only.
-    log: { warn: (msg, meta) => console.warn(JSON.stringify({ level: 'warn', msg, ...meta })) },
+    log: { warn: (msg, meta) => log.warn(msg, meta) },
   });
   return { app, settings, mock };
 }

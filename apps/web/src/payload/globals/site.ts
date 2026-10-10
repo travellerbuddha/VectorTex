@@ -5,6 +5,8 @@ import { canEdit, canPublish } from '../access';
 const hrefField = (): Field => ({
   name: 'href',
   type: 'text',
+  // Per language: the English menu links to /en/... pages, the Turkish one to /tr/... pages.
+  localized: true,
   required: true,
   maxLength: 300,
   label: { tr: 'Adres', en: 'Address' },

@@ -1,5 +1,5 @@
 import { ValidationError, type CollectionAfterChangeHook, type CollectionAfterDeleteHook, type CollectionBeforeChangeHook, type CollectionConfig, type Field, type GlobalAfterChangeHook, type GlobalConfig } from 'payload';
-import { canEdit, canPublish, contentStaff, editors, guardPublish, publishedOrStaff, publishers } from '../access';
+import { canEdit, canPublish, contentStaff, editors, editorsPublishers, guardPublish, publishedOrStaff, publishers } from '../access';
 import { guardSlug, seoField, slugField } from '../fields';
 
 /**
@@ -128,8 +128,8 @@ export const HotelLists: CollectionConfig = {
       return typeof doc.slug === 'string' ? `${base}/api/cms-preview?collection=hotel-lists&slug=${encodeURIComponent(doc.slug)}&locale=${locale}` : null;
     },
   },
-  versions: { drafts: true, maxPerDoc: 50 },
-  access: { read: publishedOrStaff, readVersions: contentStaff, create: editors, update: editors, delete: publishers },
+  versions: { drafts: { schedulePublish: true }, maxPerDoc: 50 },
+  access: { read: publishedOrStaff, readVersions: contentStaff, create: editorsPublishers, update: editorsPublishers, delete: publishers },
   hooks: { beforeChange: [guardPublish, guardSlug, guardHotelListSource], afterChange: [mirrorHotelList], afterDelete: [unmirrorHotelList] },
   fields: [
     { name: 'title', type: 'text', localized: true, required: true, maxLength: 120, label: { tr: 'Başlık (H1)', en: 'Title (H1)' } },
@@ -238,12 +238,14 @@ interface SettingsDoc {
   enCurrency?: string | null;
   enNationality?: string | null;
   maxPriceAgeHours?: number | null;
+  priceAlertPercent?: number | null;
 }
 
 /** The core copy of the settings (shape: hotelListSettingsSchema in @texholiday/booking). */
 export function settingsMirrorOf(doc: SettingsDoc) {
   const locale = (c?: string | null, n?: string | null) => (c && n ? { currency: c, nationality: n } : null);
-  return { locales: { tr: locale(doc.trCurrency, doc.trNationality), en: locale(doc.enCurrency, doc.enNationality) }, maxPriceAgeHours: doc.maxPriceAgeHours ?? null };
+  const alert = typeof doc.priceAlertPercent === 'number' && doc.priceAlertPercent > 0 ? Math.round(doc.priceAlertPercent * 100) : null;
+  return { locales: { tr: locale(doc.trCurrency, doc.trNationality), en: locale(doc.enCurrency, doc.enNationality) }, maxPriceAgeHours: doc.maxPriceAgeHours ?? null, priceAlertBasisPoints: alert };
 }
 
 const mirrorSettings: GlobalAfterChangeHook = async ({ doc }) => {
@@ -274,6 +276,20 @@ export const HotelListSettings: GlobalConfig = {
       max: 168,
       label: { tr: 'Fiyat en fazla kaç saatlik olabilir', en: 'Maximum price age (hours)' },
       admin: { description: { tr: 'Daha eski fiyat gösterilmez. Fiyatlar günde bir yenilenir; 26 saat gibi bir değer bir gecikmeyi tolere eder.', en: 'Older prices are hidden. Prices refresh daily; a value like 26 hours tolerates one delay.' } },
+    },
+    {
+      name: 'priceAlertPercent',
+      type: 'number',
+      min: 0.1,
+      max: 1000,
+      label: { tr: 'Fiyat sapma uyarısı (%)', en: 'Price deviation alert (%)' },
+      admin: {
+        step: 0.1,
+        description: {
+          tr: 'Bir ziyaretçinin canlı araması, sayfada gösterilen liste fiyatından bu oranda (veya daha çok) yüksek çıkarsa ya da otel o tarihte satılamıyorsa panel ana sayfasında uyarı çıkar. Boşsa uyarı yok; varsayılan konmaz.',
+          en: 'When a visitor’s live search is this much (or more) above the list price shown, or the hotel cannot be booked on that date, the panel home shows an alert. Empty: no alert; nothing is defaulted.',
+        },
+      },
     },
   ],
 };

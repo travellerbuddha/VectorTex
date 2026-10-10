@@ -9,6 +9,10 @@ Kendi müşteri sitesi, booking engine, Payload içerik yönetimi, operasyon pan
 
 > İlk canlı sürüm G01–G09 geçmeden açılmaz. CI testleri mock ve yerel PostgreSQL/Redis üzerindedir. Sağlayıcı sandbox kanıtları isteğe bağlı koşulardan gelir ve R0 raporuna (§10–10.3) işlenir. Production kanıtı yoktur.
 
+## Yerel demo
+
+Sunucuya yüklemeden kendi bilgisayarınızda deneyin (Docker Desktop + Node 22): `pnpm install` ardından `pnpm demo`. Panel hesapları ve giriş kodları: `pnpm demo:kod`. Adım adım rehber: [`docs/demo/LOKAL-DEMO.md`](docs/demo/LOKAL-DEMO.md).
+
 ## Yapı
 
 ```text

@@ -19,6 +19,8 @@ export const HOTEL_DIR: Record<Locale, string> = { tr: 'otel', en: 'hotel' };
 /** Guide articles and the FAQ page per language (P06). */
 export const GUIDE_DIR: Record<Locale, string> = { tr: 'rehber', en: 'guides' };
 export const FAQ_DIR: Record<Locale, string> = { tr: 'sss', en: 'faq' };
+/** The customer's bookings (ADR-0017): private, never indexed. */
+export const ACCOUNT_DIR: Record<Locale, string> = { tr: 'hesabim', en: 'account' };
 
 export const PATHS: Record<SitemapDoc['collection'], (l: Locale, slug: string) => string> = {
   pages: (l, s) => `/${l}/${s}`,
@@ -56,6 +58,6 @@ export function robotsRules(appEnv: string | undefined, base: string | undefined
   if (appEnv !== 'production' || !base) return { rules: { userAgent: '*', disallow: '/' } };
   const origin = base.replace(/\/$/, '');
   // Search results live under /{l}/search/ (ADR-0014); /en/hotels/ holds the public hotel lists.
-  const privatePaths = LOCALES.flatMap((l) => [`/${l}/checkout/`, `/${l}/orders/`, `/${l}/search/`]);
+  const privatePaths = LOCALES.flatMap((l) => [`/${l}/checkout/`, `/${l}/orders/`, `/${l}/search/`, `/${l}/${ACCOUNT_DIR[l]}`]);
   return { rules: { userAgent: '*', allow: '/', disallow: ['/yonetim', '/api/', ...privatePaths] }, sitemap: `${origin}/sitemap.xml` };
 }

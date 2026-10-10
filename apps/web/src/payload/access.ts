@@ -28,6 +28,11 @@ export const publishedOrStaff: Access = ({ req }) => (isContentStaff(req) ? true
 /** Public assets (images): readable by everyone. */
 export const anyone: Access = () => true;
 export const editors: Access = ({ req }) => canEdit(req);
+/**
+ * Saving needs `content.edit`; saving as published also `content.publish`. The CMS asks this with `_status: 'published'`
+ * to decide whether to offer "Publish" and "Schedule publish", so editors are not offered either (ADR-0020).
+ */
+export const editorsPublishers: Access = ({ req, data }) => canEdit(req) && ((data as { _status?: unknown } | undefined)?._status !== 'published' || canPublish(req));
 export const publishers: Access = ({ req }) => canPublish(req);
 export const contentStaff: Access = ({ req }) => isContentStaff(req);
 

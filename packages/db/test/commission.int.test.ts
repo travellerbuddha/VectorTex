@@ -96,11 +96,33 @@ describe('provider commission receivable', () => {
     expect(await dbError(core.db.execute(sql`UPDATE core.provider_commissions SET amount_minor = 999 WHERE id = ${id}`))).toMatch(/immutable/);
     expect(await dbError(core.db.execute(sql`DELETE FROM core.provider_commissions WHERE id = ${id}`))).toMatch(/cannot be deleted/);
     expect(await dbError(core.db.execute(sql`UPDATE core.provider_commissions SET status = 'RECEIVED', payout_reference = 'P-1' WHERE id = ${id}`))).toMatch(/EXPECTED -> RECEIVED/);
-    await core.db.execute(sql`UPDATE core.provider_commissions SET status = 'EARNED' WHERE id = ${id}`);
-    expect(await dbError(core.db.execute(sql`UPDATE core.provider_commissions SET status = 'RECEIVED' WHERE id = ${id}`))).toMatch(/received_has_payout/);
-    await core.db.execute(sql`UPDATE core.provider_commissions SET status = 'RECEIVED', payout_reference = 'PAYOUT-2026-W41' WHERE id = ${id}`);
+    expect(await dbError(core.db.execute(sql`UPDATE core.provider_commissions SET status = 'EARNED' WHERE id = ${id}`))).toMatch(/earned_has_date/);
+    await core.db.execute(sql`UPDATE core.provider_commissions SET status = 'EARNED', earned_at = now() WHERE id = ${id}`);
+    expect(await dbError(core.db.execute(sql`UPDATE core.provider_commissions SET earned_at = now() - interval '1 day' WHERE id = ${id}`))).toMatch(/earned date can be set only once/);
+    expect(await dbError(core.db.execute(sql`UPDATE core.provider_commissions SET status = 'RECEIVED', payout_reference = 'PAYOUT-2026-W41' WHERE id = ${id}`))).toMatch(/received_has_payout/);
+
+    // A payout settles commissions of its own provider, currency and reference, adding up to its recorded sum.
+    type Exec = Pick<typeof core.db, 'execute'>;
+    const payout = async (db: Exec, reference: string, providerId: string, commissionsMinor: bigint) =>
+      (await db.execute<{ id: string }>(sql`INSERT INTO core.commission_payouts (environment, provider_id, reference, currency, amount_minor, commissions_minor, received_on, recorded_by)
+        VALUES ('mock', ${providerId}, ${reference}, 'EUR', ${commissionsMinor}, ${commissionsMinor}, '2026-10-10', 'staff:test') RETURNING id`)).rows[0]!.id;
+    const settle = (payoutId: string, reference: string) => sql`UPDATE core.provider_commissions SET status = 'RECEIVED', payout_id = ${payoutId}, payout_reference = ${reference} WHERE id = ${id}`;
+    expect(await dbError(core.db.transaction(async (tx) => tx.execute(settle(await payout(tx, 'P-OTHER', 'other_provider', 446n), 'P-OTHER'))))).toMatch(/does not match the commission/);
+    expect(await dbError(core.db.transaction(async (tx) => tx.execute(settle(await payout(tx, 'P-WRONG-REF', 'nuitee', 446n), 'P-DIFFERENT'))))).toMatch(/does not match the commission/);
+    expect(await dbError(core.db.transaction(async (tx) => tx.execute(settle(await payout(tx, 'P-WRONG-SUM', 'nuitee', 999n), 'P-WRONG-SUM'))))).toMatch(/settles 446 but records 999/);
+    expect(await dbError(core.db.execute(sql`INSERT INTO core.commission_payouts (environment, provider_id, reference, currency, amount_minor, commissions_minor, received_on, recorded_by)
+        VALUES ('mock', 'nuitee', 'P-NO-NOTE', 'EUR', 400, 446, '2026-10-10', 'staff:test')`))).toMatch(/difference_explained/);
+    // A payout that settles nothing is refused at commit.
+    expect(await dbError(payout(core.db, 'P-EMPTY', 'nuitee', 446n))).toMatch(/settles 0 but records 446/);
+    let payoutId = '';
+    await core.db.transaction(async (tx) => {
+      payoutId = await payout(tx, 'PAYOUT-2026-W41', 'nuitee', 446n);
+      await tx.execute(settle(payoutId, 'PAYOUT-2026-W41'));
+    });
     expect(await dbError(core.db.execute(sql`UPDATE core.provider_commissions SET payout_reference = 'OTHER' WHERE id = ${id}`))).toMatch(/only once/);
     expect(await dbError(core.db.execute(sql`UPDATE core.provider_commissions SET status = 'VOIDED' WHERE id = ${id}`))).toMatch(/RECEIVED -> VOIDED/);
+    expect(await dbError(core.db.execute(sql`UPDATE core.commission_payouts SET amount_minor = 1 WHERE id = ${payoutId}`))).toMatch(/append-only|append only/i);
+    expect(await dbError(core.db.execute(sql`DELETE FROM core.commission_payouts WHERE id = ${payoutId}`))).toMatch(/append-only|append only/i);
   });
 
   it('refuses a receivable from another environment than its order (T15)', async () => {

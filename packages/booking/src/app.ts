@@ -37,6 +37,7 @@ import { NuiteeHotelProviderManagedPort } from './nuitee-pm-port';
 import { NuiteeFlightProviderManagedPort, ProductProviderManagedPort, TransientPassengerDetails } from './nuitee-flight-pm-port';
 import { FlightSales, openFlightCurrencies } from './flights';
 import { StaffOrderCommands } from './staff-orders';
+import { ProviderCommissions } from './commissions';
 import type { BookingSettings } from './settings';
 import { checkoutInput, hotelSearchInput, parse, type HotelSearchInput } from './validation';
 import type { CancellationView, HotelOfferView, HotelResultView, HotelSearchView, OrderStage, OrderView, PaymentSessionView, QuoteView } from './views';
@@ -82,6 +83,8 @@ export class BookingApp {
   readonly orchestrator: ProviderManagedOrchestrator;
   /** Staff commands for /yonetim (permission-checked). */
   readonly staff: StaffOrderCommands;
+  /** Provider commissions: earning after the stay and payouts recorded by finance (ADR-0019). */
+  readonly commissions: ProviderCommissions;
   /** Customer flight sales (null when no flight connector is configured). */
   readonly flights: FlightSales | null;
   /** Hotel prices as the search computes them, with their fingerprint (ADR-0014). */
@@ -135,6 +138,7 @@ export class BookingApp {
     this.hotelLists = new HotelListPages({ repo: this.hotelListRepository, pricing: this.hotelPricing, clock: this.clock });
     this.hotelListPriceChecks = new HotelListPriceChecks({ repo: this.hotelListRepository, pricing: this.hotelPricing, clock: this.clock });
     this.staff = new StaffOrderCommands(deps.db, this.store, this.orchestrator, s.environment, this.clock, deps.flights ?? null);
+    this.commissions = new ProviderCommissions({ db: deps.db, environment: s.environment, orchestrator: this.orchestrator, clock: this.clock });
     this.flights = deps.flights
       ? new FlightSales({
           db: deps.db,

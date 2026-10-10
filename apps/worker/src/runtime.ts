@@ -17,6 +17,7 @@ import {
   ProductProviderManagedPort,
   TransientPassengerDetails,
   loadOrderView,
+  ProviderCommissions,
 } from '@texholiday/booking';
 import { NuiteeFlightConnector, NuiteeHotelConnector, NUITEE_HOTEL_TIMEOUTS } from '@texholiday/connectors';
 import { DomainError, parseCapabilityMatrix, parseSourceLock, type FlightConnector, type HotelConnector, type SourceLock } from '@texholiday/contracts';
@@ -82,6 +83,8 @@ export interface Runtime {
   handlers: Record<string, EventHandler>;
   /** Hotel list price scanner (ADR-0014); null without a hotel connector. Runs in its own loop, not on the outbox. */
   hotelListScanner: HotelListScanner | null;
+  /** Commission earning after the stay (ADR-0019), run hourly in its own loop. */
+  commissions: ProviderCommissions;
   close(): Promise<void>;
 }
 
@@ -233,5 +236,8 @@ export async function createRuntime(
       })
     : null;
 
-  return { core, outbox: new OutboxRepository(core.db), gateways, handlers, hotelListScanner, close: () => core.close() };
+  // Commissions are earned only after the provider is read again; without a provider nothing is earned.
+  const commissions = new ProviderCommissions({ db: core.db, environment: config.providerEnvironment, orchestrator: providerManaged });
+
+  return { core, outbox: new OutboxRepository(core.db), gateways, handlers, hotelListScanner, commissions, close: () => core.close() };
 }

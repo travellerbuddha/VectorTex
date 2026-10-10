@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
-import { IdempotencyConflictError } from '@texholiday/contracts';
+import { IdempotencyConflictError, redactText } from '@texholiday/contracts';
 import type { CoreDb } from './client';
 import { idempotencyKeys, inboxEvents, outboxEvents } from './schema';
 
@@ -50,14 +50,14 @@ export class OutboxRepository {
     return rows.length === 1;
   }
 
-  /** Handler failed: retry later, or park as DEAD after maxAttempts (an operator alert, never silently dropped). */
+  /** Handler failed: retry later, or park as DEAD after maxAttempts (an operator alert, never silently dropped). The error text is masked (T31). */
   async fail(id: string, error: string, retryInSeconds: number, maxAttempts: number): Promise<'RETRY' | 'DEAD'> {
     const result = await this.db.execute<{ status: 'PENDING' | 'DEAD' }>(sql`
       UPDATE core.outbox_events
          SET status = CASE WHEN attempts >= ${maxAttempts} THEN 'DEAD'::core.outbox_status ELSE 'PENDING'::core.outbox_status END,
              available_at = now() + make_interval(secs => ${retryInSeconds}),
              locked_until = NULL,
-             last_error = ${error.slice(0, 2000)}
+             last_error = ${redactText(error).slice(0, 2000)}
        WHERE id = ${id} AND status = 'DISPATCHED'
       RETURNING status`);
     return result.rows[0]?.status === 'DEAD' ? 'DEAD' : 'RETRY';

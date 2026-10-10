@@ -5,7 +5,8 @@ import { addDays, istanbulDate, type HotelPageView } from '@texholiday/booking';
 import { HOTEL_BOARD_TYPES } from '@texholiday/contracts';
 import { countryOptions } from '../../i18n/countries';
 import { dict, type Locale } from '../../i18n/dictionaries';
-import { boardLabel, formatInstant } from '../../i18n/format';
+import { boardLabel, formatInstant, analyticsValue } from '../../i18n/format';
+import { TrackEvent } from '../tracking/TrackEvent';
 import { booking } from '../../server/booking';
 import { breadcrumbList, hotelPage as hotelMarkup, jsonLd } from '../../server/structured-data';
 import { SearchForm } from '../SearchForm';
@@ -94,8 +95,13 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
     origin(),
   );
   const nf = (n: number) => n.toLocaleString(locale === 'tr' ? 'tr-TR' : 'en-GB');
+  const viewItem = {
+    ...(view.price ? { currency: view.price.amount.currency, value: analyticsValue(view.price.amount) } : {}),
+    items: [{ item_id: view.hotelId, item_name: c.name, item_category: 'Hotel', ...(view.price ? { price: analyticsValue(view.price.amount) } : {}) }],
+  };
   return (
     <div className="page hotel-page">
+      <TrackEvent event="view_item" params={viewItem} />
       <nav aria-label="breadcrumb" className="breadcrumbs">
         <ol>
           {crumbs.map((cr, i) => (

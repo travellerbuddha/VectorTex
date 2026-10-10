@@ -60,6 +60,17 @@ export interface PriceAccuracyReport {
   }>;
 }
 
+export interface PriceAlert {
+  configured: boolean;
+  thresholdBasisPoints: number | null;
+  hours: number;
+  /** Hotel/date pairs where the live price was at least the threshold above the shown list price. */
+  higher: number;
+  /** Hotel/date pairs shown with a price that a hotel page search found not bookable. */
+  missing: number;
+  hotels: number;
+}
+
 export function compareListPrice(listMinor: bigint, liveMinor: bigint | null): PriceCheckOutcome {
   if (liveMinor === null) return 'LIVE_MISSING';
   if (liveMinor === listMinor) return 'SAME';
@@ -135,6 +146,19 @@ export class HotelListPriceChecks {
     }
     await this.deps.repo.recordPriceChecks(rows, now);
     return rows.length;
+  }
+
+  /**
+   * The panel alert (ADR-0014): in the last `hours`, shown list prices that a live search found not bookable or at
+   * least the configured threshold above. Without a threshold in the settings there is no alert (nothing defaulted).
+   */
+  async alert(hours = 24): Promise<PriceAlert> {
+    const settings = hotelListSettingsSchema.safeParse(await this.deps.repo.settings());
+    const threshold = settings.success ? (settings.data.priceAlertBasisPoints ?? null) : null;
+    if (threshold === null) return { configured: false, thresholdBasisPoints: null, hours, higher: 0, missing: 0, hotels: 0 };
+    const since = new Date(this.clock().getTime() - hours * 3_600_000);
+    const found = await this.deps.repo.priceAlerts(this.deps.pricing.settings.environment, since, threshold);
+    return { configured: true, thresholdBasisPoints: threshold, hours, ...found };
   }
 
   /** The panel report of the last `days` days. */

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { parseCapabilityMatrix, parseSourceLock, type StaffActor } from '@texholiday/contracts';
-import { PermissionRepository, PolicyRepository, type CoreDatabase } from '@texholiday/db';
+import { CommissionRepository, PermissionRepository, PolicyRepository, type CoreDatabase } from '@texholiday/db';
 import { money } from '@texholiday/pricing';
 import { adminSettingsFromEnv, financeCsv, financePeriod, FinanceReports, StaffAuthService } from '../src/index';
 import { BookingApp, type BookingSettings } from '../../booking/src/index';
@@ -146,5 +146,17 @@ describe('finance reports (P15b)', () => {
     expect(rows[2]).toContain(',EUR,50.00,');
     expect(rows).toHaveLength(4);
     expect(csv).not.toMatch(/Yılmaz|Ayşe|example\.test|905321112233/);
+  });
+
+  it('payouts count in the period they arrived; earned and received commissions leave "open" when paid (ADR-0019)', async () => {
+    const repo = new CommissionRepository(core.db);
+    const [c] = (await core.db.execute<{ id: string }>(sql`SELECT pc.id FROM core.provider_commissions pc JOIN core.order_items i ON i.id = pc.order_item_id WHERE i.order_id = ${ids.confirmed!}`)).rows;
+    expect(await repo.markEarned(c!.id, new Date(), 'system:test')).toBe(true);
+    expect((await reports.report(finance, { from: today, to: today })).openCommissions).toEqual([{ status: 'EARNED', currency: 'EUR', count: 1, amount: eur('2700') }]);
+    await repo.recordPayout({ environment: 'mock', providerId: 'nuitee', reference: 'W25-2027', currency: 'EUR', amountMinor: 2650n, receivedOn: '2027-06-20', note: 'Banka masrafı', commissionIds: [c!.id], actor: 'staff:finance', at: new Date() });
+    const june = await reports.report(finance, { from: '2027-06-01', to: '2027-06-30' });
+    expect(june.payouts).toEqual([{ currency: 'EUR', count: 1, amount: eur('2650'), commissions: eur('2700') }]);
+    expect((await reports.report(finance, { from: '2027-07-01', to: '2027-07-31' })).payouts).toEqual([]);
+    expect((await reports.report(finance, { from: today, to: today })).openCommissions).toEqual([]);
   });
 });

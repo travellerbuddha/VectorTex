@@ -17,6 +17,7 @@
       "productionStatus": "NOT_RUN",
       "enabledForProduction": false,
       "chargeCurrencies": {
+        "TRY": "VERIFIED",
         "EUR": "VERIFIED",
         "USD": "VERIFIED",
         "GBP": "VERIFIED"
@@ -68,6 +69,13 @@
           "environment": "sandbox",
           "reference": "order 3efbd73f / booking lobIb_dn4 (cancelled)",
           "summary": "Staff order commands from /yonetim on an SDK-paid booking: check status (GET /bookings/{id}) CONFIRMED, unchanged; cancel (PUT /bookings/{id}) CANCELLED, cancellation_fee 0, refund_amount 173.36 EUR = the full amount the customer paid. Whether and when that refund reaches the customer's card is not observable in sandbox and not documented (provider question 10a): the order goes to REFUND_PENDING with a refund confirmation task."
+        },
+        {
+          "source": "apps/web/e2e-sandbox/provider-payment.sandbox.spec.ts",
+          "verifiedAt": "2026-10-10",
+          "environment": "sandbox",
+          "reference": "TRY dvRi7AhKe/mGPpbtdQd (prebook/booking, cancelled)",
+          "summary": "TRY: rates search in TRY (200 offers); prebook usePaymentSdk:true 68020.24 TRY incl. our 10% API margin 6183.64 TRY; book before payment refused (payment not completed); payment component paid with the Stripe test card (redirect_status succeeded); book TRANSACTION_ID CONFIRMED with supplierCost and providerCommission in TRY; cancel CANCELLED, penalty 0 TRY. Nuitee prices and charges TRY directly: no FX conversion on our side."
         }
       ]
     },
