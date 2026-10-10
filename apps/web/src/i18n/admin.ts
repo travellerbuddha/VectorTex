@@ -66,6 +66,8 @@ const tr = {
     sections: 'Erişebildiğiniz bölümler',
     noRecovery: 'Kurtarma kodlarınız yok: telefonunuzu kaybederseniz panele giremezsiniz. Hesabım sayfasından oluşturun.',
     lowRecovery: (n: number) => `Yalnız ${n} kurtarma kodunuz kaldı. Hesabım sayfasından yenilerini oluşturun.`,
+    priceAlert: (higher: number, missing: number, threshold: string) =>
+      `Liste fiyatı uyarısı (son 24 saat): ${higher} otel/tarihte canlı fiyat, sayfada gösterilen fiyattan ${threshold} veya daha fazla yüksek çıktı${missing > 0 ? `; ${missing} otel/tarih fiyatı gösterildiği hâlde satılamadı` : ''}. Raporu açın.`,
   },
   noAccess: 'Bu sayfayı görüntüleme izniniz yok.',
   recovery: {
@@ -632,6 +634,9 @@ const tr = {
       intro:
         'Ziyaretçilerin liste kriteriyle (1 oda, 2 yetişkin, 1 gece; listenin para birimi, uyruğu ve pansiyonu) yaptığı canlı aramalar, aynı otel ve tarih için listede saklanan fiyatla karşılaştırılır. Ölçüm, zaten yapılan aramalardan çıkar; sağlayıcıya ek çağrı yapılmaz.',
       period: 'Dönem',
+      alertOff: 'Fiyat sapma uyarısı kapalı: eşik, "Otel listesi fiyat ayarları"nda girilmemiş (varsayılan konmaz).',
+      alertOn: (threshold: string, higher: number, missing: number) =>
+        `Uyarı eşiği ${threshold}. Son 24 saatte eşiği aşan: ${higher} otel/tarih; gösterilip satılamayan: ${missing}.`,
       days: (n: number) => `Son ${n} gün`,
       environment: 'Sağlayıcı ortamı',
       none: 'Bu dönemde karşılaştırma yok. Liste ve otel sayfalarından gelen aramalar oldukça burada görünür.',
@@ -753,6 +758,8 @@ const en: Dict = {
     sections: 'Sections you can open',
     noRecovery: 'You have no recovery codes: if you lose your phone you cannot sign in. Create them on the My account page.',
     lowRecovery: (n: number) => `Only ${n} recovery codes left. Create new ones on the My account page.`,
+    priceAlert: (higher: number, missing: number, threshold: string) =>
+      `List price alert (last 24 hours): on ${higher} hotel/dates the live price was ${threshold} or more above the price shown${missing > 0 ? `; ${missing} hotel/dates were shown with a price but could not be booked` : ''}. Open the report.`,
   },
   noAccess: 'You do not have permission to view this page.',
   recovery: {
@@ -1307,6 +1314,9 @@ const en: Dict = {
       intro:
         'Live searches visitors make with the list reference (1 room, 2 adults, 1 night; the currency, nationality and board of the list) are compared with the stored list price of the same hotel and date. It rides on searches made anyway: no extra provider call.',
       period: 'Period',
+      alertOff: 'Price deviation alert is off: no threshold in "Hotel list price settings" (nothing is defaulted).',
+      alertOn: (threshold: string, higher: number, missing: number) =>
+        `Alert threshold ${threshold}. Last 24 hours above it: ${higher} hotel/dates; shown but not bookable: ${missing}.`,
       days: (n: number) => `Last ${n} days`,
       environment: 'Provider environment',
       none: 'No comparisons in this period. They appear as visitors search from list and hotel pages.',

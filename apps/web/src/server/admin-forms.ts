@@ -1,6 +1,7 @@
 import { isDomainError, type StaffActor } from '@texholiday/contracts';
 import type { StaffIdentity } from '@texholiday/admin';
 import { adminDict, type AdminLocale } from '../i18n/admin';
+import { errorMessage, log } from './log';
 
 /** Result of a panel form action, rendered by <ActionForm>. Links and recovery codes are shown once. */
 export type FormState = {
@@ -27,7 +28,7 @@ export function errorText(err: unknown, locale: AdminLocale): string {
       return t.errors.known[err.message] ?? err.message;
     }
   }
-  console.error(JSON.stringify({ level: 'error', msg: 'admin action failed', error: err instanceof Error ? err.message : String(err) }));
+  log.error('admin action failed', { error: errorMessage(err) });
   return t.errors.generic;
 }
 

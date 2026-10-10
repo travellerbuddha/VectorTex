@@ -1,5 +1,5 @@
 import type { CollectionBeforeChangeHook, CollectionConfig, Field } from 'payload';
-import { contentStaff, editors, guardPublish, publishedOrStaff, publishers } from '../access';
+import { contentStaff, editors, editorsPublishers, guardPublish, publishedOrStaff, publishers } from '../access';
 import { PAGE_BLOCKS } from '../blocks';
 import { guardSlug, seoField, slugField } from '../fields';
 
@@ -14,8 +14,8 @@ export const SITE_PATHS: Record<string, (locale: string, slug: string) => string
 const base = process.env.PUBLIC_BASE_URL?.replace(/\/$/, '') ?? '';
 
 /**
- * Shared settings of editorial collections: drafts with version history, publishing only with `content.publish`,
- * previews of drafts on the real site for content staff.
+ * Shared settings of editorial collections: drafts with version history, publishing only with `content.publish` (now or
+ * scheduled), previews of drafts on the real site for content staff.
  */
 function editorial(config: Omit<CollectionConfig, 'access' | 'versions'> & { previewable?: boolean }): CollectionConfig {
   const { previewable, ...rest } = config;
@@ -30,8 +30,9 @@ function editorial(config: Omit<CollectionConfig, 'access' | 'versions'> & { pre
           }
         : {}),
     },
-    versions: { drafts: true, maxPerDoc: 50 },
-    access: { read: publishedOrStaff, readVersions: contentStaff, create: editors, update: editors, delete: publishers },
+    // Publishing can be planned for a date and time (ADR-0020); the plan needs content.publish.
+    versions: { drafts: { schedulePublish: true }, maxPerDoc: 50 },
+    access: { read: publishedOrStaff, readVersions: contentStaff, create: editorsPublishers, update: editorsPublishers, delete: publishers },
     hooks: { ...rest.hooks, beforeChange: [guardPublish, guardSlug, ...(rest.hooks?.beforeChange ?? [])] },
   };
 }

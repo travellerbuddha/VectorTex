@@ -97,6 +97,10 @@ describe('CMS to core copy of a list (ADR-0014)', () => {
     expect(hotelListConfigSchema.parse(m.config)).toMatchObject({ stars: [4, 5], boardType: null, sort: 'PRICE', maxItems: 20, exclude: [], pinned: [] });
     expect(hotelListConfigSchema.safeParse(mirrorOf({ id: 8, places: [], include: [] }).config).success).toBe(false);
     expect(hotelListSettingsSchema.safeParse(settingsMirrorOf({ trCurrency: 'EUR', trNationality: 'TR' })).success).toBe(false); // no max age
-    expect(hotelListSettingsSchema.parse(settingsMirrorOf({ trCurrency: 'EUR', trNationality: 'TR', maxPriceAgeHours: 26 }))).toEqual({ locales: { tr: { currency: 'EUR', nationality: 'TR' }, en: null }, maxPriceAgeHours: 26 });
+    expect(hotelListSettingsSchema.parse(settingsMirrorOf({ trCurrency: 'EUR', trNationality: 'TR', maxPriceAgeHours: 26 }))).toEqual({ locales: { tr: { currency: 'EUR', nationality: 'TR' }, en: null }, maxPriceAgeHours: 26, priceAlertBasisPoints: null });
+    // The price alert threshold: percent in the CMS, basis points in core; empty = no alert.
+    expect(settingsMirrorOf({ maxPriceAgeHours: 26, priceAlertPercent: 2.5 }).priceAlertBasisPoints).toBe(250);
+    expect(settingsMirrorOf({ maxPriceAgeHours: 26, priceAlertPercent: 0.1 }).priceAlertBasisPoints).toBe(10);
+    expect(settingsMirrorOf({ maxPriceAgeHours: 26, priceAlertPercent: null }).priceAlertBasisPoints).toBeNull();
   });
 });

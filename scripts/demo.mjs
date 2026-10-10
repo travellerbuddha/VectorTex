@@ -124,6 +124,10 @@ function setupOnce(env) {
   if (existsSync(marker)) {
     const was = JSON.parse(readFileSync(marker, 'utf8'));
     if (was.provider !== env.PROVIDER_ENV) fail(`Demo ${was.provider} için kurulmuş; şimdi ${env.PROVIDER_ENV}. Geçmek için: pnpm demo:sifirla`);
+    // After a code update: only the new migrations are applied, the demo data stays.
+    say('Veritabanı güncel mi bakılıyor...');
+    run('pnpm', ['db:migrate'], { env });
+    run('pnpm', ['--filter', '@texholiday/web', 'cms:migrate'], { env });
     return;
   }
   mkdirSync(stateDir, { recursive: true });

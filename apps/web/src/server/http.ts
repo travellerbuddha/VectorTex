@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
 import { DomainError, isDomainError } from '@texholiday/contracts';
 import { CUSTOMER_COOKIE, customerAccounts } from './customer';
+import { errorMessage, log } from './log';
 
 /** Error body of the public API (§14): code, message, requestId, retryable, action. No provider internals. */
 export function errorResponse(err: unknown): NextResponse {
@@ -14,7 +15,7 @@ export function errorResponse(err: unknown): NextResponse {
       { status: err.httpStatus },
     );
   }
-  console.error(JSON.stringify({ level: 'error', msg: 'unhandled API error', requestId, error: err instanceof Error ? err.message : String(err) }));
+  log.error('unhandled API error', { requestId, error: errorMessage(err) });
   return NextResponse.json({ code: 'INTERNAL', message: 'Unexpected error', requestId, retryable: true, action: 'RETRY' }, { status: 500 });
 }
 

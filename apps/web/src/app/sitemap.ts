@@ -3,6 +3,7 @@ import type { Locale } from '../i18n/dictionaries';
 import { booking } from '../server/booking';
 import { cms, cmsEnabled } from '../server/cms';
 import { sitemapEntries, type SitemapDoc } from '../server/seo';
+import { errorMessage, log } from '../server/log';
 
 /**
  * /sitemap.xml from published CMS pages, destinations, hotel lists and guide articles (visitor rights), plus the hotel
@@ -40,7 +41,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const { app } = await booking();
       for (const h of (await app.hotelLists.sitemap()).hotels) docs.push({ collection: 'hotels', slugs: h.slugs, noindex: false, updatedAt: h.updatedAt });
     } catch (err) {
-      console.error(JSON.stringify({ level: 'error', msg: 'hotel pages left out of the sitemap', error: err instanceof Error ? err.message : String(err) }));
+      log.error('hotel pages left out of the sitemap', { error: errorMessage(err) });
     }
   }
   return sitemapEntries(base, docs, sections);

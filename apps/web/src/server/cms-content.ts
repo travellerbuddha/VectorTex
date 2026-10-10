@@ -5,6 +5,7 @@ import { mirrorCmsUser } from '../payload/staff-strategy';
 import type { Locale } from '../i18n/dictionaries';
 import { currentSession } from './admin';
 import { cms, cmsEnabled } from './cms';
+import { errorMessage, log } from './log';
 
 /**
  * Site-side reads of CMS content (P06). Always through the Local API with `overrideAccess: false`: visitors get
@@ -138,7 +139,7 @@ export async function siteChrome(locale: Locale): Promise<SiteChrome> {
     return { nav: items, footer: columns.length > 0 || f.legal ? { columns, legal: f.legal ?? null } : null };
   } catch (err) {
     // The site keeps working without CMS chrome (e.g. CMS migrations not applied yet).
-    console.error(JSON.stringify({ level: 'error', msg: 'cms chrome unavailable', error: err instanceof Error ? err.message : String(err) }));
+    log.error('cms chrome unavailable', { error: errorMessage(err) });
     return { nav: [], footer: null };
   }
 }

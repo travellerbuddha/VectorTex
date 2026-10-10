@@ -103,11 +103,22 @@ Giriş adımları:
   - MOCK'ta "MOCK: ödemeyi tamamla" düğmesine basın.
   - Sandbox'ta test kartıyla ödeyin: `4242 4242 4242 4242`, ileri bir son kullanma tarihi, CVC `123`.
 - **E-postalar.** Rezervasyon onayı ve iptal e-postaları http://localhost:8025 adresinde görünür. Gerçek bir adrese e-posta gitmez.
+- **Rezervasyonlarım.**
+  - Sitenin üst menüsündeki "Rezervasyonlarım"a rezervasyonda kullanılan e-postayı yazın (örnek: `ayse.demir@ornek.test`).
+  - Giriş kodu http://localhost:8025 adresine gelir.
 - **Panel.**
   - Siparişler: durum kontrolü, iptal, iade kaydı.
   - Fiyat politikası: taslak → başka bir hesapla onay.
-  - Raporlar: finans, liste fiyatı doğruluğu, reklam sayfa feed'i.
-- **İçerik.** Rehber yazısı, SSS ve menü bağlantıları ekleyin.
+  - Raporlar: finans, liste fiyatı doğruluğu, reklam sayfa feed'i ve **komisyon tahsilatı**.
+  - Komisyon tahsilatı: demoda bir komisyon "hak edildi" olarak hazırdır. Finans hesabıyla seçip gelen ödemeyi referans, tarih ve tutarla kaydedin.
+  - Fiyat sapma uyarısı: İçerik → Otel listesi fiyat ayarları → "Fiyat sapma uyarısı (%)". Boşsa uyarı yoktur.
+- **İçerik.**
+  - Rehber yazısı, SSS ve menü bağlantıları ekleyin.
+  - Bir taslağı "Yayınla" düğmesinin yanındaki oktan **"Yayını Planla"** ile ileri bir saate planlayın.
+  - Planlanan yayın, uygulama açıkken zamanı gelince dakikada bir kontrolle yayına girer.
+- **Ölçüm ve çerez bandı.**
+  - İçerik → "Ölçüm ve çerez ayarları"na bir GTM kimliği girilince sitede çerez bandı çıkar.
+  - Kimlik yokken hiçbir şey yüklenmez. Demoda gerçek kimlik girmeyin, ölçüm verisi Google'a gider.
 
 ## 5. Nuitee SANDBOX ile çalıştırma (isteğe bağlı)
 

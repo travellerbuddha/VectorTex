@@ -313,6 +313,18 @@ describe('hotel list pages (ADR-0014)', () => {
     expect(report.worst[1]!.gapBasisPoints).toBeGreaterThanOrEqual(490);
     expect(report.worst[1]!.gapBasisPoints).toBeLessThanOrEqual(510);
 
+    // The panel alert needs a threshold in the settings (none by default); a ~5% gap is above 4%, below 6%.
+    expect(await app.hotelListPriceChecks.alert(24)).toMatchObject({ configured: false, higher: 0, missing: 0 });
+    await repo.saveSettings({ locales: { tr: { currency: 'EUR', nationality: 'TR' }, en: null }, maxPriceAgeHours: 26, priceAlertBasisPoints: 400 }, clock.now);
+    expect(await app.hotelListPriceChecks.alert(24)).toEqual({ configured: true, thresholdBasisPoints: 400, hours: 24, higher: 1, missing: 1, hotels: 2 });
+    await repo.saveSettings({ locales: { tr: { currency: 'EUR', nationality: 'TR' }, en: null }, maxPriceAgeHours: 26, priceAlertBasisPoints: 600 }, clock.now);
+    expect(await app.hotelListPriceChecks.alert(24)).toMatchObject({ higher: 0, missing: 1, hotels: 1 });
+    // Only the last 24 hours count.
+    const later = clock.now;
+    clock.now = new Date('2027-05-02T13:00:00Z');
+    expect(await app.hotelListPriceChecks.alert(24)).toMatchObject({ configured: true, higher: 0, missing: 0 });
+    clock.now = later;
+
     // A failing comparison never fails the visitor's search.
     const spy = vi.spyOn(app.hotelListPriceChecks, 'record').mockRejectedValueOnce(new Error('database busy'));
     await expect(search()).resolves.toMatchObject({ hotels: expect.any(Array) });

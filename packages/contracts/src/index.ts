@@ -12,3 +12,4 @@ export * from './http';
 export * from './time';
 export * from './policies';
 export * from './permissions';
+export * from './log';

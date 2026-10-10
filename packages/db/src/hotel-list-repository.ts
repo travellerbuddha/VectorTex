@@ -1,5 +1,5 @@
 import { and, asc, eq, gt, inArray, lt, notInArray, or, sql } from 'drizzle-orm';
-import type { ProviderEnvironment } from '@texholiday/contracts';
+import { redactText, type ProviderEnvironment } from '@texholiday/contracts';
 import type { CoreDb } from './client';
 import { hotelContent, hotelListDays, hotelListMembers, hotelListPriceChecks, hotelListPrices, hotelListScopes, hotelListSettings, hotelLists, rateSlots } from './schema';
 
@@ -261,7 +261,7 @@ export class HotelListRepository {
   async failDay(input: { scopeKey: string; checkin: string; workerId: string; error: string; nextDueAt: Date }): Promise<void> {
     await this.db
       .update(hotelListDays)
-      .set({ lastError: input.error.slice(0, 300), lockedUntil: null, lockedBy: null, nextDueAt: input.nextDueAt.toISOString() })
+      .set({ lastError: redactText(input.error).slice(0, 300), lockedUntil: null, lockedBy: null, nextDueAt: input.nextDueAt.toISOString() })
       .where(and(eq(hotelListDays.scopeKey, input.scopeKey), eq(hotelListDays.checkin, input.checkin), eq(hotelListDays.lockedBy, input.workerId)));
   }
 
@@ -393,6 +393,22 @@ export class HotelListRepository {
       hotelName,
       hotelSlug,
     }));
+  }
+
+  /**
+   * Shown list prices the live search contradicted since `since` (ADR-0014 alert): the hotel was not bookable, or the
+   * live price was at least `thresholdBasisPoints` above the list price. Distinct hotel/date pairs, per outcome.
+   */
+  async priceAlerts(environment: ProviderEnvironment, since: Date, thresholdBasisPoints: number): Promise<{ higher: number; missing: number; hotels: number }> {
+    const res = await this.db.execute<{ higher: number; missing: number; hotels: number }>(sql`
+      SELECT count(DISTINCT (hotel_id, checkin)) FILTER (WHERE outcome = 'LIVE_HIGHER')::int AS higher,
+             count(DISTINCT (hotel_id, checkin)) FILTER (WHERE outcome = 'LIVE_MISSING')::int AS missing,
+             count(DISTINCT hotel_id)::int AS hotels
+      FROM ${hotelListPriceChecks}
+      WHERE environment = ${environment} AND shown AND checked_at >= ${since.toISOString()}
+        AND (outcome = 'LIVE_MISSING' OR (outcome = 'LIVE_HIGHER' AND (live_minor - list_minor) * 10000 >= ${thresholdBasisPoints}::bigint * list_minor))`);
+    const r = res.rows[0];
+    return { higher: Number(r?.higher ?? 0), missing: Number(r?.missing ?? 0), hotels: Number(r?.hotels ?? 0) };
   }
 
   /** Housekeeping: drops checks older than `before`. */

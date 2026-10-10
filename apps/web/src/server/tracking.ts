@@ -1,6 +1,7 @@
 import { cache } from 'react';
 import type { Locale } from '../i18n/dictionaries';
 import { cms, cmsEnabled } from './cms';
+import { errorMessage, log } from './log';
 
 /** Tracking settings of the site (ADR-0018), read once per request; null = nothing to load. */
 export interface Tracking {
@@ -31,7 +32,7 @@ export const trackingSettings = cache(async (locale: Locale): Promise<Tracking |
     return t;
   } catch (err) {
     // The site keeps working without tracking (e.g. CMS migrations not applied yet).
-    console.error(JSON.stringify({ level: 'error', msg: 'tracking settings unavailable', error: err instanceof Error ? err.message : String(err) }));
+    log.error('tracking settings unavailable', { error: errorMessage(err) });
     return null;
   }
 });
