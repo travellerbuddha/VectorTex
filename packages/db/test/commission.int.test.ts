@@ -95,7 +95,8 @@ describe('provider commission receivable', () => {
     const id = row!.id;
     expect(await dbError(core.db.execute(sql`UPDATE core.provider_commissions SET amount_minor = 999 WHERE id = ${id}`))).toMatch(/immutable/);
     expect(await dbError(core.db.execute(sql`DELETE FROM core.provider_commissions WHERE id = ${id}`))).toMatch(/cannot be deleted/);
-    expect(await dbError(core.db.execute(sql`UPDATE core.provider_commissions SET status = 'RECEIVED', payout_reference = 'P-1' WHERE id = ${id}`))).toMatch(/EXPECTED -> RECEIVED/);
+    // Paid before the stay is allowed (EXPECTED -> RECEIVED), but only with its payout.
+    expect(await dbError(core.db.execute(sql`UPDATE core.provider_commissions SET status = 'RECEIVED', payout_reference = 'P-1' WHERE id = ${id}`))).toMatch(/received_has_payout/);
     expect(await dbError(core.db.execute(sql`UPDATE core.provider_commissions SET status = 'EARNED' WHERE id = ${id}`))).toMatch(/earned_has_date/);
     await core.db.execute(sql`UPDATE core.provider_commissions SET status = 'EARNED', earned_at = now() WHERE id = ${id}`);
     expect(await dbError(core.db.execute(sql`UPDATE core.provider_commissions SET earned_at = now() - interval '1 day' WHERE id = ${id}`))).toMatch(/earned date can be set only once/);
@@ -109,20 +110,64 @@ describe('provider commission receivable', () => {
     const settle = (payoutId: string, reference: string) => sql`UPDATE core.provider_commissions SET status = 'RECEIVED', payout_id = ${payoutId}, payout_reference = ${reference} WHERE id = ${id}`;
     expect(await dbError(core.db.transaction(async (tx) => tx.execute(settle(await payout(tx, 'P-OTHER', 'other_provider', 446n), 'P-OTHER'))))).toMatch(/does not match the commission/);
     expect(await dbError(core.db.transaction(async (tx) => tx.execute(settle(await payout(tx, 'P-WRONG-REF', 'nuitee', 446n), 'P-DIFFERENT'))))).toMatch(/does not match the commission/);
-    expect(await dbError(core.db.transaction(async (tx) => tx.execute(settle(await payout(tx, 'P-WRONG-SUM', 'nuitee', 999n), 'P-WRONG-SUM'))))).toMatch(/settles 446 but records 999/);
+    expect(await dbError(core.db.transaction(async (tx) => tx.execute(settle(await payout(tx, 'P-WRONG-SUM', 'nuitee', 999n), 'P-WRONG-SUM'))))).toMatch(/settles 446 and nets 0 but records 999 and 0/);
     expect(await dbError(core.db.execute(sql`INSERT INTO core.commission_payouts (environment, provider_id, reference, currency, amount_minor, commissions_minor, received_on, recorded_by)
         VALUES ('mock', 'nuitee', 'P-NO-NOTE', 'EUR', 400, 446, '2026-10-10', 'staff:test')`))).toMatch(/difference_explained/);
     // A payout that settles nothing is refused at commit.
-    expect(await dbError(payout(core.db, 'P-EMPTY', 'nuitee', 446n))).toMatch(/settles 0 but records 446/);
+    expect(await dbError(payout(core.db, 'P-EMPTY', 'nuitee', 446n))).toMatch(/settles 0 and nets 0 but records 446 and 0/);
     let payoutId = '';
     await core.db.transaction(async (tx) => {
       payoutId = await payout(tx, 'PAYOUT-2026-W41', 'nuitee', 446n);
       await tx.execute(settle(payoutId, 'PAYOUT-2026-W41'));
     });
     expect(await dbError(core.db.execute(sql`UPDATE core.provider_commissions SET payout_reference = 'OTHER' WHERE id = ${id}`))).toMatch(/only once/);
+    // Paid and earned: a cancellation cannot void it any more.
     expect(await dbError(core.db.execute(sql`UPDATE core.provider_commissions SET status = 'VOIDED' WHERE id = ${id}`))).toMatch(/RECEIVED -> VOIDED/);
     expect(await dbError(core.db.execute(sql`UPDATE core.commission_payouts SET amount_minor = 1 WHERE id = ${payoutId}`))).toMatch(/append-only|append only/i);
     expect(await dbError(core.db.execute(sql`DELETE FROM core.commission_payouts WHERE id = ${payoutId}`))).toMatch(/append-only|append only/i);
+  });
+
+  it('paid before the stay: earned later, or cancelled and owed back until a payout nets it (ADR-0019)', async () => {
+    type Exec = Pick<typeof core.db, 'execute'>;
+    const paidOrder = async () => {
+      const o = await authorizedOrder();
+      await run(o.store, { HOTEL: new FakeBookingPort(), TRANSFER: new FakeBookingPort() }).drive(o.orderId);
+      return (await commissions(o.orderId)).rows[0]!.id;
+    };
+    const payout = async (db: Exec, reference: string, providerId: string, settled: bigint, netted: bigint, amount = settled - netted) =>
+      (await db.execute<{ id: string }>(sql`INSERT INTO core.commission_payouts (environment, provider_id, reference, currency, amount_minor, commissions_minor, clawbacks_minor, received_on, note, recorded_by)
+        VALUES ('mock', ${providerId}, ${reference}, 'EUR', ${amount}, ${settled}, ${netted}, '2026-10-10', 'test payout', 'staff:test') RETURNING id`)).rows[0]!.id;
+    const pay = (db: Exec, id: string, payoutId: string, reference: string) =>
+      db.execute(sql`UPDATE core.provider_commissions SET status = 'RECEIVED', payout_id = ${payoutId}, payout_reference = ${reference} WHERE id = ${id}`);
+    const net = (db: Exec, id: string, payoutId: string) => db.execute(sql`UPDATE core.provider_commissions SET clawback_payout_id = ${payoutId} WHERE id = ${id}`);
+
+    // Paid when the provider collected the payment, before the stay.
+    const id = await paidOrder();
+    const ref = `PRE-${id.slice(0, 8)}`;
+    await core.db.transaction(async (tx) => pay(tx, id, await payout(tx, ref, 'nuitee', 446n, 0n), ref));
+    // Refunds come out of the same payout's commissions; a payout of nothing but refunds is refused.
+    expect(await dbError(payout(core.db, `${ref}-X`, 'nuitee', 0n, 446n, 0n))).toMatch(/amounts_valid/);
+    // Still live: it cannot be netted; a cancellation voids it (owed back).
+    const other = await paidOrder();
+    expect(await dbError(core.db.transaction(async (tx) => net(tx, id, await payout(tx, `${ref}-C1`, 'nuitee', 446n, 446n))))).toMatch(/clawback_valid/);
+    await core.db.execute(sql`UPDATE core.provider_commissions SET status = 'VOIDED' WHERE id = ${id}`);
+    // Netted by a payout of another provider: refused; sums must match what is linked.
+    expect(await dbError(core.db.transaction(async (tx) => net(tx, id, await payout(tx, `${ref}-C2`, 'other_provider', 446n, 446n))))).toMatch(/does not match the commission it nets/);
+    expect(await dbError(core.db.transaction(async (tx) => net(tx, id, await payout(tx, `${ref}-C3`, 'nuitee', 446n, 446n))))).toMatch(/settles 0 and nets 446 but records 446 and 446/);
+    // The next payout pays another commission and deducts this one: nothing arrives, the sums match.
+    await core.db.transaction(async (tx) => {
+      const p = await payout(tx, `${ref}-C4`, 'nuitee', 446n, 446n);
+      await pay(tx, other, p, `${ref}-C4`);
+      await net(tx, id, p);
+    });
+    expect(await dbError(core.db.transaction(async (tx) => net(tx, id, await payout(tx, `${ref}-C5`, 'nuitee', 446n, 446n))))).toMatch(/clawback can be set only once/);
+
+    // Paid before the stay, earned after it (status stays RECEIVED); then it cannot be voided.
+    const id2 = await paidOrder();
+    const ref2 = `PRE-${id2.slice(0, 8)}`;
+    await core.db.transaction(async (tx) => pay(tx, id2, await payout(tx, ref2, 'nuitee', 446n, 0n), ref2));
+    await core.db.execute(sql`UPDATE core.provider_commissions SET earned_at = now() WHERE id = ${id2}`);
+    expect(await dbError(core.db.execute(sql`UPDATE core.provider_commissions SET status = 'VOIDED' WHERE id = ${id2}`))).toMatch(/RECEIVED -> VOIDED/);
   });
 
   it('refuses a receivable from another environment than its order (T15)', async () => {

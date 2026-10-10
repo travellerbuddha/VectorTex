@@ -5,6 +5,7 @@ import * as migration_20261010_163509_localized_menu_links from './20261010_1635
 import * as migration_20261010_165226_tracking_settings from './20261010_165226_tracking_settings';
 import * as migration_20261010_172320_price_alert_threshold from './20261010_172320_price_alert_threshold';
 import * as migration_20261010_173022_scheduled_publish from './20261010_173022_scheduled_publish';
+import * as migration_20261010_183311_site_verification_codes from './20261010_183311_site_verification_codes';
 
 export const migrations = [
   {
@@ -41,5 +42,10 @@ export const migrations = [
     up: migration_20261010_173022_scheduled_publish.up,
     down: migration_20261010_173022_scheduled_publish.down,
     name: '20261010_173022_scheduled_publish',
+  },
+  {
+    up: migration_20261010_183311_site_verification_codes.up,
+    down: migration_20261010_183311_site_verification_codes.down,
+    name: '20261010_183311_site_verification_codes',
   },
 ];

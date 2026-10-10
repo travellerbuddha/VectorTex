@@ -32,6 +32,7 @@ export async function recordPayoutAction(_: FormState, form: FormData): Promise<
       receivedOn: String(form.get('receivedOn') ?? ''),
       note: String(form.get('note') ?? ''),
       commissionIds: ids,
+      clawbackIds: form.getAll('clawback').map(String),
     });
     payoutId = r.payoutId;
   } catch (err) {

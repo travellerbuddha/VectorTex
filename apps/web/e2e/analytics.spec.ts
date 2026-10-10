@@ -46,7 +46,7 @@ let admin: Page | null = null;
 
 test.afterAll(async () => {
   if (!admin) return;
-  const cleared = await call(admin, 'POST', '/api/cms/globals/tracking-settings', { gtmContainerId: null, ga4MeasurementId: null, searchConsoleVerification: null, consentMode: 'BASIC' });
+  const cleared = await call(admin, 'POST', '/api/cms/globals/tracking-settings', { gtmContainerId: null, ga4MeasurementId: null, searchConsoleVerification: null, yandexVerification: null, metaDomainVerification: null, consentMode: 'BASIC' });
   expect(cleared.status, JSON.stringify(cleared.json)).toBe(200);
   await admin.context().close();
   admin = null;
@@ -61,6 +61,17 @@ test('consent: denied by default, tags only after consent, stored choice, Search
   await plain.goto('/tr');
   await expect(plain.getByTestId('consent-banner')).toHaveCount(0);
   expect(await plain.evaluate(() => 'dataLayer' in window)).toBe(false);
+  // The cookie policy is always there (footer); without tags it says only necessary cookies are used.
+  await plain.getByRole('link', { name: 'Çerez politikası' }).click();
+  await expect(plain).toHaveURL(/\/tr\/cerez-politikasi$/);
+  await expect(plain.getByRole('heading', { level: 1, name: 'Çerez politikası' })).toBeVisible();
+  await expect(plain.getByTestId('cookies-necessary')).toContainText('th_consent');
+  await expect(plain.getByTestId('cookies-analytics')).toContainText('_ga');
+  await expect(plain.getByTestId('cookies-marketing')).toContainText('_fbp');
+  await expect(plain.getByText('yalnız zorunlu çerezler kullanılır')).toBeVisible();
+  expect((await plain.goto('/en/cookie-policy'))!.status()).toBe(200);
+  await expect(plain.getByRole('heading', { level: 1, name: 'Cookie policy' })).toBeVisible();
+  expect((await plain.goto('/en/cerez-politikasi'))!.status()).toBe(404);
   await plain.context().close();
 
   admin = await (await browser.newContext()).newPage();
@@ -68,7 +79,13 @@ test('consent: denied by default, tags only after consent, stored choice, Search
   // Malformed ids are refused.
   expect((await call(admin, 'POST', '/api/cms/globals/tracking-settings', { gtmContainerId: 'UA-1234' })).status).toBe(400);
   expect((await call(admin, 'POST', '/api/cms/globals/tracking-settings', { searchConsoleVerification: '<meta name="x">' })).status).toBe(400);
-  const saved = await call(admin, 'POST', '/api/cms/globals/tracking-settings', { gtmContainerId: GTM, consentMode: 'BASIC', searchConsoleVerification: VERIFICATION });
+  const saved = await call(admin, 'POST', '/api/cms/globals/tracking-settings', {
+    gtmContainerId: GTM,
+    consentMode: 'BASIC',
+    searchConsoleVerification: VERIFICATION,
+    yandexVerification: 'e2e-yandex-0123',
+    metaDomainVerification: 'e2emetadomain0123',
+  });
   expect(saved.status, JSON.stringify(saved.json)).toBe(200);
 
   const context = await browser.newContext();
@@ -80,9 +97,12 @@ test('consent: denied by default, tags only after consent, stored choice, Search
 
   // Search Console HTML tag method.
   await expect(page.locator('meta[name="google-site-verification"]')).toHaveAttribute('content', VERIFICATION);
+  await expect(page.locator('meta[name="yandex-verification"]')).toHaveAttribute('content', 'e2e-yandex-0123');
+  await expect(page.locator('meta[name="facebook-domain-verification"]')).toHaveAttribute('content', 'e2emetadomain0123');
   // Consent Mode v2: everything denied before any tag; BASIC loads nothing yet.
   const banner = page.getByTestId('consent-banner');
   await expect(banner).toBeVisible();
+  await expect(banner.getByRole('link', { name: 'Çerez politikası' })).toHaveAttribute('href', '/tr/cerez-politikasi');
   const first = (await dataLayer(page))[0];
   expect(first).toEqual(['consent', 'default', { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied', functionality_storage: 'granted', security_storage: 'granted', wait_for_update: 500 }]);
   expect(loads).toEqual([]);
@@ -114,6 +134,8 @@ test('consent: denied by default, tags only after consent, stored choice, Search
   const update = after.findIndex((x) => Array.isArray(x) && x[0] === 'consent' && x[1] === 'update');
   const start = after.findIndex((x) => (x as { event?: string }).event === 'gtm.js');
   expect(after[update]).toEqual(['consent', 'update', { analytics_storage: 'granted', ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied' }]);
+  // The GTM container's consent triggers read this announcement.
+  expect(after).toContainEqual({ event: 'consent_state', consent_analytics: true, consent_marketing: false });
   expect(update).toBeGreaterThan(0);
   expect(start).toBeGreaterThan(update);
 

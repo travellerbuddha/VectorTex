@@ -2,6 +2,11 @@
 
 Bu sorular kanıtla kapatılamayan açık noktalardır (bkz. `R0-kanit-raporu.md` §9–§10). Yanıtlar geldiğinde `contracts/capability-matrix.json` kanıtlarına işlenir. Metinler doğrudan kopyalanıp gönderilebilir.
 
+**Yanıtlananlar (hesap sahibi, 2026-10-10):**
+- Nuitee tahsilatlı satışta komisyon, Nuitee müşterinin ödemesini aldığında hesabımıza gönderiliyor (konaklama sonrası haftalık değil). Sistem buna göre çalışıyor (ADR-0019, 2. sürüm).
+- iyzico şimdilik entegre edilmeyecek. Bu yüzden 1. soru (kendi ödememizde komisyon) ve iyzico bölümü (§2) şimdilik gönderilmeyebilir.
+- Hâlâ açık: iptal edilen ve komisyonu ödenmiş rezervasyonda komisyonun nasıl geri alındığı. Bunun için aşağıya 24. soru eklendi.
+
 ---
 
 ## 1. Nuitee (liteAPI) — account manager / support
@@ -36,6 +41,7 @@ We are integrating Nuitee Connect (hotels, flights, experiences) into our own bo
 21. **Flights – margin editing in production.** `margin.rateSearch` is "only honoured when flight margin editing is enabled for your account". In sandbox it was honoured: with `rateSearch` 10, `total` was (base + taxes + fees) × 1.0999–1.1000 on all 132 offers of a search (2026-10-10). Please confirm that flight margin editing is enabled on our production account. Our system refuses to sell an offer whose markup does not match our approved rate.
 22. **Flights – seats and bags (attach services).** In sandbox (prebook `01a125af-c7d4…`, 2026-10-10) attaching a seat before booking returned a new `transactionId`/`secretKey` and an amount of exactly fare + seat price, and the paid booking cost that amount. Please confirm: (a) after attaching, the previous payment intent can no longer be paid (cancelled at Stripe?), and what happens if a traveller paid it anyway; (b) `bookedServices` showed `status: "pending"` and `phase: "post_booking"` for a seat attached before booking: when does the airline confirm a seat or bag, how are we told, and if it is refused after payment who refunds the service amount and how; (c) `servicesAttachable.notSupported` and `providerErrors` (e.g. `CARRIER_NOT_SUPPORTED`) and the missing group `available` flag are undocumented: may we rely on them; (d) the POST answer did not list the attached services (GET did): is that intended; (e) are `margin.seats` / `margin.bags` applied to `pricing.display.amount` of each service, and can the markup amount be read back? In the IST-AYT and IST-LHR sandbox offers no baggage was offered: which test route offers bags?
 23. **Hotel list pages (public, indexed).** We publish hotel list pages and one page per hotel built from `/data/hotel` content (descriptions, images from `static.cupid.travel`) and the lowest `/hotels/rates` price of the next 30 days (one call per check-in date per list, about 30–100 calls per list per day). Please confirm: (a) we may show the hotel descriptions and images on public pages indexed by search engines; (b) rate searches carry no per-call fee and no look-to-book ratio limit at this volume, or tell us the limits; (c) the production rate limit (the docs say 250 and 500 requests per second in two places); (d) whether `/hotels/min-rates` applies the `margin` of a request (it has no `margin` parameter): we do not use it for prices until confirmed.
+24. **Commission payouts on payment-component bookings.** Our commission arrives when you collect the customer's payment. When such a booking is later cancelled (free cancellation, full refund to the customer), how do you take our commission back: (a) deducted from a later payout, (b) invoiced, or (c) not at all? Does a cancellation with a penalty change it? Which statement field links each payout line (and each deduction) to a `bookingId` or `clientReference`, so we can reconcile automatically?
 
 Thank you,
 TexHoliday

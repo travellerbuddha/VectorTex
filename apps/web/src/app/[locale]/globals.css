@@ -795,3 +795,17 @@ a.button.primary {
 .consent-reopen {
   font-size: 0.85rem;
 }
+
+/* Footer legal links (cookie policy, cookie preferences) and the cookie policy page (ADR-0018). */
+.footer-legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  align-items: center;
+}
+.cookie-policy section {
+  margin-top: 1.5rem;
+}
+.cookie-policy td code {
+  white-space: nowrap;
+}

@@ -1,23 +1,24 @@
-import type { CommissionStatus } from '@texholiday/db';
+import type { CommissionRow, CommissionView } from '@texholiday/db';
 import { ActionForm } from '../../../../../components/admin/ActionForm';
 import { canSeeReport } from '../../../../../components/admin/AdminNav';
 import { CommissionSelection } from '../../../../../components/admin/CommissionSelection';
 import { adminDict, adminLocale } from '../../../../../i18n/admin';
 import { formatDate, formatMoney } from '../../../../../i18n/format';
 import { admin, can, requireStaff } from '../../../../../server/admin';
-import { actorOf, formatAdminInstant } from '../../../../../server/admin-forms';
+import { actorOf } from '../../../../../server/admin-forms';
 import { booking } from '../../../../../server/booking';
 import { istanbulToday } from '../../../../../server/finance-period';
 import { recordPayoutAction } from './actions';
 
 export const dynamic = 'force-dynamic';
 
-const TABS: readonly CommissionStatus[] = ['EARNED', 'EXPECTED', 'RECEIVED', 'VOIDED'];
+const TABS: readonly CommissionView[] = ['UNPAID', 'REFUND_DUE', 'RECEIVED', 'VOIDED'];
 
 /**
- * Commission collection (ADR-0019): earned commissions waiting for the provider's payout, recording a payout with its
- * statement reference, and the payouts recorded so far. Viewing: orders.view_financials; recording:
- * commissions.record_payout (both checked again by the booking application).
+ * Commission collection (ADR-0019): commissions waiting for the provider's payout (Nuitee pays when it collects the
+ * payment, often before the stay), recording a payout with its statement reference and the refunds it deducts,
+ * commissions owed back after a cancellation, and the payouts recorded so far. Viewing: orders.view_financials;
+ * recording: commissions.record_payout (both checked again by the booking application).
  */
 export default async function CommissionsPage({ searchParams }: { searchParams: Promise<{ durum?: string; kayit?: string }> }) {
   const staff = await requireStaff();
@@ -26,18 +27,31 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
   if (!canSeeReport(staff, 'commissions')) return <p className="notice">{t.noAccess}</p>;
   const c = t.reports.commissions;
   const sp = await searchParams;
-  const tab = TABS.find((s) => s === sp.durum) ?? 'EARNED';
+  const tab = TABS.find((s) => s === sp.durum) ?? 'UNPAID';
   const { app, settings } = await booking();
-  const view = await app.commissions.overview(actorOf(staff), { status: tab, limit: 500 });
+  const view = await app.commissions.overview(actorOf(staff), { view: tab, limit: 500 });
+  const mayRecord = tab === 'UNPAID' && can(staff, 'commissions.record_payout');
+  // The payout form also offers the refunds Nuitee may deduct from the payout.
+  const refundDue = mayRecord ? (await app.commissions.overview(actorOf(staff), { view: 'REFUND_DUE', limit: 500 })).rows : [];
   const accounts = await admin().auth.accounts();
   const names = new Map(accounts.map((a) => [a.id, a.displayName]));
   const who = (actor: string) => names.get(actor.startsWith('staff:') ? actor.slice(6) : actor) ?? actor;
-  const status = (k: string) => t.reports.finance.commissionStatuses[k] ?? k;
+  const bucket = (k: string) => c.buckets[k] ?? k;
   const stay = (a: string | null, b: string | null) => (a && b ? `${formatDate(a, locale)} → ${formatDate(b, locale)}` : '—');
-  const mayRecord = tab === 'EARNED' && can(staff, 'commissions.record_payout');
   const saved = sp.kayit ? view.payouts.find((p) => p.id === sp.kayit) : undefined;
-  const providers = [...new Set(view.rows.map((r) => r.providerId))];
-  const currencies = [...new Set(view.rows.map((r) => r.amount.currency))];
+  const selectable = [...view.rows, ...refundDue];
+  const providers = [...new Set(selectable.map((r) => r.providerId))];
+  const currencies = [...new Set(selectable.map((r) => r.amount.currency))];
+  const forSelection = (r: CommissionRow) => ({
+    id: r.id,
+    orderId: r.orderId,
+    title: r.title ?? r.productType,
+    stay: stay(r.serviceStart, r.serviceEnd),
+    bookingRef: r.providerBookingRef ?? '—',
+    stage: bucket(r.bucket),
+    payoutRef: r.payoutReference ?? undefined,
+    amount: r.amount,
+  });
 
   return (
     <div>
@@ -48,7 +62,12 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
       </p>
       {saved && (
         <p className="ok-box" role="status">
-          {c.saved(saved.count, formatMoney(saved.commissions, locale), saved.difference.minor === '0' ? null : formatMoney(saved.difference, locale))}
+          {c.saved(
+            saved.count,
+            formatMoney(saved.commissions, locale),
+            saved.clawbacks.minor === '0' ? null : formatMoney(saved.clawbacks, locale),
+            saved.difference.minor === '0' ? null : formatMoney(saved.difference, locale),
+          )}
         </p>
       )}
 
@@ -69,8 +88,8 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
               </thead>
               <tbody>
                 {view.totals.map((r) => (
-                  <tr key={`${r.status}-${r.currency}`}>
-                    <td>{status(r.status)}</td>
+                  <tr key={`${r.bucket}-${r.currency}`}>
+                    <td>{bucket(r.bucket)}</td>
                     <td>{r.currency}</td>
                     <td className="num">{r.count}</td>
                     <td className="num">{formatMoney(r.amount, locale)}</td>
@@ -92,23 +111,26 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
 
       <section className="card">
         <h2>{c.tabs[tab]}</h2>
-        {view.rows.length === 0 ? (
-          <p className="muted">{c.none}</p>
-        ) : mayRecord ? (
+        {mayRecord && selectable.length > 0 ? (
           <ActionForm action={recordPayoutAction} submit={c.submit} confirmText={c.confirm} className="stack">
             <CommissionSelection
-              rows={view.rows.map((r) => ({
-                id: r.id,
-                orderId: r.orderId,
-                title: r.title ?? r.productType,
-                stay: stay(r.serviceStart, r.serviceEnd),
-                bookingRef: r.providerBookingRef ?? '—',
-                source: c.sources[r.source] ?? r.source,
-                earnedAt: formatAdminInstant(r.earnedAt, locale),
-                amount: r.amount,
-              }))}
+              settle={view.rows.map(forSelection)}
+              netted={refundDue.map(forSelection)}
               locale={locale}
-              labels={{ select: c.select, selectAll: c.selectAll, order: c.order, stay: c.stay, bookingRef: c.bookingRef, source: c.source, earnedAt: c.earnedAt, commission: c.commission, none: c.selectedNone, selected: c.selected('{n}', '{total}') }}
+              labels={{
+                select: c.select,
+                selectAll: c.selectAll,
+                order: c.order,
+                stay: c.stay,
+                bookingRef: c.bookingRef,
+                status: c.status,
+                payoutRef: c.payoutRef,
+                commission: c.commission,
+                settleTitle: c.settleTitle,
+                nettedTitle: c.nettedTitle,
+                none: c.selectedNone,
+                selected: c.selected('{n}', '{total}', '{m}', '{netted}', '{expected}'),
+              }}
             />
             <h3>{c.payoutTitle}</h3>
             <p className="muted">{c.payoutHint}</p>
@@ -156,9 +178,11 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
               </div>
             </div>
           </ActionForm>
+        ) : view.rows.length === 0 ? (
+          <p className="muted">{c.none}</p>
         ) : (
           <>
-            {tab === 'EARNED' && <p className="muted">{c.noPermission}</p>}
+            {tab === 'UNPAID' && <p className="muted">{c.noPermission}</p>}
             <div className="table-wrap">
               <table data-testid="commission-rows">
                 <thead>
@@ -166,8 +190,9 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
                     <th>{c.order}</th>
                     <th>{c.stay}</th>
                     <th>{c.bookingRef}</th>
-                    <th>{c.source}</th>
-                    {tab === 'RECEIVED' && <th>{c.payoutRef}</th>}
+                    {(tab === 'UNPAID' || tab === 'RECEIVED') && <th>{c.status}</th>}
+                    {(tab === 'RECEIVED' || tab === 'REFUND_DUE') && <th>{c.payoutRef}</th>}
+                    {tab === 'VOIDED' && <th>{c.clawbackRef}</th>}
                     <th className="num">{c.commission}</th>
                   </tr>
                 </thead>
@@ -179,8 +204,9 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
                       </td>
                       <td>{stay(r.serviceStart, r.serviceEnd)}</td>
                       <td>{r.providerBookingRef ?? '—'}</td>
-                      <td>{c.sources[r.source] ?? r.source}</td>
-                      {tab === 'RECEIVED' && <td>{r.payoutReference}</td>}
+                      {(tab === 'UNPAID' || tab === 'RECEIVED') && <td>{bucket(r.bucket)}</td>}
+                      {(tab === 'RECEIVED' || tab === 'REFUND_DUE') && <td>{r.payoutReference}</td>}
+                      {tab === 'VOIDED' && <td>{r.clawbackReference ?? '—'}</td>}
                       <td className="num">{formatMoney(r.amount, locale)}</td>
                     </tr>
                   ))}
@@ -205,6 +231,7 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
                   <th>{c.reference}</th>
                   <th className="num">{c.count}</th>
                   <th className="num">{c.amount}</th>
+                  <th className="num">{c.netted}</th>
                   <th className="num">{c.difference}</th>
                   <th>{c.note}</th>
                   <th>{c.recordedBy}</th>
@@ -218,6 +245,7 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
                     <td>{p.reference}</td>
                     <td className="num">{p.count}</td>
                     <td className="num">{formatMoney(p.amount, locale)}</td>
+                    <td className="num">{p.clawbacks.minor === '0' ? '—' : formatMoney(p.clawbacks, locale)}</td>
                     <td className="num">{p.difference.minor === '0' ? '—' : formatMoney(p.difference, locale)}</td>
                     <td>{p.note ?? ''}</td>
                     <td>{who(p.recordedBy)}</td>

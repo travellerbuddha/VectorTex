@@ -110,7 +110,7 @@ Giriş adımları:
   - Siparişler: durum kontrolü, iptal, iade kaydı.
   - Fiyat politikası: taslak → başka bir hesapla onay.
   - Raporlar: finans, liste fiyatı doğruluğu, reklam sayfa feed'i ve **komisyon tahsilatı**.
-  - Komisyon tahsilatı: demoda bir komisyon "hak edildi" olarak hazırdır. Finans hesabıyla seçip gelen ödemeyi referans, tarih ve tutarla kaydedin.
+  - Komisyon tahsilatı: finans hesabıyla "Ödeme bekleyen" komisyonları seçip gelen ödemeyi referans, tarih ve tutarla kaydedin (Nuitee ödemeyi aldığında komisyonu gönderir; konaklama bitmeden gelen tutar peşin tahsil sayılır). Ödemesi alınmış bir siparişi iptal edince komisyon "Nuitee'ye iade/mahsup edilecek" listesine düşer; sonraki ödemede onu da seçerek düşün.
   - Fiyat sapma uyarısı: İçerik → Otel listesi fiyat ayarları → "Fiyat sapma uyarısı (%)". Boşsa uyarı yoktur.
 - **İçerik.**
   - Rehber yazısı, SSS ve menü bağlantıları ekleyin.

@@ -81,3 +81,30 @@ Etiket kimlikleri (GTM, GA4, Search Console) henüz yok. Site bu kimlikler olmad
   - arama→ödeme→onay olayları;
   - kişisel veri yokluğu;
   - tekrar sayılmama.
+
+## 2. sürüm (2026-10-10): kurulumun tamamlanması
+
+İşletme, ölçümün "nasıl olması gerekiyorsa" kurulmasını istedi. Bu sürümde verilen kararlar:
+
+- **İzin modu Temel olarak sabitlendi (varsayılan ve önerilen).**
+  - KVKK çerez rehberi, analiz ve pazarlama çerezleri için açık rıza ister.
+  - Temel modda izin verilmeden Google, Meta ve Yandex'e hiçbir istek gitmez.
+  - Gelişmiş mod panelde seçilebilir ama hazır kapsayıcı Temel moda göredir.
+- **Çerez politikası sayfası:**
+  - Adresler: `/tr/cerez-politikasi`, `/en/cookie-policy`.
+  - Sayfa, koddaki tek çerez listesinden (`cookie-registry.ts`) üretilir: zorunlu, analiz ve pazarlama çerezleri; sağlayıcı, amaç ve süre ile.
+  - Yurt dışına aktarım bilgisi ve tercih değiştirme düğmesi sayfadadır.
+  - Bant ve footer her zaman bu sayfaya bağlanır. Panel alanı artık şirketin gizlilik/KVKK aydınlatma metni içindir.
+- **İzin olayları:**
+  - Kayıtlı izin her sayfa açılışında `consent_state` olayıyla, yeni seçim `consent_update` olayıyla duyurulur.
+  - İki olay da `consent_analytics` ve `consent_marketing` alanlarını taşır.
+- **Hazır GTM kapsayıcısı** (`docs/olcum/gtm-texholiday.json`):
+  - İçerik: GA4 (e-ticaret ve `search`), Google Ads (Google tag, dönüşüm bağlayıcı, satın alma dönüşümü), Meta Pixel (PageView, InitiateCheckout, Purchase), Yandex Metrica (Webvisor kapalı).
+  - Hiçbir etiket "Tüm sayfalar" ile çalışmaz. Analiz etiketleri analiz iznine, Ads ve Meta pazarlama iznine bağlıdır.
+  - Kimlikler `CONFIG - …` yer tutucusudur.
+  - Biçim, açık kaynak içe aktarma şablonlarının en küçük biçimine göre yazıldı. Google'ın belgelediği bir şema değildir; ilk kullanımda GTM önizlemesiyle doğrulanmalıdır (rehber §2).
+  - `apps/web/test/gtm-container.test.ts` kapsayıcıyı koda bağlar: olay adları, izin alanları, tetikleyici ve değişken başvuruları, izinsiz etiket olmaması, yalnız yer tutucu kimlikler.
+- **Doğrulama etiketleri:** Search Console'a ek olarak Yandex Webmaster ve Meta alan adı doğrulama kodları da panelden girilir.
+- **İzinsiz kayıt yok:** satın almanın iki kez sayılmasını önleyen tarayıcı kaydı (`th_evt_…`) yalnız izin varsa yazılır.
+- **CSP:** Yandex'in Türkiye alan adı (`mc.yandex.com.tr`) eklendi.
+- **Kurulum rehberi:** `docs/olcum/OLCUM-KURULUMU.md`. Hesaplarda yapılacak işler orada: GTM içe aktarma, kimliklerin nereden alınacağı, GA4 istenmeyen yönlendirmeler, Ads dönüşümü, doğrulamalar.

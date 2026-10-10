@@ -9,6 +9,8 @@ export interface Tracking {
   ga4: string | null;
   mode: 'BASIC' | 'ADVANCED';
   verification: string | null;
+  yandexVerification: string | null;
+  metaDomainVerification: string | null;
   bannerText: string | null;
   privacyUrl: string | null;
 }
@@ -26,6 +28,8 @@ export const trackingSettings = cache(async (locale: Locale): Promise<Tracking |
       ga4: g.gtmContainerId ? null : ok(g.ga4MeasurementId, /^G-[A-Z0-9]{4,15}$/),
       mode: g.consentMode === 'ADVANCED' ? 'ADVANCED' : 'BASIC',
       verification: ok(g.searchConsoleVerification, /^[A-Za-z0-9_-]{10,100}$/),
+      yandexVerification: ok(g.yandexVerification, /^[A-Za-z0-9_-]{8,100}$/),
+      metaDomainVerification: ok(g.metaDomainVerification, /^[A-Za-z0-9_-]{8,100}$/),
       bannerText: typeof g.bannerText === 'string' && g.bannerText.trim() ? g.bannerText.trim() : null,
       privacyUrl: ok(g.privacyUrl, /^\/[a-z0-9/_-]*$|^https:\/\/[^\s"'<>]+$/i),
     };
@@ -38,11 +42,13 @@ export const trackingSettings = cache(async (locale: Locale): Promise<Tracking |
 });
 
 /**
- * Consent Mode v2 defaults, run before any tag: every Google purpose denied, then the visitor's stored choice applied.
- * Ads data redaction stays on while ad storage is denied.
+ * Consent Mode v2 defaults, run before any tag: every Google purpose denied, then the visitor's stored choice applied
+ * and announced as a `consent_state` event (the GTM container fires analytics and marketing tags on it; a new choice
+ * is announced as `consent_update`). Ads data redaction stays on while ad storage is denied.
  */
 export const CONSENT_BOOTSTRAP = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}window.gtag=gtag;
 gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',functionality_storage:'granted',security_storage:'granted',wait_for_update:500});
 gtag('set','ads_data_redaction',true);gtag('set','url_passthrough',true);
 (function(){var m=document.cookie.match(/(?:^|; )th_consent=([^;]+)/);if(!m)return;try{var c=JSON.parse(decodeURIComponent(m[1]));var g=function(b){return b?'granted':'denied'};
-gtag('consent','update',{analytics_storage:g(c.a),ad_storage:g(c.m),ad_user_data:g(c.m),ad_personalization:g(c.m)});}catch(e){}})();`;
+gtag('consent','update',{analytics_storage:g(c.a),ad_storage:g(c.m),ad_user_data:g(c.m),ad_personalization:g(c.m)});
+dataLayer.push({event:'consent_state',consent_analytics:!!c.a,consent_marketing:!!c.m});}catch(e){}})();`;

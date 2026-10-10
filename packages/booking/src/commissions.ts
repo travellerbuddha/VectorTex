@@ -7,11 +7,14 @@ import { istanbulDate } from './hotel-lists';
 /**
  * Provider commission lifecycle (ADR-0019).
  *
- * - Earning (worker, hourly): a commission becomes EARNED the day after the service ends (hotel check-out, last flight
- *   leg; Istanbul date) when the provider, read again at that moment, still reports the booking as confirmed. No
- *   answer from the provider = not earned now, tried again on the next run (never earned on a guess).
- * - Payout (finance, `commissions.record_payout`): the payout from the provider's statement is recorded with its
- *   reference and the EARNED commissions it settles; they become RECEIVED. A difference needs a written note.
+ * - Payout (finance, `commissions.record_payout`): Nuitee pays our commission when it collects the customer's payment
+ *   (account owner, 2026-10-10), so a payout usually settles commissions whose stay is not over yet. It is recorded
+ *   with its statement reference, the commissions it settles and any it takes back (cancelled after they were paid);
+ *   a difference needs a written note.
+ * - Earning (worker, hourly): the day after the service ends (hotel check-out, last flight leg; Istanbul date) the
+ *   provider is read again; a booking still confirmed earns its commission — paid or not — as revenue. No answer = not
+ *   earned now, tried again on the next run (never earned on a guess).
+ * - Cancelled after it was paid (stay not over): owed back to the provider until a payout nets it.
  * - Viewing needs `orders.view_financials`.
  *
  * Own-gateway orders (iyzico) are earned with that integration: the provider is read through another path there.
@@ -38,6 +41,8 @@ export interface PayoutRequest {
   receivedOn: string;
   note?: string | null;
   commissionIds: readonly string[];
+  /** Paid commissions of cancelled bookings the provider takes back in this payout. */
+  clawbackIds?: readonly string[];
 }
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -97,17 +102,19 @@ export class ProviderCommissions {
     return { totals, rows, payouts };
   }
 
-  async recordPayout(actor: StaffActor, req: PayoutRequest): Promise<{ payoutId: string; commissions: Money; difference: Money }> {
+  async recordPayout(actor: StaffActor, req: PayoutRequest): Promise<{ payoutId: string; commissions: Money; clawbacks: Money; difference: Money }> {
     await this.require(actor, 'commissions.record_payout');
     const bad = (m: string) => new DomainError('VALIDATION_FAILED', m, { httpStatus: 422, action: 'FIX_FIELDS' });
     const reference = req.reference.trim();
     if (!REFERENCE.test(reference)) throw bad('Enter the payout reference from the statement (letters, digits, . _ / : # -)');
-    if (req.amount.minor <= 0n) throw bad('The amount received must be positive');
+    // Zero is possible: the refunds deducted can take up the whole payout.
+    if (req.amount.minor < 0n) throw bad('The amount received cannot be negative');
     if (!DATE.test(req.receivedOn) || new Date(`${req.receivedOn}T00:00:00Z`).toISOString().slice(0, 10) !== req.receivedOn) throw bad('Enter the date the payout arrived');
     if (req.receivedOn > istanbulDate(this.clock())) throw bad('The payout date cannot be in the future');
     const ids = [...new Set(req.commissionIds)];
-    if (ids.length === 0) throw bad('Select the commissions this payout settles');
-    if (ids.length > MAX_PER_PAYOUT || ids.some((id) => !UUID.test(id))) throw bad(`Select at most ${MAX_PER_PAYOUT} commissions`);
+    const clawbackIds = [...new Set(req.clawbackIds ?? [])];
+    if (ids.length + clawbackIds.length === 0) throw bad('Select the commissions this payout settles');
+    if (ids.length + clawbackIds.length > MAX_PER_PAYOUT || [...ids, ...clawbackIds].some((id) => !UUID.test(id))) throw bad(`Select at most ${MAX_PER_PAYOUT} commissions`);
     const note = req.note?.trim() || null;
     if (note && note.length > 500) throw bad('The note is at most 500 characters');
     const r = await this.repo.recordPayout({
@@ -119,9 +126,11 @@ export class ProviderCommissions {
       receivedOn: req.receivedOn,
       note,
       commissionIds: ids,
+      clawbackIds,
       actor: `staff:${actor.id}`,
       at: this.clock(),
     });
-    return { payoutId: r.payoutId, commissions: { currency: req.amount.currency, minor: r.commissionsMinor }, difference: { currency: req.amount.currency, minor: r.differenceMinor } };
+    const ccy = req.amount.currency;
+    return { payoutId: r.payoutId, commissions: { currency: ccy, minor: r.commissionsMinor }, clawbacks: { currency: ccy, minor: r.clawbacksMinor }, difference: { currency: ccy, minor: r.differenceMinor } };
   }
 }

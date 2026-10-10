@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { getPayload, type Payload } from 'payload';
 import { adminSettingsFromEnv, base32Decode, hotp, StaffAuthService, totpStep } from '@texholiday/admin';
 import type { StaffActor } from '@texholiday/contracts';
-import { CommissionRepository, PermissionRepository, PolicyRepository } from '@texholiday/db';
+import { PermissionRepository, PolicyRepository } from '@texholiday/db';
 import { money } from '@texholiday/pricing';
 import config from '../payload.config';
 import { CMS_USERS } from '../payload/access';
@@ -298,18 +298,11 @@ async function mockScanAndOrders(ops: StaffActor, finance: StaffActor) {
     return out.orderId;
   };
   await order('1', day(20), 3, 'MOCK-H1', { firstName: 'Ayşe', lastName: 'Demir', email: 'ayse.demir@ornek.test' });
-  const second = await order('2', day(35), 5, 'MOCK-H2', { firstName: 'John', lastName: 'Smith', email: 'john.smith@example.test' });
-  // DEMO: the stay of this order is in the future; its commission is marked earned (normally the worker does it the
-  // day after check-out) so the payout screen (/yonetim/raporlar/komisyonlar) has something to show.
-  const commission = await coreDatabase().pool.query<{ id: string }>(
-    'SELECT pc.id FROM core.provider_commissions pc JOIN core.order_items i ON i.id = pc.order_item_id WHERE i.order_id = $1',
-    [second],
-  );
-  if (commission.rows[0]) await new CommissionRepository(coreDatabase().db).markEarned(commission.rows[0].id, new Date(), 'system:demo-seed');
+  await order('2', day(35), 5, 'MOCK-H2', { firstName: 'John', lastName: 'Smith', email: 'john.smith@example.test' });
   const cancelled = await order('3', day(15), 2, 'MOCK-H2', { firstName: 'Mehmet', lastName: 'Kaya', email: 'mehmet.kaya@ornek.test' });
   await app.staff.cancel(ops, cancelled, 'Misafir telefonla iptal istedi (demo)', { customerAcceptedFee: true });
   await app.staff.recordProviderRefund(finance, cancelled, money('EUR', 9900n), 'Nuitee panel (demo)');
-  log('3 örnek sipariş (2 onaylı, 1 iptal + iade kaydı; 1 komisyon "hak edildi" — DEMO)');
+  log('3 örnek sipariş (2 onaylı, 1 iptal + iade kaydı)');
 }
 
 // ------------------------------------------------------------------ run
