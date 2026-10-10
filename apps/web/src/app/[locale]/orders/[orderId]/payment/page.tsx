@@ -3,7 +3,7 @@ import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { MockPayment } from '../../../../../components/MockPayment';
 import { NuiteePayment } from '../../../../../components/NuiteePayment';
-import { QuoteSummary } from '../../../../../components/QuoteSummary';
+import { OrderQuoteSummary } from '../../../../../components/QuoteSummary';
 import { dict, type Locale } from '../../../../../i18n/dictionaries';
 import { formatInstant } from '../../../../../i18n/format';
 import { booking } from '../../../../../server/booking';
@@ -34,7 +34,7 @@ export default async function Payment({ params }: { params: Promise<{ locale: st
     <div className="page payment">
       <h1>{t.payment.title}</h1>
       <div className="two-col">
-        <QuoteSummary quote={order.quote} locale={locale} />
+        <OrderQuoteSummary quote={order.quote} locale={locale} />
         <div className="card">
           {session.state === 'NOT_READY' && (
             <p role="status">

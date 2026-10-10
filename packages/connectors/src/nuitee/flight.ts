@@ -6,6 +6,7 @@ import {
   type CallEvidence,
   type ConnectorDescriptor,
   type ExternalOutcome,
+  type FlightAirport,
   type FlightBaggage,
   type FlightBookingState,
   type FlightCancellationQuote,
@@ -25,7 +26,7 @@ import {
   type ProviderBookingState,
   type ProviderManagedTransactionRef,
 } from '@texholiday/contracts';
-import { D, fromMajor, type Money } from '@texholiday/pricing';
+import { D, add, fromMajor, subtract, type Money } from '@texholiday/pricing';
 import { classifyHttp, type ParsedHttp } from '../http-outcome';
 
 /**
@@ -86,6 +87,7 @@ export class NuiteeFlightConnector implements FlightConnector {
       isMock: false,
       requiredSources: NUITEE_FLIGHT_REQUIRED_SOURCES,
       operations: {
+        searchAirports: { effect: 'READ_ONLY', lostResponse: 'NONE' },
         searchRates: { effect: 'READ_ONLY', lostResponse: 'NONE' },
         verify: { effect: 'READ_ONLY', lostResponse: 'NONE' },
         // "This is when the seat is held. The provider reservation is created here" (flight guide); nothing returns a
@@ -215,6 +217,10 @@ export class NuiteeFlightConnector implements FlightConnector {
     const taxes = this.money(parsed, display, 'taxes', cur);
     const fees = this.money(parsed, display, 'fees', cur);
     if (!price || !base || !taxes || !fees || price.minor <= 0n) return null;
+    // "base, taxes and fees are always the supplier values and never include the partner markup; only total carries
+    // it": the difference is the markup. A total below the supplier values contradicts that and is not priced.
+    const appliedMarkup = subtract(price, add(add(base, taxes), fees));
+    if (appliedMarkup.minor < 0n) return null;
     const perPassenger: Partial<Record<FlightPassengerType, Money>> = {};
     const per = obj(display.perPassenger);
     for (const t of passengerTypes) {
@@ -240,6 +246,7 @@ export class NuiteeFlightConnector implements FlightConnector {
       journeyKey,
       price,
       supplier: { base, taxes, fees },
+      appliedMarkup,
       perPassenger,
       segments,
       terms: {
@@ -326,6 +333,27 @@ export class NuiteeFlightConnector implements FlightConnector {
   }
 
   // ------------------------------------------------------------------ operations
+
+  /** GET /data/flights/airports?q= ("airport autocomplete"; minimum 2 characters). */
+  async searchAirports(input: { text: string }): Promise<ExternalOutcome<readonly FlightAirport[]>> {
+    const q = input.text.trim();
+    if (q.length < 2 || q.length > 100) return notAvailable('AIRPORT_QUERY', 'Type 2-100 characters');
+    const http = await this.send('searchAirports', 'GET', `/data/flights/airports?q=${encodeURIComponent(q)}`, null, this.cfg.searchTimeoutSeconds);
+    if (!http.ok) return http.outcome;
+    if (http.status >= 400) return this.refused(http);
+    const data = obj(http.json)?.data;
+    if (!Array.isArray(data)) return this.unknown(http.evidence, 'MALFORMED_RESPONSE');
+    const out: FlightAirport[] = [];
+    for (const group of arr(data)) {
+      for (const a of arr(group.airports)) {
+        const iata = str(a.iata)?.toUpperCase() ?? null;
+        const name = str(a.name);
+        if (!iata || !IATA.test(iata) || !name || out.some((x) => x.iata === iata)) continue;
+        out.push({ iata, name, city: str(a.city), country: str(a.country) });
+      }
+    }
+    return { kind: 'SUCCEEDED', value: out, evidence: http.evidence };
+  }
 
   async searchRates(criteria: FlightSearchCriteria): Promise<ExternalOutcome<readonly FlightOffer[]>> {
     if (criteria.legs.length === 0 || criteria.legs.some((l) => !IATA.test(l.origin) || !IATA.test(l.destination) || !DATE.test(l.date) || l.origin === l.destination)) {

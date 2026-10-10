@@ -48,6 +48,73 @@ export const checkoutInput = z.object({
 });
 export type CheckoutInput = z.infer<typeof checkoutInput>;
 
+const iata = z.string().regex(/^[A-Z]{3}$/, 'IATA airport code, e.g. IST');
+const country = z.string().regex(/^[A-Z]{2}$/, 'ISO country code');
+
+/** Flight search: one way or return; ages per IATA (children 2-11, infants under 2), at most 9 seated passengers. */
+export const flightSearchInput = z
+  .object({
+    origin: iata,
+    destination: iata,
+    departDate: isoDate,
+    returnDate: isoDate.nullable(),
+    adults: z.number().int().min(1).max(9),
+    childAges: z.array(z.number().int().min(2).max(11)).max(8),
+    infantAges: z.array(z.number().int().min(0).max(1)).max(4),
+    cabinClass: z.enum(['ECONOMY', 'PREMIUM_ECONOMY', 'BUSINESS', 'FIRST']).nullable(),
+    currency: z.string().regex(/^[A-Z]{3}$/),
+    locale: z.enum(['tr', 'en']),
+  })
+  .superRefine((v, ctx) => {
+    if (v.origin === v.destination) ctx.addIssue({ code: 'custom', path: ['destination'], message: 'origin and destination must differ' });
+    if (v.returnDate !== null && v.returnDate < v.departDate) ctx.addIssue({ code: 'custom', path: ['returnDate'], message: 'return must not be before departure' });
+    if (v.adults + v.childAges.length > 9) ctx.addIssue({ code: 'custom', path: ['childAges'], message: 'at most 9 seated passengers' });
+    // "number of infants cannot exceed number of adults" (provider 41012).
+    if (v.infantAges.length > v.adults) ctx.addIssue({ code: 'custom', path: ['infantAges'], message: 'one infant per adult at most' });
+  });
+export type FlightSearchInput = z.infer<typeof flightSearchInput>;
+
+const document = z.object({
+  type: z.enum(['passport', 'id_card']),
+  number: z.string().trim().regex(/^[A-Za-z0-9]{5,20}$/, '5-20 letters or digits'),
+  issuingCountry: country,
+  expiresOn: isoDate,
+});
+
+/**
+ * Flight checkout. Names exactly as on the travel document; the document is asked on every flight (business decision,
+ * ADR-0012) and is sent to the provider without being stored.
+ */
+export const flightCheckoutInput = z.object({
+  quoteVersionId: z.uuid(),
+  acceptTerms: z.literal(true),
+  termsVersion: z.string().min(1).max(40),
+  contact: z.object({
+    firstName: name,
+    lastName: name,
+    email: z.email().max(200),
+    phoneCountryCode: z.string().regex(/^[1-9]\d{0,3}$/, 'digits, e.g. 90'),
+    phoneNumber: z.string().regex(/^\d{6,14}$/, 'digits only'),
+  }),
+  passengers: z
+    .array(
+      z.object({
+        type: z.enum(['ADULT', 'CHILD', 'INFANT']),
+        firstName: name,
+        lastName: name,
+        birthDate: isoDate,
+        gender: z.enum(['M', 'F']),
+        nationality: country,
+        document,
+      }),
+    )
+    .min(1)
+    .max(13),
+  locale: z.enum(['tr', 'en']),
+  idempotencyKey: z.string().regex(/^[\w-]{8,100}$/),
+});
+export type FlightCheckoutInput = z.infer<typeof flightCheckoutInput>;
+
 /** Field-level validation error for forms (paths, never values). */
 export class InputValidationError extends DomainError {
   readonly issues: ReadonlyArray<{ path: string; message: string }>;

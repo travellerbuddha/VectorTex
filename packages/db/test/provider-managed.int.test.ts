@@ -23,6 +23,8 @@ function port(transactionId: string, book: Array<ExternalOutcome<ProviderBooking
   const books: string[] = [];
   return {
     books,
+    bookTrigger: () => 'ANY_TRIGGER',
+    lookupScope: () => 'PER_REFERENCE',
     async prebookForPayment(): Promise<ExternalOutcome<ProviderManagedPrebook>> {
       return ok({ prebookRef: opaque(`MOCK-PRE-${transactionId}`), transactionId: opaque(transactionId), clientSecret: `MOCK_secret_${transactionId}`, differences: [] });
     },

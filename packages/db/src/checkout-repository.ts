@@ -128,8 +128,11 @@ export interface SubmitItem {
 }
 
 export interface BookingGuests {
-  holder: { firstName: string; lastName: string; email: string; phone: string };
+  /** `phoneCountryCode` (digits, no "+") only for flights, whose provider takes the code and the number apart. */
+  holder: { firstName: string; lastName: string; email: string; phone: string; phoneCountryCode?: string };
   roomGuests: ReadonlyArray<{ occupancyNumber: number; firstName: string; lastName: string; email: string }>;
+  /** Flights: names and types as on the travel documents; nothing else is stored (ADR-0012). */
+  passengers?: ReadonlyArray<{ type: 'ADULT' | 'CHILD' | 'INFANT'; firstName: string; lastName: string }>;
 }
 
 export interface SubmitOrderInput {
@@ -206,7 +209,9 @@ export class CheckoutRepository {
             connectorMeta: it.connector,
           })
           .returning({ id: orderItems.id });
-        if (it.guests) await tx.insert(orderItemGuests).values({ orderItemId: row!.id, holder: it.guests.holder, roomGuests: it.guests.roomGuests });
+        if (it.guests) {
+          await tx.insert(orderItemGuests).values({ orderItemId: row!.id, holder: it.guests.holder, roomGuests: it.guests.roomGuests, passengers: it.guests.passengers ?? null });
+        }
         await tx.insert(providerBookings).values({
           orderItemId: row!.id,
           environment: input.environment,
@@ -234,7 +239,12 @@ export class CheckoutRepository {
 
   async guests(orderItemId: string): Promise<BookingGuests | null> {
     const [row] = await this.db.select().from(orderItemGuests).where(eq(orderItemGuests.orderItemId, orderItemId));
-    return row ? { holder: row.holder as BookingGuests['holder'], roomGuests: row.roomGuests as BookingGuests['roomGuests'] } : null;
+    if (!row) return null;
+    return {
+      holder: row.holder as BookingGuests['holder'],
+      roomGuests: row.roomGuests as BookingGuests['roomGuests'],
+      ...(row.passengers ? { passengers: row.passengers as NonNullable<BookingGuests['passengers']> } : {}),
+    };
   }
 
   /** A new attempt (e.g. after a decline or a gateway change) is refused while another one is live (T21). */

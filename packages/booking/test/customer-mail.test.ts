@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { customerMail, mailMoney, type OrderView } from '../src/index';
+import { customerMail, mailMoney, type FlightQuoteView, type OrderView, type QuoteView } from '../src/index';
 
 /** Customer booking e-mails (P16): what each message says, in the customer's language, from the order view only. */
 const view = (over: Partial<OrderView> = {}): OrderView => ({
@@ -9,7 +9,9 @@ const view = (over: Partial<OrderView> = {}): OrderView => ({
   bookingReference: 'MOCK-BK-1',
   voucherReady: true,
   payBy: null,
+  ticketNumbers: [],
   quote: {
+    product: 'HOTEL',
     quoteVersionId: 'q',
     expiresAt: '2027-05-01T10:20:00Z',
     hotel: { hotelId: 'H1', name: 'Otel <Deniz> & Spa', address: 'Kemer, Antalya', photo: null },
@@ -26,6 +28,7 @@ const view = (over: Partial<OrderView> = {}): OrderView => ({
   },
   ...over,
 });
+const hotelQuote = view().quote as QuoteView;
 const ctx = { brand: 'TexHoliday', publicBaseUrl: 'https://www.example.test/' };
 const tr = { email: 'ayse@example.test', locale: 'tr' as const, firstName: 'Ayşe' };
 const en = { email: 'john@example.test', locale: 'en' as const, firstName: null };
@@ -55,7 +58,7 @@ describe('customer booking e-mails', () => {
   });
 
   it('English, no name, non-refundable rate', () => {
-    const m = customerMail('BOOKING_CONFIRMED', view({ quote: { ...view().quote, cancellation: { refundable: false, freeUntil: null, steps: [] }, payAtProperty: [] } }), en, ctx);
+    const m = customerMail('BOOKING_CONFIRMED', view({ quote: { ...hotelQuote, cancellation: { refundable: false, freeUntil: null, steps: [] }, payAtProperty: [] } }), en, ctx);
     expect(m.subject).toBe('TexHoliday – Your booking is confirmed: Otel <Deniz> & Spa');
     expect(m.text.startsWith('Hello,')).toBe(true);
     expect(m.text).toContain('Non-refundable rate');
@@ -75,5 +78,48 @@ describe('customer booking e-mails', () => {
     const m = customerMail('PAYMENT_NOT_BOOKED', view({ stage: 'FAILED', bookingReference: null }), tr, ctx);
     expect(m.subject).toContain('Rezervasyonunuz tamamlanamadı');
     expect(m.text).toContain('Nuitee bunu 1–2 iş günü içinde kaldırır');
+  });
+
+  it('flight: route, journeys, passengers, PNR and tickets once issued, fare rule and the First Line support note', () => {
+    const flightQuote: FlightQuoteView = {
+      product: 'FLIGHT',
+      quoteVersionId: 'q',
+      expiresAt: '2027-05-01T10:20:00Z',
+      title: 'İstanbul (IST) → Antalya (AYT)',
+      journeys: [
+        {
+          direction: 'OUTBOUND',
+          departure: { code: 'IST', name: 'Istanbul Airport', local: '2027-06-10T08:30:00' },
+          arrival: { code: 'AYT', name: 'Antalya Airport', local: '2027-06-10T09:45:00' },
+          connections: 0,
+          segments: [{ origin: { code: 'IST', name: null }, destination: { code: 'AYT', name: null }, departureLocal: '2027-06-10T08:30:00', arrivalLocal: '2027-06-10T09:45:00', carrier: { code: 'MK', name: 'MOCK' }, operatedBy: null, flightNumber: '101', durationMinutes: 75, cabin: 'Economy', stopCount: 0 }],
+        },
+      ],
+      passengers: { adults: 2, childAges: [7], infantAges: [] },
+      cabinClass: null,
+      total: { currency: 'EUR', minor: '30655' },
+      perPassenger: {},
+      terms: { refundable: false, changeable: false, refundFee: false, changeFee: false },
+      baggage: [],
+      fareFamily: null,
+      priceChangedFrom: null,
+      termsVersion: 't',
+      paymentProvider: 'NUITEE',
+    };
+    const m = customerMail('BOOKING_CONFIRMED', view({ quote: flightQuote, bookingReference: 'MOCKPN', ticketNumbers: ['2351234567890'] }), tr, ctx);
+    expect(m.subject).toBe('TexHoliday – Rezervasyonunuz onaylandı: İstanbul (IST) → Antalya (AYT)');
+    expect(m.text).toContain('Biletiniz düzenlendi.');
+    // Airport-local times as published, never converted.
+    expect(m.text).toContain('Gidiş: 10 Haziran 2027 Per 08:30 IST → AYT 09:45 · MK 101 · aktarmasız');
+    expect(m.text).toContain('Yolcular: 2 yetişkin, 1 çocuk');
+    expect(m.text).toContain('Havayolu rezervasyon kodu (PNR): MOCKPN');
+    expect(m.text).toContain('Bilet numarası: 2351234567890');
+    expect(m.text).toContain('Ödenen tutar: €306,55');
+    expect(m.text).toContain('İade edilemez bilet');
+    expect(m.text).toContain('25 USD hizmet bedelini');
+    const cancelled = customerMail('BOOKING_CANCELLED', view({ quote: flightQuote, stage: 'CANCELLED', bookingReference: null }), en, ctx, { refundExpected: true });
+    expect(cancelled.subject).toBe('TexHoliday – Your booking was cancelled: İstanbul (IST) → Antalya (AYT)');
+    expect(cancelled.text).not.toContain('USD 25');
+    expect(cancelled.text).toContain('Outbound: Thu, 10 June 2027 08:30 IST → AYT 09:45');
   });
 });

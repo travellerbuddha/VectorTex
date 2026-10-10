@@ -1,8 +1,9 @@
 import { notFound } from 'next/navigation';
+import type { OrderDetail } from '@texholiday/admin';
 import { isDomainError } from '@texholiday/contracts';
 import { ActionForm } from '../../../../../components/admin/ActionForm';
 import { TaskList } from '../../../../../components/admin/TaskList';
-import { adminDict, adminLocale } from '../../../../../i18n/admin';
+import { adminDict, adminLocale, type AdminLocale } from '../../../../../i18n/admin';
 import { formatDate, formatMoney } from '../../../../../i18n/format';
 import { admin, can, requireStaff } from '../../../../../server/admin';
 import { actorOf, formatAdminInstant } from '../../../../../server/admin-forms';
@@ -40,8 +41,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const first = order.items[0];
   const pm = order.payment?.mode === 'PROVIDER_MANAGED';
   const mayCheck = pm && order.status !== 'CANCELLED' && can(staff, 'tasks.manage');
+  // A paid flight still waiting for its ticket (order processing) can be cancelled too (ADR-0012).
+  const awaitingTicket = order.status === 'PROCESSING' && first?.productType === 'FLIGHT' && first.booking?.status === 'CONFIRMED';
   const mayCancel =
-    pm && order.status === 'CONFIRMED' && (first?.booking?.status === 'CONFIRMED' || first?.booking?.status === 'ISSUED') && can(staff, 'orders.cancel');
+    pm && (order.status === 'CONFIRMED' || awaitingTicket) && (first?.booking?.status === 'CONFIRMED' || first?.booking?.status === 'ISSUED') && can(staff, 'orders.cancel');
   // Spec §16: the current cost is shown before a cancellation is confirmed.
   const preview = mayCancel ? await (await booking()).app.staff.cancellationPreview(actorOf(staff), order.id) : null;
   const mayRecordRefund =
@@ -155,7 +158,21 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                   <p data-testid="cancel-preview" className={preview.expectedPenalty.minor > 0n ? 'notice' : undefined}>
                     {c.expectedFee}: <strong>{formatMoney({ currency: preview.expectedPenalty.currency, minor: preview.expectedPenalty.minor.toString() }, locale)}</strong>{' '}
                     <small className="muted">
-                      ({preview.basis === 'NON_REFUNDABLE' ? c.basisNonRefundable : preview.basis === 'FREE' && preview.freeUntil ? c.basisFreeUntil(formatAdminInstant(preview.freeUntil, locale)) : c.basisPolicy})
+                      (
+                      {preview.basis === 'NON_REFUNDABLE'
+                        ? c.basisNonRefundable
+                        : preview.basis === 'PROVIDER_QUOTE' && preview.providerQuote
+                          ? c.basisProviderQuote(
+                              preview.providerQuote.confidence,
+                              preview.providerQuote.refund ? formatMoney({ currency: preview.providerQuote.refund.currency, minor: preview.providerQuote.refund.minor.toString() }, locale) : c.notReported,
+                              preview.providerQuote.destination,
+                            )
+                          : preview.basis === 'PROVIDER_QUOTE_UNAVAILABLE'
+                            ? c.basisQuoteUnavailable
+                            : preview.basis === 'FREE' && preview.freeUntil
+                              ? c.basisFreeUntil(formatAdminInstant(preview.freeUntil, locale))
+                              : c.basisPolicy}
+                      )
                     </small>
                   </p>
                 )}
@@ -195,6 +212,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       )}
 
       {order.items.map((item) => {
+        if (item.productType === 'FLIGHT') return <FlightItem key={item.id} item={item} locale={locale} t={t} />;
         const o = item.option as {
           hotelName?: string;
           address?: string | null;
@@ -329,5 +347,115 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </ol>
       </section>
     </div>
+  );
+}
+
+type FlightOption = {
+  title?: string;
+  journeys?: Array<{
+    direction: string;
+    departure: { code: string; local: string };
+    arrival: { code: string; local: string };
+    connections: number;
+    segments: Array<{ carrier: { code: string }; flightNumber: string | null }>;
+  }>;
+  terms?: { refundable: boolean; changeable: boolean };
+  fareFamily?: string | null;
+};
+
+/** A flight item: itinerary (airport-local times), passengers (names only, ADR-0012), PNR and ticketing. */
+function FlightItem({ item, locale, t }: { item: OrderDetail['items'][number]; locale: AdminLocale; t: ReturnType<typeof adminDict> }) {
+  const d = t.orders.detail;
+  const o = item.option as FlightOption;
+  const b = item.booking;
+  const local = (v: string) => `${formatDate(v.slice(0, 10), locale)} ${v.slice(11, 16)}`;
+  return (
+    <section className="card" data-testid="order-item">
+      <h2>
+        {d.item} {item.position + 1}: {t.pricing.products[item.productType] ?? item.productType}
+      </h2>
+      <div className="grid2">
+        <dl className="facts">
+          <dt>{d.flight}</dt>
+          <dd>{o.title ?? '—'}</dd>
+          {(o.journeys ?? []).map((j) => (
+            <div key={j.direction} className="contents">
+              <dt>{d.itinerary}</dt>
+              <dd>
+                {local(j.departure.local)} {j.departure.code} → {j.arrival.code} {j.arrival.local.slice(11, 16)} ·{' '}
+                {j.segments.map((s) => [s.carrier.code, s.flightNumber].filter(Boolean).join(' ')).join(', ')}
+              </dd>
+            </div>
+          ))}
+          <dt>{d.fareRules}</dt>
+          <dd>
+            {o.terms?.refundable ? d.refundableFare : d.nonRefundableFare}
+            {o.fareFamily ? ` · ${o.fareFamily}` : ''}
+          </dd>
+        </dl>
+        <dl className="facts">
+          <dt>{t.orders.booking}</dt>
+          <dd>{b ? (t.orders.bookingStatuses[b.status] ?? b.status) : '—'}</dd>
+          <dt>{d.pnr}</dt>
+          <dd>{b?.pnr ? <code data-testid="flight-pnr">{b.pnr}</code> : '—'}</dd>
+          <dt>{d.ticketing}</dt>
+          <dd data-testid="flight-ticketing">{b ? (d.ticketingStatuses[b.ticketing] ?? b.ticketing) : '—'}</dd>
+          {b && b.ticketNumbers.length > 0 && (
+            <>
+              <dt>{d.tickets}</dt>
+              <dd>{b.ticketNumbers.join(', ')}</dd>
+            </>
+          )}
+          {b?.providerBookingRef && (
+            <>
+              <dt>{d.providerRef}</dt>
+              <dd>
+                <code data-testid="provider-ref">{b.providerBookingRef}</code>
+              </dd>
+            </>
+          )}
+          {b?.failureCode && (
+            <>
+              <dt>{d.failure}</dt>
+              <dd>
+                <code>{b.failureCode}</code>
+              </dd>
+            </>
+          )}
+          {b && b.lookupAttempts > 0 && (
+            <>
+              <dt>{d.lookups}</dt>
+              <dd>{b.lookupAttempts}</dd>
+            </>
+          )}
+        </dl>
+      </div>
+      {item.guests && (
+        <dl className="facts top-gap">
+          <dt>{d.holder}</dt>
+          <dd>
+            {item.guests.holder.firstName} {item.guests.holder.lastName} · {item.guests.holder.email} · {item.guests.holder.phone}
+          </dd>
+          <dt>{d.passengers}</dt>
+          <dd>{item.guests.passengers.map((p) => `${p.firstName} ${p.lastName} (${d.passengerTypes[p.type] ?? p.type})`).join(', ') || '—'}</dd>
+        </dl>
+      )}
+      <h3 className="top-gap">{d.financials}</h3>
+      {item.financials ? (
+        <dl className="facts" data-testid="financials">
+          <dt>{d.sell}</dt>
+          <dd>{formatMoney(item.financials.sell, locale)}</dd>
+          <dt>{d.cost}</dt>
+          <dd>{formatMoney(item.financials.supplierCost, locale)}</dd>
+          <dt>{d.commission}</dt>
+          <dd>
+            {item.financials.providerCommission ? formatMoney(item.financials.providerCommission, locale) : '—'}
+            {item.financials.commissionStatus && <small className="muted"> ({d.commissionStatuses[item.financials.commissionStatus] ?? item.financials.commissionStatus})</small>}
+          </dd>
+        </dl>
+      ) : (
+        <p className="muted">{d.noFinancials}</p>
+      )}
+    </section>
   );
 }

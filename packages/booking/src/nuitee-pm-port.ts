@@ -14,6 +14,16 @@ export class NuiteeHotelProviderManagedPort implements ProviderManagedBookingPor
     private readonly checkout: CheckoutRepository,
   ) {}
 
+  /** Nuitee hotels refuse a book for an unpaid transaction with a known code, so scheduled retries may book. */
+  bookTrigger(): 'ANY_TRIGGER' {
+    return 'ANY_TRIGGER';
+  }
+
+  /** Looked up by our client reference (every reference ever sent, ADR-0008). */
+  lookupScope(): 'PER_REFERENCE' {
+    return 'PER_REFERENCE';
+  }
+
   async prebookForPayment(agg: OrderAggregate, it: OrderItemState): Promise<ExternalOutcome<ProviderManagedPrebook>> {
     const quote = await this.quotes.get(it.quoteVersionId);
     if (!quote || quote.environment !== agg.environment) return notAvailable('QUOTE', 'Accepted quote not found for this environment');

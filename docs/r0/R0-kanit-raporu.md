@@ -205,3 +205,24 @@ Uçak bağlayıcısı (ADR-0011) sandbox anahtarıyla, gerçek Nuitee ödeme bil
 - iadenin müşteri kartına mı yoksa hesabımıza mı (`agency_deposit`) döndüğü.
 
 Sorular: `saglayici-sorulari.md` 11–19.
+
+### 10.4 Nuitee uçak — marjın yanıttan doğrulanması (10 Ekim 2026)
+
+OpenAPI uçak teklifinde marj tutarını göndermez. Belgelenen kural şudur: `base`, `taxes` ve `fees` tedarikçi değerleridir ve marjı hiçbir zaman içermez; marjı yalnız `total` taşır. Bu yüzden uygulanan marj `total − (base + taxes + fees)` olmalıdır.
+
+Sandbox'ta salt-okunur aramayla doğrulandı:
+- arama: IST→AYT, 2 yetişkin + 1 çocuk, EUR, satış noktası TR;
+- elle çalıştırılan, commit edilmeyen bir betik kullanıldı; rezervasyon yapılmadı, kişisel veri gönderilmedi.
+
+| `margin.rateSearch` | Teklif | `total / (base+taxes+fees)` | İstenen marjdan sapma | Not |
+|---|---|---|---|---|
+| 0 | 132 | tam 1,00000 (hepsi) | 0 | `platformFees` hiçbir teklifte yok |
+| 10 | 132 | 1,09991–1,10000 | −0,87…0 baz puan (yolcu başı yuvarlama) | negatif marj yok |
+
+Üçüncü bir arka arkaya aramada 429 alındı (ADR-0011'deki gibi UNKNOWN).
+
+**Kod etkisi:**
+- `FlightOffer.appliedMarkup` alanı eklendi. Bu alan negatifse teklif fiyatlanmaz.
+- Satış fiyatı, onaylı `FLIGHT` kuralıyla mevcut 5 baz puan toleransla karşılaştırılır. Tutmazsa teklif gösterilmez. Örnek: hesapta marj düzenleme kapalıysa hesap varsayılanı uygulanır ve teklif düşer.
+- Production hesabında marj düzenlemenin açık olduğu sorulmadı, varsayılmadı (soru 21).
+

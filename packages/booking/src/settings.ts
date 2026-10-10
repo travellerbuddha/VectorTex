@@ -30,6 +30,10 @@ export interface BookingSettings {
    * net x 1.163 up to a 16% margin, price x (1 + margin) from 20%), so nothing could be shown or tested there.
    */
   enforceRateParity: boolean;
+  /** Flights: point of sale sent with searches (ISO 3166-1 alpha-2); null = the provider's default. */
+  flightPointOfSale?: string | null;
+  /** Flights: offers kept per search, cheapest first (default 50). */
+  maxFlightOffers?: number;
 }
 
 export function bookingSettingsFromEnv(env: Record<string, string | undefined>, environment: ProviderEnvironment, policyId: string): BookingSettings {
@@ -47,6 +51,8 @@ export function bookingSettingsFromEnv(env: Record<string, string | undefined>, 
   const skipParity = env.SANDBOX_SKIP_RATE_PARITY ?? '';
   if (skipParity !== '' && skipParity !== 'true' && skipParity !== 'false') throw new Error('SANDBOX_SKIP_RATE_PARITY must be true or false');
   if (skipParity === 'true' && environment !== 'sandbox') throw new Error('SANDBOX_SKIP_RATE_PARITY is only allowed with PROVIDER_ENV=sandbox');
+  const pos = (env.FLIGHT_POINT_OF_SALE ?? '').trim().toUpperCase();
+  if (pos !== '' && !/^[A-Z]{2}$/.test(pos)) throw new Error('FLIGHT_POINT_OF_SALE must be an ISO 3166-1 alpha-2 country code');
   const currencies = (env.SALE_CURRENCIES ?? 'EUR,USD,GBP,TRY').split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
   return {
     environment,
@@ -63,5 +69,7 @@ export function bookingSettingsFromEnv(env: Record<string, string | undefined>, 
     intentLeaseSeconds: int('INTENT_LEASE_SECONDS', 600),
     maxAutomaticLookups: int('MAX_AUTOMATIC_LOOKUPS', 6),
     enforceRateParity: skipParity !== 'true',
+    flightPointOfSale: pos === '' ? null : pos,
+    maxFlightOffers: int('SEARCH_MAX_FLIGHT_OFFERS', 50),
   };
 }

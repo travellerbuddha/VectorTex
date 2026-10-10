@@ -36,3 +36,18 @@ export function boardLabel(boardType: string | null, boardName: string | null, l
   if (boardType && BOARD[boardType]) return BOARD[boardType]![locale];
   return boardName;
 }
+
+/** Airport-local date-time as the airline publishes it ("2027-06-10T08:30:00"): shown as is, never converted. */
+export function formatLocalTime(local: string): string {
+  return local.split('T')[1]?.slice(0, 5) ?? '';
+}
+
+export function formatLocalDate(local: string, locale: Locale): string {
+  return formatDate(local.split('T')[0]!, locale);
+}
+
+export function formatDuration(minutes: number, locale: Locale): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return locale === 'tr' ? `${h} sa ${m} dk` : `${h}h ${m}m`;
+}

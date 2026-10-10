@@ -237,8 +237,8 @@ export interface FlightBaggage {
 
 /**
  * A priced flight offer. `price` is the total for all passengers including the provider-added markup and any platform
- * fees passed on; the markup amount itself is not exposed by the provider. No cancellation schedule exists for flights:
- * the cost of a cancellation is known only from a cancellation quote after booking.
+ * fees passed on. No cancellation schedule exists for flights: the cost of a cancellation is known only from a
+ * cancellation quote after booking.
  */
 export interface FlightOffer {
   offerRef: OpaqueRef;
@@ -246,6 +246,11 @@ export interface FlightOffer {
   price: Money;
   /** Supplier values (never include the markup). */
   supplier: { base: Money; taxes: Money; fees: Money };
+  /**
+   * The markup in `price`: price - (base + taxes + fees). The provider does not send the amount, but documents that
+   * only the total carries it; sandbox 2026-10-10 matched a 10% rateSearch to within rounding on 132 offers.
+   */
+  appliedMarkup: Money;
   perPassenger: Readonly<Partial<Record<FlightPassengerType, Money>>>;
   segments: readonly FlightSegment[];
   terms: FlightTerms;
@@ -330,8 +335,17 @@ export type FlightCancelResult = FlightBookingState & {
   vouchers: number;
 };
 
+export interface FlightAirport {
+  iata: string;
+  name: string;
+  city: string | null;
+  country: string | null;
+}
+
 export interface FlightConnector {
   descriptor(): ConnectorDescriptor;
+  /** Airport autocomplete (name, city or IATA code; at least 2 characters). */
+  searchAirports(input: { text: string }): Promise<ExternalOutcome<readonly FlightAirport[]>>;
   searchRates(criteria: FlightSearchCriteria): Promise<ExternalOutcome<readonly FlightOffer[]>>;
   verify(input: { offerRef: OpaqueRef }): Promise<ExternalOutcome<FlightVerification>>;
   prebook(input: {

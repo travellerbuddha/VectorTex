@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { notFound } from 'next/navigation';
 import { safeHref } from '../../components/cms/RichText';
 import { dict, isLocale, LOCALES } from '../../i18n/dictionaries';
+import { booking } from '../../server/booking';
 import { siteChrome } from '../../server/cms-content';
 import './globals.css';
 
@@ -19,6 +20,7 @@ export default async function LocaleLayout({ children, params }: { children: Rea
   const other = locale === 'tr' ? 'en' : 'tr';
   // Menu and footer entered in the CMS (P06); the booking pages work the same without them.
   const chrome = await siteChrome(locale);
+  const flightsOpen = await flightSalesOpen();
   return (
     <html lang={locale}>
       <body>
@@ -30,10 +32,9 @@ export default async function LocaleLayout({ children, params }: { children: Rea
             {t.brand}
           </a>
           <nav aria-label={locale === 'tr' ? 'Ürünler' : 'Products'}>
-            <a href={`/${locale}`} aria-current="page">
-              {t.nav.hotels}
-            </a>
-            {[t.nav.flights, t.nav.tours, t.nav.transfers, t.nav.packages].map((label) => (
+            <a href={`/${locale}`}>{t.nav.hotels}</a>
+            {flightsOpen && <a href={`/${locale}/flights`}>{t.nav.flights}</a>}
+            {[...(flightsOpen ? [] : [t.nav.flights]), t.nav.tours, t.nav.transfers, t.nav.packages].map((label) => (
               <span key={label} className="nav-soon" aria-disabled="true" title={t.nav.soon}>
                 {label}
               </span>
@@ -71,4 +72,13 @@ export default async function LocaleLayout({ children, params }: { children: Rea
       </body>
     </html>
   );
+}
+
+/** Flights appear in the menu once sales are open (approved FLIGHT rule, open route); never breaks other pages. */
+async function flightSalesOpen(): Promise<boolean> {
+  try {
+    return (await (await booking()).app.availableFlightCurrencies()).length > 0;
+  } catch {
+    return false;
+  }
 }

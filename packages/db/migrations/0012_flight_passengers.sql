@@ -1,0 +1,1 @@
+ALTER TABLE "core"."order_item_guests" ADD COLUMN "passengers" jsonb;

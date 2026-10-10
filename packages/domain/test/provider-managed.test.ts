@@ -10,7 +10,7 @@ import {
   type ProviderManagedPrebook,
 } from '../src/index';
 import { ok, providerState, rejected, unknown } from './support/fakes';
-import { HOTEL, NOW, makeOrder } from './support/fixtures';
+import { FLIGHT, HOTEL, NOW, makeOrder } from './support/fixtures';
 import { InMemoryOrderStore } from './support/memory-store';
 
 /** TEST DOUBLE for the provider-managed booking port (MOCK). */
@@ -23,6 +23,14 @@ class FakePmPort implements ProviderManagedBookingPort {
   cancelScript: Array<ExternalOutcome<ProviderBookingState & { penalty: Money | null; providerRefund: Money | null }>> = [];
   /** Called inside cancel(), e.g. to check what was persisted before the call. */
   onCancel: (() => void) | null = null;
+  trigger: 'ANY_TRIGGER' | 'CUSTOMER_RETURN' = 'ANY_TRIGGER';
+  scope: 'PER_REFERENCE' | 'PER_PREBOOK' = 'PER_REFERENCE';
+  bookTrigger() {
+    return this.trigger;
+  }
+  lookupScope() {
+    return this.scope;
+  }
   async prebookForPayment() {
     this.calls.push({ op: 'prebook' });
     return this.prebookScript.shift() ?? ok({ prebookRef: opaque('MOCK-PRE-1'), transactionId: opaque('MOCK-TX-1'), clientSecret: 'MOCK_pi_secret_1', differences: [] });
@@ -51,18 +59,22 @@ class FakePmPort implements ProviderManagedBookingPort {
 
 const PAY_BY = new Date(NOW.getTime() + 30 * 60_000).toISOString();
 
-function pmOrder(): OrderAggregate {
-  const o = makeOrder({ items: [{ ...HOTEL, commission: 4500n }], payment: 'NEW' });
-  o.route = { mode: 'PROVIDER_MANAGED', providerId: 'nuitee', productType: 'HOTEL', currency: 'EUR', policyVersion: 'pp@1' };
-  o.items[0]!.funding = { method: 'PROVIDER_MANAGED', capabilityId: 'nuitee.hotel.provider_managed' };
+function pmOrder(product: 'HOTEL' | 'FLIGHT' = 'HOTEL'): OrderAggregate {
+  const o = makeOrder({ items: [product === 'HOTEL' ? { ...HOTEL, commission: 4500n } : FLIGHT], payment: 'NEW' });
+  o.route = { mode: 'PROVIDER_MANAGED', providerId: 'nuitee', productType: product, currency: 'EUR', policyVersion: 'pp@1' };
+  o.items[0]!.funding = { method: 'PROVIDER_MANAGED', capabilityId: `nuitee.${product.toLowerCase()}.provider_managed` };
   Object.assign(o.payment!, { gatewayId: 'nuitee', sessionRef: null, gatewayPaymentId: null, fraud: 'NOT_PROVIDED', authorizationExpiresAt: null, payBy: PAY_BY });
   return o;
 }
 
-function harness(clock: { now: Date } = { now: NOW }) {
+function harness(clock: { now: Date } = { now: NOW }, product: 'HOTEL' | 'FLIGHT' = 'HOTEL') {
   const store = new InMemoryOrderStore();
-  store.put(pmOrder());
+  store.put(pmOrder(product));
   const port = new FakePmPort();
+  if (product === 'FLIGHT') {
+    port.trigger = 'CUSTOMER_RETURN';
+    port.scope = 'PER_PREBOOK';
+  }
   const make = (workerId: string) =>
     new ProviderManagedOrchestrator({
       store,
@@ -489,5 +501,174 @@ describe('staff commands on provider-managed orders (/yonetim)', () => {
       [10000n, 'Banka dekontu', STAFF],
     ]);
     expect(h.store.auditLog.filter((a) => a.action === 'provider_managed.refund_recorded')).toHaveLength(2);
+  });
+});
+
+/** A flight booked through the provider's payment component (ADR-0011, ADR-0012). */
+describe('provider-managed flights: book on the customer return, PNR is not a ticket', () => {
+  const pnr = (extra: Partial<ProviderBookingState> = {}) =>
+    providerState('CONFIRMED', { providerBookingRef: opaque('MOCK-FB-1'), pnr: 'MOCKPN', ticketingStatus: 'PENDING', voucherReady: false, ...extra });
+  const ticketed = () => providerState('ISSUED', { providerBookingRef: opaque('MOCK-FB-1'), pnr: 'MOCKPN', ticketingStatus: 'ISSUED', ticketNumbers: ['MOCK-TKT-1'], voucherReady: true });
+  const flight = (clock: { now: Date } = { now: NOW }) => harness(clock, 'FLIGHT');
+  const booked = async () => {
+    const h = flight();
+    h.port.bookScript.push(ok(pnr()));
+    await h.pm.start('ord-1');
+    await h.pm.customerReturned('ord-1');
+    return h;
+  };
+
+  it('scheduled steps never book a flight: only the customer return does; the one scheduled step closes the checkout at the deadline', async () => {
+    const h = flight();
+    await h.pm.start('ord-1');
+    const scheduled = h.store.outbox.filter((e) => e.type === 'order.provider_managed.finalize');
+    expect(scheduled.map((e) => e.availableAt)).toEqual([PAY_BY]);
+    expect((await h.pm.finalize('ord-1', 1)).type).toBe('NONE');
+    expect(h.port.count('book')).toBe(0);
+    expect(decideProviderManaged(state(h), NOW, 'FINALIZE', true)).toEqual({ type: 'NONE', reason: 'waiting for the customer payment' });
+    expect(decideProviderManaged(state(h), NOW, 'RETURN', true)).toEqual({ type: 'FINALIZE' });
+    // A staff "check status" is not a return either.
+    await h.pm.checkStatus('ord-1', 'staff:ops-1');
+    expect(h.port.count('book')).toBe(0);
+    h.port.bookScript.push(ok(ticketed()));
+    await h.pm.customerReturned('ord-1');
+    expect(h.port.count('book')).toBe(1);
+    expect(state(h).status).toBe('CONFIRMED');
+  });
+
+  it('T08: a PNR collects the payment but keeps the order processing; the issued ticket confirms it once', async () => {
+    const h = await booked();
+    let s = state(h);
+    expect(s.status).toBe('PROCESSING');
+    expect(s.payment!.status).toBe('CAPTURED');
+    expect(s.payment!.providerClientSecret).toBeNull();
+    expect(s.items[0]!.booking).toMatchObject({ status: 'CONFIRMED', ticketing: 'PENDING', pnr: 'MOCKPN', providerBookingRef: 'MOCK-FB-1' });
+    expect(h.store.outbox.some((e) => e.type === 'order.confirmed')).toBe(false);
+    expect(h.store.outbox.at(-1)!.type).toBe('order.provider_managed.lookup');
+    expect(h.store.auditLog.some((a) => a.action === 'provider_managed.awaiting_ticket')).toBe(true);
+
+    expect(decideProviderManaged(s, NOW, 'FINALIZE', true).type).toBe('ISSUANCE_CHECK');
+    h.port.refreshScript.push(ok(pnr()));
+    await h.pm.finalize('ord-1');
+    expect(state(h).status).toBe('PROCESSING');
+    h.port.refreshScript.push(ok(ticketed()));
+    await h.pm.finalize('ord-1');
+    s = state(h);
+    expect(s.status).toBe('CONFIRMED');
+    expect(s.items[0]!.booking).toMatchObject({ status: 'ISSUED', ticketing: 'ISSUED', ticketNumbers: ['MOCK-TKT-1'], voucherReady: true });
+    expect(h.store.outbox.filter((e) => e.type === 'order.confirmed')).toHaveLength(1);
+    expect(h.port.calls.filter((c) => c.op === 'refresh').map((c) => c.clientReference)).toEqual(['MOCK-FB-1', 'MOCK-FB-1']);
+    // Settled: nothing else is read or sent.
+    expect((await h.pm.finalize('ord-1')).type).toBe('NONE');
+    expect(h.port.count('book')).toBe(1);
+  });
+
+  it('a ticket booked straight away confirms the order at once', async () => {
+    const h = flight();
+    h.port.bookScript.push(ok(ticketed()));
+    await h.pm.start('ord-1');
+    await h.pm.customerReturned('ord-1');
+    expect(state(h).status).toBe('CONFIRMED');
+    expect(state(h).items[0]!.booking).toMatchObject({ status: 'ISSUED', ticketing: 'ISSUED' });
+  });
+
+  it('a ticket still missing after the automatic checks asks a person (TICKETING_DELAYED); reading continues', async () => {
+    const h = await booked();
+    for (let i = 0; i < 3; i += 1) {
+      h.port.refreshScript.push(i === 1 ? unknown() : ok(pnr()));
+      await h.pm.finalize('ord-1');
+    }
+    const s = state(h);
+    expect(s.status).toBe('PROCESSING');
+    expect(s.tasks.map((t) => t.reason)).toEqual(['TICKETING_DELAYED']);
+    expect(h.store.outbox.at(-1)!.type).toBe('order.provider_managed.lookup');
+    expect(h.port.count('book')).toBe(1);
+  });
+
+  it('cancelled by the airline before the ticket: the order is cancelled and a person confirms the provider refund', async () => {
+    const h = await booked();
+    h.port.refreshScript.push(ok(providerState('CANCELLED', { providerBookingRef: opaque('MOCK-FB-1') })));
+    await h.pm.finalize('ord-1');
+    const s = state(h);
+    expect(s.status).toBe('CANCELLED');
+    expect(s.items[0]!.booking.status).toBe('CANCELLED');
+    expect(s.tasks.map((t) => t.reason)).toEqual(['REFUND_UNKNOWN']);
+    expect(h.store.outbox.find((e) => e.type === 'order.cancelled')!.payload).toMatchObject({ reason: 'CANCELLED_AT_PROVIDER', refundExpected: true });
+  });
+
+  it('T19: a lost flight book answer is read once per prebook (the provider returns the booking of the prebook)', async () => {
+    const h = flight();
+    h.port.bookScript.push(unknown());
+    await h.pm.start('ord-1');
+    await h.pm.customerReturned('ord-1');
+    expect(state(h).items[0]!.booking.status).toBe('UNKNOWN');
+    h.port.lookupScript.push(ok(pnr()));
+    await h.pm.finalize('ord-1');
+    expect(h.port.count('lookup')).toBe(1);
+    expect(state(h).items[0]!.booking).toMatchObject({ status: 'CONFIRMED', ticketing: 'PENDING' });
+    expect(state(h).status).toBe('PROCESSING');
+  });
+
+  it('before abandoning, one lookup covers every reference ever sent (PER_PREBOOK)', async () => {
+    const clock = { now: NOW };
+    const h = flight(clock);
+    await h.pm.start('ord-1');
+    h.port.bookScript.push(rejected('NUITEE_PAYMENT_NOT_COMPLETED'), rejected('NUITEE_PAYMENT_NOT_COMPLETED'));
+    await h.pm.customerReturned('ord-1');
+    await h.pm.customerReturned('ord-1');
+    expect(state(h).items[0]!.booking.clientReferenceSeq).toBe(2);
+    clock.now = new Date(new Date(PAY_BY).getTime() + 1000);
+    await h.pm.finalize('ord-1');
+    expect(h.port.count('lookup')).toBe(1);
+    expect(state(h).status).toBe('CANCELLED');
+  });
+
+  it('an unpaid flight checkout is closed at the deadline; a customer who paid and never came back is told about the hold', async () => {
+    const clock = { now: NOW };
+    const h = flight(clock);
+    await h.pm.start('ord-1');
+    clock.now = new Date(PAY_BY);
+    expect((await h.pm.finalize('ord-1')).type).toBe('EXPIRE');
+    const s = state(h);
+    expect(s.status).toBe('CANCELLED');
+    expect(h.port.count('book')).toBe(0);
+    expect(s.tasks.map((t) => t.reason)).toEqual(['PROVIDER_PAYMENT_HOLD']);
+    expect(h.store.outbox.find((e) => e.type === 'order.provider_managed.failed')!.payload).toMatchObject({ code: 'CHECKOUT_EXPIRED', mayHoldPayment: true });
+  });
+
+  it('staff cancel of a paid flight waiting for its ticket: the airline confirmation is awaited, then read until final', async () => {
+    const h = await booked();
+    h.port.cancelScript.push(ok({ ...providerState('CANCEL_PENDING', { providerBookingRef: opaque('MOCK-FB-1') }), penalty: money('EUR', 0n), providerRefund: null }));
+    const r = await h.pm.cancel('ord-1', 'staff:ops-1', 'Yolcu telefonla istedi');
+    expect(r).toEqual({ outcome: 'PENDING', penalty: money('EUR', 0n) });
+    let s = state(h);
+    expect(s.items[0]!.booking).toMatchObject({ status: 'CANCEL_PENDING', cancellation: 'PROVIDER_PENDING', intent: null });
+    expect(decideProviderManaged(s, NOW, 'FINALIZE', true).type).toBe('CANCEL_LOOKUP');
+    h.port.refreshScript.push(ok(providerState('CANCEL_PENDING', { providerBookingRef: opaque('MOCK-FB-1') })));
+    await h.pm.finalize('ord-1');
+    expect(state(h).items[0]!.booking.status).toBe('CANCEL_PENDING');
+    h.port.refreshScript.push(ok(providerState('CANCELLED', { providerBookingRef: opaque('MOCK-FB-1') })));
+    await h.pm.finalize('ord-1');
+    s = state(h);
+    expect(s.status).toBe('CANCELLED');
+    expect(s.items[0]!.booking).toMatchObject({ status: 'CANCELLED', cancellation: 'COMPLETED' });
+    expect(h.store.outbox.find((e) => e.type === 'order.cancelled')!.payload).toMatchObject({ reason: 'CANCELLED_BY_STAFF' });
+    expect(h.port.count('cancel')).toBe(1);
+  });
+
+  it('a cancel that did not take effect sends a waiting flight back to waiting for its ticket', async () => {
+    const h = await booked();
+    h.port.cancelScript.push(unknown());
+    expect((await h.pm.cancel('ord-1', 'staff:ops-1', 'Yolcu istedi')).outcome).toBe('UNKNOWN');
+    h.port.refreshScript.push(ok(pnr()));
+    await h.pm.finalize('ord-1');
+    const s = state(h);
+    expect(s.status).toBe('PROCESSING');
+    expect(s.items[0]!.booking).toMatchObject({ status: 'CONFIRMED', cancellation: 'REJECTED', ticketing: 'PENDING' });
+    expect(decideProviderManaged(s, NOW, 'FINALIZE', true).type).toBe('ISSUANCE_CHECK');
+    h.port.refreshScript.push(ok(ticketed()));
+    await h.pm.finalize('ord-1');
+    expect(state(h).status).toBe('CONFIRMED');
+    expect(h.port.count('cancel')).toBe(1);
   });
 });

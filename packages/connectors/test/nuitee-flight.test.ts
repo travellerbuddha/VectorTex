@@ -147,6 +147,32 @@ describe('Nuitee flight search (pinned flights OpenAPI example)', () => {
   });
 });
 
+describe('Nuitee flight markup and airports', () => {
+  it('the markup is the total above the supplier values (zero in the official example, 10% in the sandbox shape)', async () => {
+    const zero = await connector([res(200, example('/flights/rates', 'post', '200'))]).c.searchRates(criteria);
+    expect(zero.kind === 'SUCCEEDED' && zero.value[0]!.appliedMarkup).toEqual(money('USD', 0n));
+    // SANDBOX SHAPE (2026-10-10, rateSearch 10, IST-AYT, EUR): total 102.05 over base+taxes+fees 92.78.
+    const body = example('/flights/rates', 'post', '200');
+    Object.assign(body.data[0].journeys[0].offers[0].pricing.display, { total: 102.05, base: 60, taxes: 30.28, fees: 2.5, currency: 'USD' });
+    body.data[0].journeys[0].offers[0].pricing.display.perPassenger.adult.total = 102.05;
+    const marked = await connector([res(200, body)]).c.searchRates({ ...criteria, margin: { basisPoints: 1000 } });
+    expect(marked.kind === 'SUCCEEDED' && marked.value[0]!.appliedMarkup).toEqual(money('USD', 927n));
+    // A total below the supplier values contradicts the contract: not priced, not shown.
+    body.data[0].journeys[0].offers[0].pricing.display.total = 90;
+    expect(await connector([res(200, body)]).c.searchRates(criteria)).toMatchObject({ kind: 'SUCCEEDED', value: [] });
+  });
+
+  it('airport autocomplete maps the official example; short queries make no call', async () => {
+    const { c, t } = connector([res(200, example('/data/flights/airports', 'get', '200'))]);
+    expect(await c.searchAirports({ text: 'New York' })).toMatchObject({ kind: 'SUCCEEDED', value: [{ iata: 'JFK', name: 'John F Kennedy International Airport', city: 'New York', country: 'United States' }] });
+    expect(t.requests[0]!.url).toBe('https://api.liteapi.travel/v3.0/data/flights/airports?q=New%20York');
+    expect(t.requests[0]!.method).toBe('GET');
+    expect((await c.searchAirports({ text: 'x' })).kind).toBe('CAPABILITY_NOT_AVAILABLE');
+    expect(t.requests).toHaveLength(1);
+    expect((await connector([res(200, { data: null })]).c.searchAirports({ text: 'IST' })).kind).toBe('UNKNOWN');
+  });
+});
+
 describe('Nuitee flight verify (pinned example)', () => {
   it('keeps the offer id we sent (not in the body) and reports no changes', async () => {
     const { c, t } = connector([res(200, example('/flights/verify', 'post', '200'))]);

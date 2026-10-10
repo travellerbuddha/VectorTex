@@ -251,7 +251,9 @@ export const orderItems = core.table(
 
 /**
  * Booking contact and room guests sent to the provider (personal data: restricted access, never logged, §17).
- * One row per order item; the provider needs a holder and one lead guest per room.
+ * One row per order item; the provider needs a holder and one lead guest per room. Flights keep the passenger names
+ * and types only: birth dates, nationality and travel documents go to the provider at prebook and are not stored
+ * (ADR-0012, no retention period decided).
  */
 export const orderItemGuests = core.table('order_item_guests', {
   orderItemId: uuid('order_item_id')
@@ -259,6 +261,7 @@ export const orderItemGuests = core.table('order_item_guests', {
     .references(() => orderItems.id),
   holder: jsonb('holder').notNull(),
   roomGuests: jsonb('room_guests').notNull(),
+  passengers: jsonb('passengers'),
   createdAt: ts('created_at').notNull().defaultNow(),
 });
 

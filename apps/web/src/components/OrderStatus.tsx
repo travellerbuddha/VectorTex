@@ -5,7 +5,7 @@ import type { OrderView } from '@texholiday/booking';
 import { dict, type Locale } from '../i18n/dictionaries';
 import { api } from './api';
 
-const OPEN = new Set(['PREPARING_PAYMENT', 'AWAITING_PAYMENT', 'CONFIRMING']);
+const OPEN = new Set(['PREPARING_PAYMENT', 'AWAITING_PAYMENT', 'CONFIRMING', 'ISSUING']);
 
 /**
  * Shows the server's order stage. After a return from the payment page it keeps asking the server to finalize
@@ -39,12 +39,32 @@ export function OrderStatus({ locale, initial, finalizeWhileOpen }: { locale: Lo
       <p className="status-message">{t.order.stage[order.stage]}</p>
       {open && !giveUp && <p className="muted">{t.order.checking}</p>}
       {open && giveUp && <p className="muted">{t.order.stillWorking}</p>}
-      {order.stage === 'CONFIRMED' && order.bookingReference && (
+      {order.stage === 'CONFIRMED' && order.bookingReference && order.quote.product === 'HOTEL' && (
         <p>
           {t.order.reference}: <strong data-testid="booking-reference">{order.bookingReference}</strong>
           <br />
           <span className="muted">{t.order.voucher}</span>
         </p>
+      )}
+      {order.stage === 'CONFIRMED' && order.quote.product === 'FLIGHT' && (
+        <>
+          <p>
+            {order.bookingReference && (
+              <>
+                {t.flight.pnr}: <strong data-testid="booking-reference">{order.bookingReference}</strong>
+                <br />
+              </>
+            )}
+            {order.ticketNumbers.length > 0 && (
+              <>
+                {t.flight.tickets}: <span data-testid="ticket-numbers">{order.ticketNumbers.join(', ')}</span>
+                <br />
+              </>
+            )}
+            <span className="muted">{t.flight.ticketMail}</span>
+          </p>
+          <p className="muted">{t.flight.support}</p>
+        </>
       )}
       {order.paymentHoldMayExist && <p className="notice">{t.order.hold}</p>}
       {order.stage === 'AWAITING_PAYMENT' && (
@@ -56,7 +76,7 @@ export function OrderStatus({ locale, initial, finalizeWhileOpen }: { locale: Lo
       )}
       {['PRICE_CHANGED', 'EXPIRED', 'FAILED'].includes(order.stage) && (
         <p>
-          <a className="secondary" href={`/${locale}`}>
+          <a className="secondary" href={order.quote.product === 'FLIGHT' ? `/${locale}/flights` : `/${locale}`}>
             {t.order.newSearch}
           </a>
         </p>

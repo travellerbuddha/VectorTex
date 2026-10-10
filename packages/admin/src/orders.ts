@@ -24,6 +24,14 @@ export interface OrderListFilter {
   offset?: number;
 }
 
+/** A flight quote's leg date (0 = departure, 1 = return), for the order list. */
+function flightDate(option: Record<string, unknown>, leg: number): string | null {
+  const legs = option.legs;
+  if (!Array.isArray(legs)) return null;
+  const d = (legs[leg] as { date?: unknown } | undefined)?.date;
+  return typeof d === 'string' ? d : null;
+}
+
 export interface OrderListRow {
   id: string;
   createdAt: string;
@@ -62,9 +70,13 @@ export interface OrderDetail {
     cancellation: unknown;
     payAtProperty: unknown;
     charge: MoneyJson;
-    guests: { holder: Record<string, string>; roomGuests: Array<Record<string, unknown>> } | null;
+    guests: { holder: Record<string, string>; roomGuests: Array<Record<string, unknown>>; passengers: Array<{ type: string; firstName: string; lastName: string }> } | null;
     booking: {
       status: string;
+      /** Flights: airline booking code, ticketing status and ticket numbers. */
+      pnr: string | null;
+      ticketing: string;
+      ticketNumbers: string[];
       providerBookingRef: string | null;
       clientReference: string | null;
       failureCode: string | null;
@@ -169,9 +181,10 @@ export class OrdersQuery {
         status: r.status as OrderStatus,
         total: money(r.total_minor, r.charge_currency),
         productType: (r.product_type as string | null) ?? null,
-        title: typeof option.hotelName === 'string' ? option.hotelName : null,
-        checkin: typeof option.checkin === 'string' ? option.checkin : null,
-        checkout: typeof option.checkout === 'string' ? option.checkout : null,
+        // Hotels: name and stay; flights: route and travel dates (ADR-0012).
+        title: typeof option.hotelName === 'string' ? option.hotelName : typeof option.title === 'string' ? option.title : null,
+        checkin: typeof option.checkin === 'string' ? option.checkin : flightDate(option, 0),
+        checkout: typeof option.checkout === 'string' ? option.checkout : flightDate(option, 1),
         holderName: holder ? `${holder.firstName ?? ''} ${holder.lastName ?? ''}`.trim() : null,
         customerEmail: String(r.email),
         bookingStatus: (r.booking_status as string | null) ?? null,
@@ -200,8 +213,9 @@ export class OrdersQuery {
              i.supplier_cost_minor::text AS cost_minor, i.supplier_cost_currency,
              qv.option, qv.cancellation, qv.pay_at_property, qv.sell_minor::text AS sell_minor, qv.sell_currency,
              qv.provider_commission_minor::text AS quote_commission_minor,
-             g.holder, g.room_guests,
+             g.holder, g.room_guests, g.passengers,
              pb.status AS booking_status, pb.provider_booking_ref, pb.client_reference, pb.failure_code, pb.voucher_ready,
+             pb.pnr, pb.ticketing, pb.ticket_numbers,
              pb.cancellation AS booking_cancellation, pb.unknown_operation, pb.lookup_attempts, pb.updated_at AS booking_updated_at,
              pb.provider_commission_minor::text AS booked_commission_minor, pb.provider_commission_currency,
              pc.status AS commission_status
@@ -260,10 +274,19 @@ export class OrdersQuery {
           cancellation: i.cancellation,
           payAtProperty: i.pay_at_property,
           charge: money(i.charge_minor, i.charge_currency),
-          guests: i.holder ? { holder: i.holder as Record<string, string>, roomGuests: (i.room_guests ?? []) as Array<Record<string, unknown>> } : null,
+          guests: i.holder
+            ? {
+                holder: i.holder as Record<string, string>,
+                roomGuests: (i.room_guests ?? []) as Array<Record<string, unknown>>,
+                passengers: (i.passengers ?? []) as Array<{ type: string; firstName: string; lastName: string }>,
+              }
+            : null,
           booking: i.booking_status
             ? {
                 status: String(i.booking_status),
+                pnr: (i.pnr as string | null) ?? null,
+                ticketing: String(i.ticketing ?? 'NOT_REQUIRED'),
+                ticketNumbers: Array.isArray(i.ticket_numbers) ? (i.ticket_numbers as string[]) : [],
                 providerBookingRef: (i.provider_booking_ref as string | null) ?? null,
                 clientReference: (i.client_reference as string | null) ?? null,
                 failureCode: (i.failure_code as string | null) ?? null,

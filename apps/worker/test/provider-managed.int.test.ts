@@ -1,8 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadConfig } from '@texholiday/config';
-import { MockHotelConnector } from '@texholiday/connectors';
-import { opaque } from '@texholiday/contracts';
-import { DrizzleOrderStore } from '@texholiday/db';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { BookingApp } from '@texholiday/booking';
+import { MockFlightConnector, MockHotelConnector } from '@texholiday/connectors';
+import { opaque, parseCapabilityMatrix, parseSourceLock } from '@texholiday/contracts';
+import { DrizzleOrderStore, PermissionRepository, PolicyRepository } from '@texholiday/db';
 import { setBookingStatus, setPaymentStatus } from '@texholiday/domain';
 import { createRuntime, type Runtime } from '../src/runtime';
 import { freshDatabase, seedOrder } from '../../../packages/db/test/support/db';
@@ -10,13 +13,14 @@ import { freshDatabase, seedOrder } from '../../../packages/db/test/support/db';
 /** The worker finalizes provider-managed checkouts when the customer closed the browser (ADR-0008, §5.1). */
 const quiet = { info: () => {}, warn: () => {}, error: () => {} };
 let runtime: Runtime;
+const flights = new MockFlightConnector();
 
 beforeAll(async () => {
   const db = await freshDatabase();
   await db.close();
   const url = process.env.TEST_DATABASE_URL!;
   const config = loadConfig({ APP_ENV: 'development', PROVIDER_ENV: 'mock', ALLOW_MOCK_ADAPTERS: 'true', PAYLOAD_ENABLED: 'false', DATABASE_URL: url, REDIS_URL: process.env.TEST_REDIS_URL });
-  runtime = await createRuntime(config, { WORKER_ID: 'it-worker' }, quiet, new Map(), new MockHotelConnector());
+  runtime = await createRuntime(config, { WORKER_ID: 'it-worker' }, quiet, new Map(), new MockHotelConnector(), flights);
 });
 afterAll(async () => {
   await runtime?.close();
@@ -45,6 +49,59 @@ describe('worker: provider-managed finalize jobs', () => {
     const after = await store.load(orderId);
     expect(after).toMatchObject({ status: 'CANCELLED', compensationReason: 'CHECKOUT_EXPIRED' });
     expect(after.payment).toMatchObject({ status: 'DECLINED', providerClientSecret: null });
+  });
+});
+
+describe('worker: provider-managed flights (ADR-0012)', () => {
+  it('a scheduled finalize never books a flight; the lookup after the booking confirms the order once the ticket is issued', async () => {
+    const root = join(__dirname, '..', '..', '..');
+    const perms = new PermissionRepository(runtime.core.db);
+    await perms.bootstrapManager('owner');
+    await perms.grantRole('finance', 'FINANCE', { kind: 'STAFF', id: 'owner' });
+    await perms.grantRole('approver', 'FINANCE_APPROVER', { kind: 'STAFF', id: 'owner' });
+    const policies = new PolicyRepository(runtime.core.db);
+    const v = await policies.createDraft(
+      'PRICING',
+      'b2c',
+      { rounding: 'HALF_EVEN', rules: [{ productType: 'FLIGHT', paymentMode: 'PROVIDER_MANAGED', application: 'PROVIDER_API', kind: 'PERCENT_OF_NET', basisPoints: 800 }], serviceFees: [], fx: null, allowBelowSspInOpaquePackage: false },
+      { kind: 'STAFF', id: 'finance' },
+    );
+    await policies.approve('PRICING', 'b2c', v.version, { kind: 'STAFF', id: 'approver' });
+    const app = new BookingApp({
+      db: runtime.core.db,
+      hotels: new MockHotelConnector(),
+      flights,
+      matrix: parseCapabilityMatrix(JSON.parse(readFileSync(join(root, 'contracts', 'capability-matrix.json'), 'utf8'))),
+      sourceLock: parseSourceLock(JSON.parse(readFileSync(join(root, 'contracts', 'sources.lock.json'), 'utf8'))),
+      settings: { environment: 'mock', policyId: 'b2c', searchTtlSeconds: 1800, quoteTtlSeconds: 1200, payBySeconds: 1800, termsVersion: 't1', accessTokenSecret: 'test-only-secret-0123456789abcdef0123', currencies: ['EUR'], maxHotels: 10, maxRatesPerHotel: 4, intentLeaseSeconds: 600, maxAutomaticLookups: 3, enforceRateParity: true },
+    });
+    const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+    const r = await app.flights!.search({ origin: 'ESB', destination: 'DLM', departDate: day(30), returnDate: null, adults: 1, childAges: [], infantAges: [], cabinClass: null, currency: 'EUR', locale: 'en' });
+    const q = await app.flights!.selectOffer(r.sessionId, r.offers[0]!.key);
+    // TEST-ONLY passenger (fictional).
+    const { orderId, accessToken } = await app.flights!.createCheckout({
+      quoteVersionId: q.quoteVersionId,
+      acceptTerms: true,
+      termsVersion: 't1',
+      contact: { firstName: 'Test', lastName: 'Traveller', email: 'worker-flight@example.test', phoneCountryCode: '44', phoneNumber: '7700900123' },
+      passengers: [{ type: 'ADULT', firstName: 'Test', lastName: 'Traveller', birthDate: '1990-01-01', gender: 'M', nationality: 'GB', document: { type: 'passport', number: 'TEST1234', issuingCountry: 'GB', expiresOn: '2035-01-01' } }],
+      locale: 'en',
+      idempotencyKey: 'worker-flight-01',
+    });
+    const session = await app.paymentSession(orderId, accessToken);
+    if (session.state !== 'READY') throw new Error('no payment session');
+    flights.markPaid(session.secretKey.replace('MOCK_secret_', ''));
+    const store = new DrizzleOrderStore(runtime.core.db);
+
+    // Paid, but the customer has not come back yet: the worker's scheduled step does not book.
+    await runtime.handlers['order.provider_managed.finalize']!({ orderId, attempt: 1 }, { eventId: 'wf1', attempts: 1 });
+    expect((await store.load(orderId)).items[0]!.booking.status).toBe('PREPARED');
+
+    expect((await app.finalize(orderId, accessToken)).stage).toBe('ISSUING');
+    await runtime.handlers['order.provider_managed.lookup']!({ orderId }, { eventId: 'wf2', attempts: 1 });
+    const after = await store.load(orderId);
+    expect(after.status).toBe('CONFIRMED');
+    expect(after.items[0]!.booking).toMatchObject({ status: 'ISSUED', ticketing: 'ISSUED' });
   });
 });
 

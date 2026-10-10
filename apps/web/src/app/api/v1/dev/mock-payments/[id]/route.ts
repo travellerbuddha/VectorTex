@@ -12,7 +12,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!mock || settings.environment !== 'mock') throw new DomainError('NOT_FOUND', 'Not found', { httpStatus: 404 });
     const session = await app.paymentSession(id, await orderToken(id));
     if (session.state !== 'READY') throw new DomainError('VALIDATION_FAILED', 'No open payment', { httpStatus: 409 });
-    mock.markPaid(session.secretKey.replace(/^MOCK_secret_/, ''));
+    const transactionId = session.secretKey.replace(/^MOCK_secret_/, '');
+    mock.hotels.markPaid(transactionId);
+    mock.flights.markPaid(transactionId);
     return NextResponse.json({ paid: true });
   } catch (err) {
     return errorResponse(err);

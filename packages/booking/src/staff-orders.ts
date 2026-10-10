@@ -1,14 +1,20 @@
-import { DomainError, type Permission, type ProviderEnvironment, type StaffActor } from '@texholiday/contracts';
+import { DomainError, type FlightConnector, type Permission, type ProviderEnvironment, type StaffActor } from '@texholiday/contracts';
 import { activePermissions, QuoteRepository, type CoreDb, type DrizzleOrderStore } from '@texholiday/db';
 import { freeCancellation, penaltyAt, type ProviderManagedOrchestrator, type StaffCancelResult, type StatusCheckResult } from '@texholiday/domain';
 import type { Money } from '@texholiday/pricing';
 
-/** What cancelling now is expected to cost the customer, from the booking's cancellation policy (spec §16). */
+/**
+ * What cancelling now is expected to cost the customer (spec §16): from the booking's cancellation policy (hotels), or
+ * from the provider's cancellation quote (flights publish no penalty schedule, ADR-0011). Without a quote the whole
+ * amount paid is assumed.
+ */
 export interface CancellationPreview {
   expectedPenalty: Money;
-  basis: 'FREE' | 'POLICY_STEP' | 'NON_REFUNDABLE';
+  basis: 'FREE' | 'POLICY_STEP' | 'NON_REFUNDABLE' | 'PROVIDER_QUOTE' | 'PROVIDER_QUOTE_UNAVAILABLE';
   /** Last instant without a penalty, when the policy has one. */
   freeUntil: string | null;
+  /** Flights: the provider's quote (its confidence, the potential maximum refund and where it goes). */
+  providerQuote: { confidence: string; refund: Money | null; destination: string } | null;
 }
 
 /**
@@ -25,6 +31,7 @@ export class StaffOrderCommands {
     private readonly orchestrator: ProviderManagedOrchestrator,
     private readonly environment: ProviderEnvironment,
     private readonly clock: () => Date = () => new Date(),
+    private readonly flights: FlightConnector | null = null,
   ) {
     this.quotes = new QuoteRepository(db);
   }
@@ -62,13 +69,23 @@ export class StaffOrderCommands {
     if (!quote) throw new DomainError('NOT_FOUND', 'Order not found', { httpStatus: 404 });
     const policy = quote.cancellation;
     const paid = agg.payment!.amount;
+    if (it.productType === 'FLIGHT') {
+      // The provider's quote is the only source of the cost (sandbox 2026-10-09 always answered 500/59099).
+      const ref = it.booking.providerBookingRef;
+      const q = ref && this.flights ? await this.flights.cancellationQuote(ref) : null;
+      if (q?.kind === 'SUCCEEDED' && q.value.penalty && q.value.penalty.currency === paid.currency) {
+        return { expectedPenalty: q.value.penalty, basis: 'PROVIDER_QUOTE', freeUntil: null, providerQuote: { confidence: q.value.confidence, refund: q.value.refund, destination: q.value.destination } };
+      }
+      return { expectedPenalty: paid, basis: 'PROVIDER_QUOTE_UNAVAILABLE', freeUntil: null, providerQuote: null };
+    }
     const free = freeCancellation(policy);
-    if (free.kind === 'NON_REFUNDABLE') return { expectedPenalty: paid, basis: 'NON_REFUNDABLE', freeUntil: null };
+    if (free.kind === 'NON_REFUNDABLE') return { expectedPenalty: paid, basis: 'NON_REFUNDABLE', freeUntil: null, providerQuote: null };
     const penalty = penaltyAt(policy, this.clock(), paid.currency);
     return {
       expectedPenalty: penalty,
       basis: penalty.minor > 0n ? 'POLICY_STEP' : 'FREE',
       freeUntil: free.kind === 'FREE_UNTIL' ? free.lastFreeInstant.toISOString() : null,
+      providerQuote: null,
     };
   }
 

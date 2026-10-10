@@ -213,7 +213,7 @@ describe('hotel booking application flow (provider-managed payment, ADR-0008)', 
     await new PermissionRepository(core.db).grantRole(ops.id, 'OPERATIONS', owner);
     await expect(app.staff.cancellationPreview(finance, orderId)).rejects.toMatchObject({ code: 'FORBIDDEN' });
     // Non-refundable: the whole amount paid is the expected fee.
-    expect(await app.staff.cancellationPreview(ops, orderId)).toEqual({ expectedPenalty: fromJson(quote.total), basis: 'NON_REFUNDABLE', freeUntil: null });
+    expect(await app.staff.cancellationPreview(ops, orderId)).toEqual({ expectedPenalty: fromJson(quote.total), basis: 'NON_REFUNDABLE', freeUntil: null, providerQuote: null });
     await expect(app.staff.cancel(ops, orderId, 'Misafir telefonla istedi', { customerAcceptedFee: false })).rejects.toMatchObject({
       code: 'VALIDATION_FAILED',
       message: 'Confirm that the customer accepted the cancellation fee',

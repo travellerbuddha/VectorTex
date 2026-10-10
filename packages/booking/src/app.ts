@@ -2,7 +2,9 @@ import {
   CapabilityNotAvailableError,
   DomainError,
   type CapabilityMatrix,
+  type FlightConnector,
   type HotelConnector,
+  type ProductType,
   type HotelOffer,
   type HotelSummary,
   type PlaceSuggestion,
@@ -32,6 +34,8 @@ import {
 import { canAccessOrder, orderAccessToken } from './access';
 import { cancellationView, loadOrderView, orderStage, quoteView } from './order-view';
 import { NuiteeHotelProviderManagedPort } from './nuitee-pm-port';
+import { NuiteeFlightProviderManagedPort, ProductProviderManagedPort, TransientPassengerDetails } from './nuitee-flight-pm-port';
+import { FlightSales, openFlightCurrencies } from './flights';
 import { StaffOrderCommands } from './staff-orders';
 import type { BookingSettings } from './settings';
 import { checkoutInput, hotelSearchInput, parse, type HotelSearchInput } from './validation';
@@ -68,6 +72,8 @@ interface StoredResults {
 export interface BookingAppDeps {
   db: CoreDb;
   hotels: HotelConnector;
+  /** Flight sales are off without a flight connector. */
+  flights?: FlightConnector | null;
   matrix: CapabilityMatrix;
   sourceLock: SourceLock;
   settings: BookingSettings;
@@ -92,6 +98,8 @@ export class BookingApp {
   readonly orchestrator: ProviderManagedOrchestrator;
   /** Staff commands for /yonetim (permission-checked). */
   readonly staff: StaffOrderCommands;
+  /** Customer flight sales (null when no flight connector is configured). */
+  readonly flights: FlightSales | null;
   private readonly policies: PolicyRepository;
   private readonly quotes: QuoteRepository;
   private readonly checkout: CheckoutRepository;
@@ -109,9 +117,14 @@ export class BookingApp {
     this.idempotency = new IdempotencyRepository(deps.db);
     this.store = new DrizzleOrderStore(deps.db);
     const s = deps.settings;
+    // Passenger documents live only between the checkout request and its prebook (ADR-0012).
+    const details = new TransientPassengerDetails(10 * 60_000, this.clock);
     this.orchestrator = new ProviderManagedOrchestrator({
       store: this.store,
-      port: new NuiteeHotelProviderManagedPort(deps.hotels, this.quotes, this.checkout),
+      port: new ProductProviderManagedPort({
+        HOTEL: new NuiteeHotelProviderManagedPort(deps.hotels, this.quotes, this.checkout),
+        ...(deps.flights ? { FLIGHT: new NuiteeFlightProviderManagedPort(deps.flights, this.quotes, this.checkout, details) } : {}),
+      }),
       clock: this.clock,
       workerId: deps.workerId ?? `booking-${process.pid}`,
       policy: {
@@ -121,7 +134,21 @@ export class BookingApp {
         maxAutomaticLookups: s.maxAutomaticLookups,
       },
     });
-    this.staff = new StaffOrderCommands(deps.db, this.store, this.orchestrator, s.environment, this.clock);
+    this.staff = new StaffOrderCommands(deps.db, this.store, this.orchestrator, s.environment, this.clock, deps.flights ?? null);
+    this.flights = deps.flights
+      ? new FlightSales({
+          db: deps.db,
+          flights: deps.flights,
+          settings: s,
+          orchestrator: this.orchestrator,
+          details,
+          clock: this.clock,
+          pricingPolicy: () => this.pricingPolicy(),
+          route: (currency, policy) => this.route(currency, policy, 'FLIGHT'),
+          supportsApiMargin: (id) => this.supportsApiMargin(id),
+          orderView: (orderId) => this.view(orderId),
+        })
+      : null;
   }
 
   // ------------------------------------------------------------------ routing & pricing
@@ -133,11 +160,11 @@ export class BookingApp {
   }
 
   /** The route is chosen on the server (§4.1). Only the provider-managed route exists until the own gateway is integrated. */
-  private async route(currency: string, policy: PricingPolicyVersion): Promise<RouteOption> {
+  private async route(currency: string, policy: PricingPolicyVersion, productType: ProductType = 'HOTEL'): Promise<RouteOption> {
     const s = this.deps.settings;
     if (!s.currencies.includes(currency)) throw new CapabilityNotAvailableError(`Currency ${currency} is not offered`, [`currency ${currency} not offered`]);
     const decision = selectPaymentRoutes({
-      items: [{ itemId: 'hotel', productType: 'HOTEL', providerId: HOTEL_PROVIDER }],
+      items: [{ itemId: productType.toLowerCase(), productType, providerId: HOTEL_PROVIDER }],
       chargeCurrency: currency,
       environment: s.environment,
       matrix: this.deps.matrix,
@@ -327,6 +354,14 @@ export class BookingApp {
     return open;
   }
 
+  /** Currencies a customer can buy flights in right now (approved policy with a FLIGHT rule, open route). */
+  async availableFlightCurrencies(): Promise<string[]> {
+    if (!this.flights) return [];
+    const policy = await this.policies.activePricing(this.deps.settings.policyId);
+    if (!policy || !policy.rules.some((r) => r.productType === 'FLIGHT' && r.paymentMode === 'PROVIDER_MANAGED')) return [];
+    return openFlightCurrencies(this.deps.settings.currencies, (c) => this.route(c, policy, 'FLIGHT'));
+  }
+
   /** The search criteria behind a session, for pre-filling the form (no prices). */
   async searchCriteria(sessionId: string): Promise<HotelSearchInput | null> {
     const session = await this.searches.get<StoredResults, HotelSearchInput>(sessionId);
@@ -401,7 +436,7 @@ export class BookingApp {
   async quote(quoteVersionId: string): Promise<QuoteView> {
     if (!/^[0-9a-f-]{36}$/i.test(quoteVersionId)) throw notFound();
     const q = await this.quotes.get(quoteVersionId);
-    if (!q || q.environment !== this.deps.settings.environment) throw notFound();
+    if (!q || q.environment !== this.deps.settings.environment || q.productType !== 'HOTEL') throw notFound();
     return this.quoteView(q);
   }
 
@@ -507,7 +542,7 @@ export class BookingApp {
   /** Browser return from the payment component: a trigger only, the stored transaction is used (§5.1). */
   async finalize(orderId: string, token: string | null | undefined): Promise<OrderView> {
     await this.authorized(orderId, token);
-    await this.orchestrator.finalize(orderId, 1);
+    await this.orchestrator.customerReturned(orderId);
     return this.view(orderId);
   }
 

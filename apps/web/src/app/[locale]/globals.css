@@ -385,6 +385,48 @@ button.link {
   font-size: 1.1rem;
 }
 
+/* Flights (P11): airport-local times as published. */
+.flights {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.flight-offer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.flight-body {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.journey {
+  border-bottom: 1px solid var(--line);
+  padding: 0.5rem 0;
+}
+.journey p {
+  margin: 0.15rem 0;
+}
+.journey-times {
+  font-size: 1.1rem;
+}
+.segments summary {
+  cursor: pointer;
+  min-height: 32px;
+}
+.segments ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}
+.trip-type {
+  display: flex;
+  gap: 1.25rem;
+  border: 0;
+  padding: 0;
+  margin: 0 0 0.5rem;
+}
+
 .refine summary {
   min-height: 44px;
   display: flex;

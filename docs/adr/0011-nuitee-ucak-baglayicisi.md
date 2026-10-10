@@ -1,6 +1,6 @@
 # ADR-0011 — Nuitee uçak bağlayıcısı: sözleşme, belirsiz yanıtlar ve biletleme
 
-- Durum: Kabul edildi (2026-10-09), bağlayıcı düzeyinde. Müşteri uçak akışı (sipariş kalemi, yolcu formu, ödeme, bilet bekleme) işletme kararlarını bekliyor (aşağıda).
+- Durum: Kabul edildi (2026-10-09), bağlayıcı düzeyinde. Aşağıdaki işletme kararları 2026-10-10'da verildi; müşteri uçak akışı ADR-0012'dedir.
 - İlgili: ADR-0002 (katman ayrımı), ADR-0006 (API marjı), ADR-0008 (önce Nuitee tahsilatlı akış), şartname T07/T08/T19, `docs/r0/R0-kanit-raporu.md` §10.3, Nuitee soruları 11–19.
 
 ## Bağlam
@@ -48,7 +48,7 @@
 - **İptal teklifi:** Sandbox'ta her zaman HTTP 500 (59099) döndü (soru 15).
 - **Biletleme:** Sandbox bir koşuda ~3 dakikada `ticketData.ticketedAt` ile biletledi; bilet numarası yapay (PNR ile aynı) ve `ticketData.tickets[]` OpenAPI'de yok. Production biletleme kanıtı ve bilet numarası alanı teyidi bekleniyor (soru 16).
 
-## İşletme kararı bekleyenler (müşteri uçak akışından önce)
+## İşletme kararları (2026-10-10'da verildi, ADR-0012: First Line, belge her uçuşta ve saklanmadan, panelden yüzde marj)
 
 1. **Destek modeli:** First Line ya da B2B-Relayed.
    - First Line: yolcu doğrudan Nuitee ile konuşur, servis ücreti yolcunun kartından alınır.

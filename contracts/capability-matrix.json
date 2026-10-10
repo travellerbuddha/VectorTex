@@ -215,7 +215,8 @@
         "Correct prebook and latest payment references",
         "Written confirmation that production refuses a booking without a confirmed payment (sandbox accepts it)",
         "Refund path of payment-component bookings (destination agency_deposit) and ticketing evidence",
-        "Business decisions: support model, passenger document policy, flight markup policy"
+        "First Line onboarding: traveller contact on the booking and the traveller-facing support channel (provider question 20)",
+        "Flight margin editing enabled on the production account, so margin.rateSearch is honoured (provider question 21)"
       ],
       "blocksGate": "G02",
       "forbiddenWorkarounds": [],
@@ -240,6 +241,13 @@
           "environment": "sandbox",
           "reference": "prebook 01a1231c… / booking 01a1231c-c31c (ticketed, cancelled); bookings 01a12301-ba14, 01a12313-eed4 (cancelled)",
           "summary": "Search (EUR, test markup 10%) -> verify -> prebook usePaymentSdk:true (price = verified price) -> payment component (publicKey sandbox, Stripe test card) redirect_status succeeded -> book TRANSACTION_ID 201 PENDING_CONFIRMATION at the prebook price; repeat with the same prebook returned the same booking. Ticketed about 3 minutes later (ticketData.ticketedAt, airline PNR; ticket number equals the PNR in sandbox); confirmation/ticketing time varied between runs. Cancel of the ticketed booking: 200 CANCELLED, fee 0, refund = amount paid, destination agency_deposit. POST /flights/bookings answers 307 to /flights/bookings/ (called directly). The sandbox accepted and ticketed a booking sent before payment, so the production payment check is not evidenced (provider question 11). EUR only."
+        },
+        {
+          "source": "docs/r0/R0-kanit-raporu.md#10.4",
+          "verifiedAt": "2026-10-10",
+          "environment": "sandbox",
+          "reference": "POST /flights/rates IST-AYT 2026-11-19, 2 adults + 1 child, EUR, read-only",
+          "summary": "rateSearch 0: total = base+taxes+fees on all 132 offers; rateSearch 10: total/(base+taxes+fees) 1.09991-1.10000 on all 132 offers (deviation -0.87..0 bp); no platformFees. The applied markup is derived as total - (base+taxes+fees) and checked against the approved FLIGHT rule."
         }
       ]
     },

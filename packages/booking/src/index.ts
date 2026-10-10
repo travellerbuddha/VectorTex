@@ -7,3 +7,5 @@ export * from './nuitee-pm-port';
 export * from './staff-orders';
 export * from './order-view';
 export * from './customer-mail';
+export * from './nuitee-flight-pm-port';
+export * from './flights';

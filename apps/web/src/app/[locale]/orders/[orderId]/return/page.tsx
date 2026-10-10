@@ -1,7 +1,7 @@
 import { isDomainError } from '@texholiday/contracts';
 import { notFound } from 'next/navigation';
 import { OrderStatus } from '../../../../../components/OrderStatus';
-import { QuoteSummary } from '../../../../../components/QuoteSummary';
+import { OrderQuoteSummary } from '../../../../../components/QuoteSummary';
 import { dict, type Locale } from '../../../../../i18n/dictionaries';
 import { booking } from '../../../../../server/booking';
 import { orderToken } from '../../../../../server/http';
@@ -26,7 +26,7 @@ export default async function PaymentReturn({ params }: { params: Promise<{ loca
       <h1>{dict(locale).order.title}</h1>
       <div className="two-col">
         <OrderStatus locale={locale} initial={order} finalizeWhileOpen />
-        <QuoteSummary quote={order.quote} locale={locale} />
+        <OrderQuoteSummary quote={order.quote} locale={locale} />
       </div>
     </div>
   );

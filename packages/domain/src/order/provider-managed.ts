@@ -10,6 +10,7 @@ import {
   setCancellation,
   setOrderStatus,
   setPaymentStatus,
+  setTicketing,
   type OrderAggregate,
   type OrderItemState,
 } from './aggregate';
@@ -26,6 +27,12 @@ import type { OrderStore } from './orchestrator';
  *   the same reference then answers 4005 and finds nothing), so every try after it gets a NEW reference. The provider
  *   transaction books at most once (a used transaction answers "payment not completed" again), and before giving up
  *   every reference ever sent is looked up.
+ * - Products differ in when a book may be sent and how a lost answer is found (port.bookTrigger / port.lookupScope):
+ *   a flight is booked only after the customer came back from the payment component (the Nuitee sandbox accepted a
+ *   flight booking before payment, provider question 11), and its lost answer is found by repeating the book with the
+ *   same prebook (documented idempotency, ADR-0011).
+ * - A flight PNR is not a ticket (T08): the provider has collected the payment once the booking is confirmed, but the
+ *   order is confirmed to the customer only when the ticket is issued (ADR-0012).
  */
 export interface ProviderManagedPrebook {
   prebookRef: OpaqueRef;
@@ -37,6 +44,18 @@ export interface ProviderManagedPrebook {
 }
 
 export interface ProviderManagedBookingPort {
+  /**
+   * When a book call may be sent. ANY_TRIGGER: on the customer's return and on scheduled retries, because the provider
+   * refuses a book for an unpaid transaction with a known code (hotels). CUSTOMER_RETURN: only after the customer came
+   * back from the payment component; scheduled retries never book (flights, ADR-0012).
+   */
+  bookTrigger(it: OrderItemState): 'ANY_TRIGGER' | 'CUSTOMER_RETURN';
+  /**
+   * How a lost book answer is found. PER_REFERENCE: every client reference ever sent is looked up (hotels).
+   * PER_PREBOOK: one lookup covers them all, because the provider returns the booking of the prebook whatever reference
+   * it was sent with (flights: idempotent book per prebook).
+   */
+  lookupScope(it: OrderItemState): 'PER_REFERENCE' | 'PER_PREBOOK';
   prebookForPayment(agg: OrderAggregate, it: OrderItemState): Promise<ExternalOutcome<ProviderManagedPrebook>>;
   book(agg: OrderAggregate, it: OrderItemState, clientReference: string, transaction: { prebookRef: OpaqueRef; transactionId: OpaqueRef }): Promise<ExternalOutcome<ProviderBookingState>>;
   /** The booking made under `clientReference`, or null when none exists. */
@@ -63,6 +82,8 @@ export interface StatusCheckResult {
 
 export type StaffCancelResult =
   | { outcome: 'CANCELLED'; penalty: Money | null; providerRefund: Money | null }
+  /** The provider accepted the request and waits for the airline; the booking is checked automatically. */
+  | { outcome: 'PENDING'; penalty: Money | null }
   /** The provider refused the cancellation; the booking stays as it was. */
   | { outcome: 'REJECTED'; code: string }
   /** The answer was lost: the booking is checked again automatically; nothing is re-sent. */
@@ -93,7 +114,9 @@ export type ProviderManagedAction =
   | { type: 'PREBOOK' }
   | { type: 'FINALIZE' }
   | { type: 'LOOKUP' }
-  /** A cancellation answer was lost: read the booking by its provider id (never re-send the cancel). */
+  /** A flight booking is confirmed (PNR) but not ticketed yet: read it until the ticket is issued (T08). */
+  | { type: 'ISSUANCE_CHECK' }
+  /** A cancellation answer was lost or awaits the airline: read the booking by its provider id (never re-send). */
   | { type: 'CANCEL_LOOKUP' }
   | { type: 'EXPIRE' }
   | { type: 'INTENT_EXPIRED' };
@@ -115,21 +138,36 @@ function sentReferences(it: OrderItemState): string[] {
   return [...refs];
 }
 
-/** Pure decision for one provider-managed order. `trigger` says whether a finalization was asked for. */
-export function decideProviderManaged(agg: OrderAggregate, now: Date, trigger: 'STEP' | 'FINALIZE'): ProviderManagedAction {
+/** A cancellation was requested while the flight was waiting for its ticket (the order was never confirmed). */
+function awaitingTicketBefore(agg: OrderAggregate, it: OrderItemState): boolean {
+  return agg.status === 'PROCESSING' && it.connector.requiresIssuance && it.booking.preCancelStatus === 'CONFIRMED' && it.booking.ticketing !== 'ISSUED';
+}
+
+/** A flight with a PNR whose ticket is not issued yet; the order waits (T08). */
+export function awaitingTicket(agg: OrderAggregate, it: OrderItemState): boolean {
+  return agg.status === 'PROCESSING' && it.connector.requiresIssuance && it.booking.status === 'CONFIRMED' && it.booking.ticketing !== 'ISSUED';
+}
+
+/**
+ * Pure decision for one provider-managed order. `trigger`: STEP (start), FINALIZE (scheduled or staff), RETURN (the
+ * customer came back from the payment component). `bookOnlyOnReturn`: the product is booked on RETURN only.
+ */
+export function decideProviderManaged(agg: OrderAggregate, now: Date, trigger: 'STEP' | 'FINALIZE' | 'RETURN', bookOnlyOnReturn = false): ProviderManagedAction {
   const it = single(agg);
   const p = agg.payment!;
   if (agg.status === 'CANCELLED') return { type: 'NONE', reason: 'order settled' };
   const intent = it.booking.intent;
   if (intent) return new Date(intent.leaseUntil).getTime() <= now.getTime() ? { type: 'INTENT_EXPIRED' } : { type: 'NONE', reason: 'call in flight' };
-  if (it.booking.status === 'UNKNOWN' && it.booking.unknownOperation === 'CANCEL') return { type: 'CANCEL_LOOKUP' };
+  if ((it.booking.status === 'UNKNOWN' && it.booking.unknownOperation === 'CANCEL') || it.booking.status === 'CANCEL_PENDING') return { type: 'CANCEL_LOOKUP' };
   if (agg.status === 'CONFIRMED') return { type: 'NONE', reason: 'order settled' };
   if (it.booking.status === 'UNKNOWN' || it.booking.status === 'PENDING_CONFIRMATION') return { type: 'LOOKUP' };
+  if (awaitingTicket(agg, it)) return it.booking.ticketing === 'PENDING' || it.booking.ticketing === 'UNKNOWN' ? { type: 'ISSUANCE_CHECK' } : { type: 'NONE', reason: `ticketing ${it.booking.ticketing}` };
   if (it.booking.status === 'NEW' && p.status === 'NEW') return { type: 'PREBOOK' };
   if (it.booking.status === 'PREPARED' && p.status === 'PENDING') {
     const expired = p.payBy !== null && new Date(p.payBy).getTime() <= now.getTime();
     if (expired) return { type: 'EXPIRE' };
-    return trigger === 'FINALIZE' ? { type: 'FINALIZE' } : { type: 'NONE', reason: 'waiting for the customer payment' };
+    if (trigger === 'RETURN' || (trigger === 'FINALIZE' && !bookOnlyOnReturn)) return { type: 'FINALIZE' };
+    return { type: 'NONE', reason: 'waiting for the customer payment' };
   }
   return { type: 'NONE', reason: `no provider-managed step for booking ${it.booking.status} / payment ${p.status}` };
 }
@@ -143,18 +181,23 @@ export class ProviderManagedOrchestrator {
   }
 
   /**
-   * Tries to finalize: on a browser return, from the worker sweep, or after the deadline (abandon). The caller's
-   * request carries no ids: the stored prebook/transaction is used. `attempt` (from the scheduled event) drives
-   * the retry back-off while the customer has not paid yet.
+   * Tries to finalize from the worker sweep, a staff check or after the deadline (abandon). The caller's request
+   * carries no ids: the stored prebook/transaction is used. `attempt` (from the scheduled event) drives the retry
+   * back-off while the customer has not paid yet. Products booked on the customer's return only are not booked here.
    */
   async finalize(orderId: string, attempt = 1): Promise<ProviderManagedAction> {
     return this.run(orderId, 'FINALIZE', attempt);
   }
 
-  private async run(orderId: string, trigger: 'STEP' | 'FINALIZE', attempt = 1): Promise<ProviderManagedAction> {
+  /** The customer came back from the payment component (a trigger only: nothing from the URL is used). */
+  async customerReturned(orderId: string): Promise<ProviderManagedAction> {
+    return this.run(orderId, 'RETURN', 1);
+  }
+
+  private async run(orderId: string, trigger: 'STEP' | 'FINALIZE' | 'RETURN', attempt = 1): Promise<ProviderManagedAction> {
     const agg = await this.deps.store.load(orderId);
     const now = this.deps.clock();
-    const action = decideProviderManaged(agg, now, trigger);
+    const action = decideProviderManaged(agg, now, trigger, this.deps.port.bookTrigger(single(agg)) === 'CUSTOMER_RETURN');
     try {
       switch (action.type) {
         case 'NONE':
@@ -167,6 +210,9 @@ export class ProviderManagedOrchestrator {
           break;
         case 'LOOKUP':
           await this.lookup(agg, now, false);
+          break;
+        case 'ISSUANCE_CHECK':
+          await this.issuanceCheck(agg, now);
           break;
         case 'CANCEL_LOOKUP':
           await this.cancelLookup(agg, now);
@@ -209,11 +255,20 @@ export class ProviderManagedOrchestrator {
   }
 
   private scheduleFinalize(agg: OrderAggregate, now: Date, attempt: number): void {
-    const delay = this.deps.policy.finalizeRetrySeconds(attempt);
     const payBy = agg.payment?.payBy ? new Date(agg.payment.payBy).getTime() : Number.POSITIVE_INFINITY;
+    if (this.deps.port.bookTrigger(single(agg)) === 'CUSTOMER_RETURN' && Number.isFinite(payBy)) {
+      // Booked on the customer's return only: the one scheduled step is closing the checkout at the deadline.
+      emit(agg, 'order.provider_managed.finalize', { orderId: agg.id, attempt }, new Date(payBy));
+      return;
+    }
+    const delay = this.deps.policy.finalizeRetrySeconds(attempt);
     // Never later than the deadline, so an abandoned checkout is closed on time.
     const at = Math.min(now.getTime() + delay * 1000, payBy);
     emit(agg, 'order.provider_managed.finalize', { orderId: agg.id, attempt }, new Date(at));
+  }
+
+  private scheduleLookup(agg: OrderAggregate, now: Date, attempt: number): void {
+    emit(agg, 'order.provider_managed.lookup', { orderId: agg.id }, new Date(now.getTime() + this.deps.policy.finalizeRetrySeconds(attempt) * 1000));
   }
 
   // ------------------------------------------------------------------ prebook
@@ -311,11 +366,33 @@ export class ProviderManagedOrchestrator {
     it.booking.providerBookingRef = state.providerBookingRef ?? it.booking.providerBookingRef;
     it.booking.voucherReady = state.voucherReady;
     it.booking.unknownOperation = null;
+    if (it.connector.requiresIssuance) {
+      it.booking.pnr = state.pnr ?? it.booking.pnr;
+      if (state.ticketNumbers.length > 0) it.booking.ticketNumbers = state.ticketNumbers;
+    }
     if (target === 'CONFIRMED' || target === 'ISSUED') {
-      setBookingStatus(agg, it.id, target, cause, ACTOR, now);
+      const firstConfirmation = it.booking.status !== 'CONFIRMED' && it.booking.status !== 'ISSUED';
+      if (firstConfirmation) {
+        // UNKNOWN may go straight to ISSUED; every other state passes CONFIRMED (a PNR before its ticket).
+        setBookingStatus(agg, it.id, it.connector.requiresIssuance || it.booking.status !== 'UNKNOWN' ? 'CONFIRMED' : target, cause, ACTOR, now);
+      }
       // The provider collected the customer payment when it confirmed the booking (it is the merchant of record).
       setPaymentStatus(agg, 'CAPTURED', cause, ACTOR, now);
       agg.payment!.providerClientSecret = null;
+      if (it.connector.requiresIssuance) {
+        // T08: only an issued ticket confirms a flight (ticketedAt, ADR-0011); a PNR keeps the order processing.
+        const issued = target === 'ISSUED' || state.ticketingStatus === 'ISSUED';
+        if (!issued) {
+          if (firstConfirmation) audit(agg, 'provider_managed.awaiting_ticket', ACTOR, now, { itemId: it.id, pnr: it.booking.pnr });
+          this.scheduleLookup(agg, now, it.booking.lookupAttempts + 1);
+          return;
+        }
+        setBookingStatus(agg, it.id, 'ISSUED', cause, ACTOR, now);
+        setTicketing(agg, it.id, 'ISSUED', cause, ACTOR, now);
+        it.booking.lookupAttempts = 0;
+      } else if (target !== it.booking.status) {
+        setBookingStatus(agg, it.id, target, cause, ACTOR, now);
+      }
       setOrderStatus(agg, 'CONFIRMED', cause, ACTOR, now, 'PROVIDER_MANAGED_BOOKED');
       emit(agg, 'order.confirmed', { orderId: agg.id });
       return;
@@ -324,9 +401,50 @@ export class ProviderManagedOrchestrator {
       this.fail(agg, it, `PROVIDER_${target}`, cause, now, true);
       return;
     }
+    if (target === 'CANCEL_PENDING') {
+      // A cancellation we never asked for, on a booking we did not hold as confirmed: a person looks at it.
+      raiseTask(agg, 'BOOKING_UNKNOWN', it.id, 'Provider reports a pending cancellation on a booking that was never confirmed to us', ACTOR, now);
+      this.scheduleLookup(agg, now, it.booking.lookupAttempts + 1);
+      return;
+    }
     // A pending provider confirmation is not a confirmation (T10): keep reading the booking.
     setBookingStatus(agg, it.id, target, cause, ACTOR, now);
-    emit(agg, 'order.provider_managed.lookup', { orderId: agg.id }, new Date(now.getTime() + this.deps.policy.finalizeRetrySeconds(1) * 1000));
+    this.scheduleLookup(agg, now, 1);
+  }
+
+  /**
+   * Reads a flight booking that has a PNR but no ticket yet. Issued -> the order is confirmed; cancelled by the airline
+   * or the provider -> the provider refunds by its rules (a person confirms); still waiting -> read again with back-off,
+   * and after the automatic budget a person is asked (TICKETING_DELAYED) while reading continues.
+   */
+  private async issuanceCheck(agg: OrderAggregate, now: Date): Promise<void> {
+    const it = single(agg);
+    const ref = it.booking.providerBookingRef;
+    const outcome: ExternalOutcome<ProviderBookingState> = ref ? await this.deps.port.refresh(agg, it, ref) : notAvailable('PROVIDER_BOOKING_REF', 'no provider booking id');
+    await this.apply(agg.id, (fresh, fi) => {
+      if (!awaitingTicket(fresh, fi) || fi.booking.intent) return; // changed meanwhile
+      if (outcome.kind === 'SUCCEEDED') {
+        const st = outcome.value;
+        if (st.status === 'ISSUED' || (st.status === 'CONFIRMED' && st.ticketingStatus === 'ISSUED')) {
+          this.applyBooked(fresh, fi, st, 'RECONCILIATION', now);
+          return;
+        }
+        if (st.status === 'CANCELLED') {
+          this.cancelledAtProvider(fresh, fi, null, null, 'RECONCILIATION', now, ACTOR, false);
+          return;
+        }
+        if (st.status !== 'CONFIRMED') {
+          raiseTask(fresh, 'BOOKING_UNKNOWN', fi.id, `Provider reports ${st.status} for a booking awaiting its ticket`, ACTOR, now);
+        } else {
+          fi.booking.pnr = st.pnr ?? fi.booking.pnr;
+        }
+      }
+      fi.booking.lookupAttempts += 1;
+      if (fi.booking.lookupAttempts >= this.deps.policy.maxAutomaticLookups) {
+        raiseTask(fresh, 'TICKETING_DELAYED', fi.id, 'Flight booked and paid, ticket not issued yet after automatic checks (checking continues)', ACTOR, now);
+      }
+      this.scheduleLookup(fresh, now, fi.booking.lookupAttempts + 1);
+    });
   }
 
   /** No booking exists. The customer may hold a payment authorization the provider releases on its own. */
@@ -359,7 +477,8 @@ export class ProviderManagedOrchestrator {
    */
   private async lookup(agg: OrderAggregate, now: Date, abandonIfMissing: boolean): Promise<void> {
     const it = single(agg);
-    const refs = !abandonIfMissing && it.booking.clientReference ? [it.booking.clientReference] : sentReferences(it);
+    const all = sentReferences(it);
+    const refs = !abandonIfMissing && it.booking.clientReference ? [it.booking.clientReference] : this.deps.port.lookupScope(it) === 'PER_PREBOOK' ? all.slice(0, 1) : all;
     let found: ProviderBookingState | null = null;
     let inconclusive = false;
     for (const ref of refs) {
@@ -394,7 +513,7 @@ export class ProviderManagedOrchestrator {
       if (fi.booking.lookupAttempts >= this.deps.policy.maxAutomaticLookups) {
         raiseTask(fresh, 'BOOKING_UNKNOWN', fi.id, 'Provider-managed booking outcome still unknown after automatic lookups', ACTOR, now);
       }
-      emit(fresh, 'order.provider_managed.lookup', { orderId: fresh.id }, new Date(now.getTime() + this.deps.policy.finalizeRetrySeconds(fi.booking.lookupAttempts + 1) * 1000));
+      this.scheduleLookup(fresh, now, fi.booking.lookupAttempts + 1);
     });
   }
 
@@ -405,7 +524,10 @@ export class ProviderManagedOrchestrator {
       await this.lookup(agg, now, true);
       return;
     }
-    await this.apply(agg.id, (fresh, fi) => this.fail(fresh, fi, 'CHECKOUT_EXPIRED', 'COMMAND', now, false));
+    // Booked on the customer's return only: a customer who paid and never came back may hold a payment authorization
+    // (the provider releases it); otherwise nothing was sent and no money is involved.
+    const mayHold = this.deps.port.bookTrigger(it) === 'CUSTOMER_RETURN';
+    await this.apply(agg.id, (fresh, fi) => this.fail(fresh, fi, 'CHECKOUT_EXPIRED', 'COMMAND', now, mayHold));
   }
 
   private async intentExpired(agg: OrderAggregate, now: Date): Promise<void> {
@@ -454,15 +576,15 @@ export class ProviderManagedOrchestrator {
     if (it.booking.intent && new Date(it.booking.intent.leaseUntil).getTime() > now.getTime()) return result(agg, true, true);
 
     let answered = true;
-    if ((it.booking.status === 'CONFIRMED' || it.booking.status === 'ISSUED') && it.booking.providerBookingRef && !it.booking.intent) {
+    if (agg.status === 'CONFIRMED' && (it.booking.status === 'CONFIRMED' || it.booking.status === 'ISSUED') && it.booking.providerBookingRef && !it.booking.intent) {
       answered = await this.verifyBooked(agg, now, actor);
     } else {
-      const action = decideProviderManaged(agg, now, 'FINALIZE');
+      const action = decideProviderManaged(agg, now, 'FINALIZE', this.deps.port.bookTrigger(it) === 'CUSTOMER_RETURN');
       if (action.type !== 'PREBOOK') {
         const lookupsBefore = it.booking.lookupAttempts;
         await this.run(orderId, 'FINALIZE', 1);
         const after = await this.deps.store.load(orderId);
-        answered = !(single(after).booking.status === 'UNKNOWN' && single(after).booking.lookupAttempts > lookupsBefore);
+        answered = !((single(after).booking.status === 'UNKNOWN' || awaitingTicket(after, single(after))) && single(after).booking.lookupAttempts > lookupsBefore);
       }
     }
     let fresh = await this.deps.store.load(orderId);
@@ -496,14 +618,16 @@ export class ProviderManagedOrchestrator {
   }
 
   /**
-   * Cancels a confirmed booking at the provider (staff command, `orders.cancel` checked by the caller). The intent is
-   * stored before the call; a lost answer is resolved by reading the booking, never by sending the cancel again.
+   * Cancels a confirmed booking at the provider (staff command, `orders.cancel` checked by the caller), also a paid
+   * flight still waiting for its ticket. The intent is stored before the call; a lost answer is resolved by reading the
+   * booking, never by sending the cancel again. A cancellation the airline still has to confirm is read until final.
    */
   async cancel(orderId: string, actor: string, reason: string, context: { expectedPenalty: Money | null; customerAcceptedFee: boolean } = { expectedPenalty: null, customerAcceptedFee: false }): Promise<StaffCancelResult> {
     const agg = await this.deps.store.load(orderId);
     const it = single(agg);
     const now = this.deps.clock();
-    if (agg.status !== 'CONFIRMED' || (it.booking.status !== 'CONFIRMED' && it.booking.status !== 'ISSUED') || !it.booking.providerBookingRef) {
+    const confirmed = agg.status === 'CONFIRMED' && (it.booking.status === 'CONFIRMED' || it.booking.status === 'ISSUED');
+    if ((!confirmed && !awaitingTicket(agg, it)) || !it.booking.providerBookingRef) {
       throw new DomainError('ILLEGAL_TRANSITION', 'Only a confirmed booking can be cancelled', { httpStatus: 409 });
     }
     if (it.booking.intent) throw new DomainError('VERSION_CONFLICT', 'A provider call for this order is in flight', { httpStatus: 409, retryable: true });
@@ -530,11 +654,23 @@ export class ProviderManagedOrchestrator {
         result = { outcome: 'CANCELLED', penalty: outcome.value.penalty, providerRefund: outcome.value.providerRefund };
         return;
       }
+      if (outcome.kind === 'SUCCEEDED' && outcome.value.status === 'CANCEL_PENDING') {
+        // Accepted, the airline has not confirmed yet (flights, HTTP 202): read the booking until it is final.
+        setCancellation(fresh, fi.id, 'PROVIDER_PENDING', 'UPSTREAM_RESULT', actor, now);
+        fi.booking.lookupAttempts = 0;
+        const penalty = outcome.value.penalty;
+        audit(fresh, 'provider_managed.cancel_pending', actor, now, { itemId: fi.id, estimatedPenalty: penalty ? { currency: penalty.currency, minor: penalty.minor.toString() } : null });
+        this.scheduleLookup(fresh, now, 1);
+        result = { outcome: 'PENDING', penalty };
+        return;
+      }
       if (outcome.kind === 'REJECTED' || outcome.kind === 'CAPABILITY_NOT_AVAILABLE') {
         setBookingStatus(fresh, fi.id, fi.booking.preCancelStatus ?? 'CONFIRMED', 'UPSTREAM_RESULT', actor, now);
         setCancellation(fresh, fi.id, 'REJECTED', 'UPSTREAM_RESULT', actor, now);
         const code = outcome.kind === 'REJECTED' ? outcome.code : `CAPABILITY_NOT_AVAILABLE:${outcome.capability}`;
         audit(fresh, 'provider_managed.cancel_rejected', actor, now, { itemId: fi.id, code });
+        // A flight still waiting for its ticket goes on being read.
+        if (awaitingTicket(fresh, fi)) this.scheduleLookup(fresh, now, 1);
         result = { outcome: 'REJECTED', code };
         return;
       }
@@ -544,13 +680,13 @@ export class ProviderManagedOrchestrator {
       fi.booking.lookupAttempts = 0;
       setCancellation(fresh, fi.id, 'UNKNOWN', 'UPSTREAM_RESULT', actor, now);
       raiseTask(fresh, 'CANCELLATION_UNKNOWN', fi.id, 'Cancel answer lost; the booking is being checked automatically (the cancel is not re-sent)', actor, now);
-      emit(fresh, 'order.provider_managed.lookup', { orderId: fresh.id }, new Date(now.getTime() + this.deps.policy.finalizeRetrySeconds(1) * 1000));
+      this.scheduleLookup(fresh, now, 1);
       result = { outcome: 'UNKNOWN' };
     });
     return result;
   }
 
-  /** Resolves a lost cancellation answer by reading the booking. */
+  /** Resolves a lost or pending cancellation by reading the booking. */
   private async cancelLookup(agg: OrderAggregate, now: Date): Promise<void> {
     const it = single(agg);
     const ref = it.booking.providerBookingRef;
@@ -558,7 +694,8 @@ export class ProviderManagedOrchestrator {
       ? await this.deps.port.refresh(agg, it, ref)
       : notAvailable('PROVIDER_BOOKING_REF', 'no provider booking id');
     await this.apply(agg.id, (fresh, fi) => {
-      if (fi.booking.status !== 'UNKNOWN' || fi.booking.unknownOperation !== 'CANCEL') return;
+      const lost = fi.booking.status === 'UNKNOWN' && fi.booking.unknownOperation === 'CANCEL';
+      if ((!lost && fi.booking.status !== 'CANCEL_PENDING') || fi.booking.intent) return;
       if (outcome.kind === 'SUCCEEDED') {
         const st = outcome.value.status;
         if (st === 'CANCELLED') {
@@ -566,17 +703,29 @@ export class ProviderManagedOrchestrator {
           return;
         }
         if (st === 'CONFIRMED' || st === 'ISSUED') {
-          // The cancel did not take effect. It is not re-sent automatically: staff may cancel again.
-          setBookingStatus(fresh, fi.id, st, 'RECONCILIATION', ACTOR, now);
+          // The cancel did not take effect. It is not re-sent automatically: staff may cancel again. A flight that
+          // was waiting for its ticket goes back to waiting (its issuance is read again).
+          const back = awaitingTicketBefore(fresh, fi) ? 'CONFIRMED' : st;
+          setBookingStatus(fresh, fi.id, back, 'RECONCILIATION', ACTOR, now);
           fi.booking.unknownOperation = null;
           fi.booking.lookupAttempts = 0;
           setCancellation(fresh, fi.id, 'REJECTED', 'RECONCILIATION', ACTOR, now);
           audit(fresh, 'provider_managed.cancel_not_applied', ACTOR, now, { itemId: fi.id });
+          if (awaitingTicket(fresh, fi)) this.scheduleLookup(fresh, now, 1);
           return;
+        }
+        if (st === 'CANCEL_PENDING' && lost) {
+          // The lost answer was an accepted request: the airline still has to confirm.
+          setBookingStatus(fresh, fi.id, 'CANCEL_PENDING', 'RECONCILIATION', ACTOR, now);
+          fi.booking.unknownOperation = null;
+          setCancellation(fresh, fi.id, 'PROVIDER_PENDING', 'RECONCILIATION', ACTOR, now);
         }
       }
       fi.booking.lookupAttempts += 1;
-      emit(fresh, 'order.provider_managed.lookup', { orderId: fresh.id }, new Date(now.getTime() + this.deps.policy.finalizeRetrySeconds(fi.booking.lookupAttempts + 1) * 1000));
+      if (fi.booking.lookupAttempts >= this.deps.policy.maxAutomaticLookups) {
+        raiseTask(fresh, 'CANCELLATION_UNKNOWN', fi.id, 'Cancellation not final at the provider after automatic checks (checking continues)', ACTOR, now);
+      }
+      this.scheduleLookup(fresh, now, fi.booking.lookupAttempts + 1);
     });
   }
 

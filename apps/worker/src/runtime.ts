@@ -3,9 +3,17 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describeConfig, type AppConfig } from '@texholiday/config';
 import { mailSettingsFromEnv } from '@texholiday/admin';
-import { CUSTOMER_MAIL_EVENTS, CustomerNotifier, NuiteeHotelProviderManagedPort, loadOrderView } from '@texholiday/booking';
-import { NuiteeHotelConnector } from '@texholiday/connectors';
-import { DomainError, parseSourceLock, type HotelConnector, type SourceLock } from '@texholiday/contracts';
+import {
+  CUSTOMER_MAIL_EVENTS,
+  CustomerNotifier,
+  NuiteeFlightProviderManagedPort,
+  NuiteeHotelProviderManagedPort,
+  ProductProviderManagedPort,
+  TransientPassengerDetails,
+  loadOrderView,
+} from '@texholiday/booking';
+import { NuiteeFlightConnector, NuiteeHotelConnector } from '@texholiday/connectors';
+import { DomainError, parseSourceLock, type FlightConnector, type HotelConnector, type SourceLock } from '@texholiday/contracts';
 import { CheckoutRepository, DrizzleOrderStore, NotificationRepository, OutboxRepository, PolicyRepository, QuoteRepository, createCoreDatabase, type CoreDatabase } from '@texholiday/db';
 import { PackageOrchestrator, ProviderManagedOrchestrator, type ItemBookingPort, type OrchestrationPolicy, type OrderItemState } from '@texholiday/domain';
 import { GatewayRegistry, IYZICO_REQUIRED_SOURCES, IyzicoGateway } from '@texholiday/payments';
@@ -77,6 +85,8 @@ export async function createRuntime(
   bookingPorts: ReadonlyMap<string, ItemBookingPort> = new Map(),
   /** Hotel connector for provider-managed checkouts; tests pass the MOCK connector. */
   hotelConnector: HotelConnector | null = null,
+  /** Flight connector for provider-managed checkouts; tests pass the MOCK connector. */
+  flightConnector: FlightConnector | null = null,
 ): Promise<Runtime> {
   const tech = technicalSettings(env);
   const core = createCoreDatabase(config.database.url, { applicationName: 'texholiday-worker' });
@@ -111,11 +121,20 @@ export async function createRuntime(
           bookTimeoutSeconds: 120,
         })
       : null);
-  // Provider-managed checkouts (ADR-0008): finalize while the customer may have paid, abandon at the deadline.
+  const flights =
+    flightConnector ??
+    (config.nuitee
+      ? new NuiteeFlightConnector({ apiKey: config.nuitee.apiKey, environment: config.nuitee.keyEnvironment, baseUrl: config.nuitee.searchBaseUrl, searchTimeoutSeconds: 30, bookTimeoutSeconds: 120 })
+      : null);
+  // Provider-managed checkouts (ADR-0008): finalize while the customer may have paid, abandon at the deadline. The
+  // worker never prebooks a flight (the web request does, with the passenger documents it alone holds, ADR-0012).
   const providerManaged = hotels
     ? new ProviderManagedOrchestrator({
         store,
-        port: new NuiteeHotelProviderManagedPort(hotels, new QuoteRepository(core.db), new CheckoutRepository(core.db)),
+        port: new ProductProviderManagedPort({
+          HOTEL: new NuiteeHotelProviderManagedPort(hotels, new QuoteRepository(core.db), new CheckoutRepository(core.db)),
+          ...(flights ? { FLIGHT: new NuiteeFlightProviderManagedPort(flights, new QuoteRepository(core.db), new CheckoutRepository(core.db), new TransientPassengerDetails(1)) } : {}),
+        }),
         clock: () => new Date(),
         workerId: env.WORKER_ID ?? `worker-${process.pid}`,
         policy: {

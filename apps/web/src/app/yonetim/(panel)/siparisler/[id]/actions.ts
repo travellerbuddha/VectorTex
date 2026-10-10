@@ -48,6 +48,7 @@ export async function cancelOrderAction(_: FormState, form: FormData): Promise<F
     const fmt = (m: Money | null) => (m ? formatMoney(toJson(m), locale) : c.notReported);
     if (r.outcome === 'CANCELLED') return { ok: r.providerRefund && r.providerRefund.minor === 0n ? c.cancelledNoRefund(fmt(r.penalty)) : c.cancelled(fmt(r.penalty), fmt(r.providerRefund)) };
     if (r.outcome === 'REJECTED') return { error: c.cancelRejected(r.code) };
+    if (r.outcome === 'PENDING') return { ok: c.cancelPending(fmt(r.penalty)) };
     return { error: c.cancelUnknown };
   } catch (err) {
     return { error: errorText(err, locale) };

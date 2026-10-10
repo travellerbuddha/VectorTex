@@ -1,6 +1,7 @@
-import type { CancellationView, QuoteView } from '@texholiday/booking';
+import type { CancellationView, FlightQuoteView, QuoteView } from '@texholiday/booking';
 import { dict, type Locale } from '../i18n/dictionaries';
 import { boardLabel, formatDate, formatInstant, formatMoney } from '../i18n/format';
+import { FlightQuoteSummary } from './FlightQuoteSummary';
 
 export function CancellationLine({ c, locale }: { c: CancellationView; locale: Locale }) {
   const t = dict(locale);
@@ -41,4 +42,9 @@ export function QuoteSummary({ quote, locale }: { quote: QuoteView; locale: Loca
       )}
     </section>
   );
+}
+
+/** An order's accepted quote, whatever the product. */
+export function OrderQuoteSummary({ quote, locale }: { quote: QuoteView | FlightQuoteView; locale: Locale }) {
+  return quote.product === 'FLIGHT' ? <FlightQuoteSummary quote={quote} locale={locale} /> : <QuoteSummary quote={quote} locale={locale} />;
 }

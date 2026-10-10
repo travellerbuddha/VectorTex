@@ -8,7 +8,7 @@ import { createCoreDatabase, migrateCore, PermissionRepository, PolicyRepository
 import { E2E_ADMIN_PASSWORD, E2E_PAYLOAD_SECRET, E2E_STAFF_MFA_KEY } from './keys';
 
 /**
- * Fresh core schema + an approved TEST pricing policy (10% provider API margin) + /yonetim accounts. These are test
+ * Fresh core schema + an approved TEST pricing policy (10% provider API margin on hotels and flights) + /yonetim accounts. These are test
  * inputs only: real margins are entered and approved by finance users (G06).
  * Setup links for the admin tests (one account per Playwright project, links are single-use) are passed to the
  * tests through E2E_SETUP_TOKEN_<project>.
@@ -61,7 +61,16 @@ export default async function globalSetup() {
     const v = await policies.createDraft(
       'PRICING',
       'b2c',
-      { rounding: 'HALF_EVEN', rules: [{ productType: 'HOTEL', paymentMode: 'PROVIDER_MANAGED', application: 'PROVIDER_API', kind: 'PERCENT_OF_NET', basisPoints: 1000 }], serviceFees: [], fx: null, allowBelowSspInOpaquePackage: false },
+      {
+        rounding: 'HALF_EVEN',
+        rules: [
+          { productType: 'HOTEL', paymentMode: 'PROVIDER_MANAGED', application: 'PROVIDER_API', kind: 'PERCENT_OF_NET', basisPoints: 1000 },
+          { productType: 'FLIGHT', paymentMode: 'PROVIDER_MANAGED', application: 'PROVIDER_API', kind: 'PERCENT_OF_NET', basisPoints: 1000 },
+        ],
+        serviceFees: [],
+        fx: null,
+        allowBelowSspInOpaquePackage: false,
+      },
       { kind: 'STAFF', id: 'e2e-finance' },
       'E2E test policy',
     );
