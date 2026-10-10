@@ -4,6 +4,7 @@ export const isLocale = (v: string): v is Locale => (LOCALES as readonly string[
 
 const tr = {
   brand: 'TexHoliday',
+  notFound: { title: 'Sayfa bulunamadı', text: 'Aradığınız sayfa taşınmış ya da kaldırılmış olabilir.', home: 'Ana sayfaya dön' },
   nav: { hotels: 'Otel', flights: 'Uçak', tours: 'Tur/Aktivite', transfers: 'Transfer', packages: 'Paket Oluştur', soon: 'Yakında' },
   search: {
     title: 'Otel arayın',
@@ -303,6 +304,7 @@ type Dict = typeof tr;
 
 const en: Dict = {
   brand: 'TexHoliday',
+  notFound: { title: 'Page not found', text: 'The page you are looking for may have moved or been removed.', home: 'Back to the home page' },
   nav: { hotels: 'Hotels', flights: 'Flights', tours: 'Tours & Activities', transfers: 'Transfers', packages: 'Build a Package', soon: 'Coming soon' },
   search: {
     title: 'Find a hotel',
