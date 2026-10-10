@@ -5,6 +5,7 @@ export * from './validation';
 export * from './views';
 export * from './nuitee-pm-port';
 export * from './staff-orders';
+export * from './cancellation';
 export * from './order-view';
 export * from './customer-mail';
 export * from './nuitee-flight-pm-port';

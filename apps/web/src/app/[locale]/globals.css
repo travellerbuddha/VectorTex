@@ -242,6 +242,23 @@ a.secondary {
   color: var(--brand);
   border: 1px solid var(--brand);
 }
+button.danger {
+  background: #fff;
+  color: var(--error);
+  border: 1px solid var(--error);
+  font-weight: 700;
+}
+button.danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.cancel-booking {
+  margin-top: 1rem;
+}
+.cancel-booking h2 {
+  font-size: 1.1rem;
+  margin-top: 0;
+}
 button.link {
   background: none;
   border: 0;

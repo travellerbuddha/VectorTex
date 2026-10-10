@@ -14,8 +14,11 @@ export default async function Order({ params }: { params: Promise<{ locale: stri
   const locale = l as Locale;
   const { app } = await booking();
   let order;
+  let cancellation;
   try {
-    order = await app.order(orderId, await orderToken(orderId));
+    const token = await orderToken(orderId);
+    order = await app.order(orderId, token);
+    cancellation = await app.customerCancellation(orderId, token);
   } catch (err) {
     if (isDomainError(err) && err.code === 'NOT_FOUND') notFound();
     throw err;
@@ -24,7 +27,7 @@ export default async function Order({ params }: { params: Promise<{ locale: stri
     <div className="page order">
       <h1>{dict(locale).order.title}</h1>
       <div className="two-col">
-        <OrderStatus locale={locale} initial={order} finalizeWhileOpen={false} />
+        <OrderStatus locale={locale} initial={order} finalizeWhileOpen={false} cancellation={cancellation} />
         <OrderQuoteSummary quote={order.quote} locale={locale} />
       </div>
     </div>

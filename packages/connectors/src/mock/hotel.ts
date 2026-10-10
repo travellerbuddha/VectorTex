@@ -46,6 +46,10 @@ export class MockHotelConnector implements HotelConnector {
   failSearches = 0;
   /** Test hook: hotels with no bookable offer (sold out). */
   soldOut = new Set<string>();
+  /** Test hook: refundable offers cost one night from 7 days before check-in (the whole stay from 3 days before). */
+  partialCancellationFee = false;
+  /** Test hook: the next cancellation gets this outcome instead of being cancelled. */
+  nextCancel: ExternalOutcome<ProviderBookingState & { penalty: Money | null; refundAmount: Money | null }> | null = null;
   /** Calls made, per operation (tests count provider calls). */
   readonly calls: Record<string, number> = {};
 
@@ -198,7 +202,15 @@ export class MockHotelConnector implements HotelConnector {
         suggestedSellingPrice: sspFactorBp === null ? null : add(net, percentOf(net, sspFactorBp, 'HALF_EVEN')),
         payAtProperty: [],
         cancellation: refundable
-          ? { timezone: 'UTC', refundable: true, steps: [{ from: new Date(checkin - 3 * 86_400_000).toISOString(), penalty: price }], providerText: null }
+          ? {
+              timezone: 'UTC',
+              refundable: true,
+              steps: [
+                ...(this.partialCancellationFee ? [{ from: new Date(checkin - 7 * 86_400_000).toISOString(), penalty: money(price.currency, price.minor / BigInt(nights)) }] : []),
+                { from: new Date(checkin - 3 * 86_400_000).toISOString(), penalty: price },
+              ],
+              providerText: null,
+            }
           : { timezone: 'UTC', refundable: false, steps: [{ from: new Date(0).toISOString(), penalty: price }], providerText: null },
         expiresAt: null,
         hotelId,
@@ -296,6 +308,12 @@ export class MockHotelConnector implements HotelConnector {
   }
 
   async cancel(providerBookingRef: OpaqueRef): Promise<ExternalOutcome<ProviderBookingState & { penalty: Money | null; refundAmount: Money | null }>> {
+    this.count('cancel');
+    if (this.nextCancel) {
+      const forced = this.nextCancel;
+      this.nextCancel = null;
+      return forced;
+    }
     const entry = [...this.bookings.entries()].find(([, x]) => x.providerBookingRef === providerBookingRef);
     if (!entry) return { kind: 'REJECTED', code: 'NUITEE_BOOKING_NOT_FOUND', message: 'MOCK not found', evidence: this.evidence('cancel') };
     const cancelled: ProviderBookingState = { ...entry[1], status: 'CANCELLED', voucherReady: false };
