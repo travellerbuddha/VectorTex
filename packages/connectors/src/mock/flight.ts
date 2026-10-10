@@ -24,6 +24,7 @@ import {
   type OpaqueRef,
 } from '@texholiday/contracts';
 import { add, money, percentOf, type Money } from '@texholiday/pricing';
+import { memoryMockState, type MockCollection, type MockState } from './state';
 
 /**
  * MOCK flight connector for local development, UI work and automated tests (ADR-0005). Every id and carrier starts
@@ -43,15 +44,20 @@ export class MockFlightConnector implements FlightConnector {
   private readonly offers = new Map<string, FlightOffer>();
   /** The markup each offer was searched with (a re-priced fare keeps it). */
   private readonly markupBp = new Map<string, bigint>();
-  private readonly prebooks = new Map<
-    string,
-    { offerRef: string; transactionId: string | null; price: Money; passengers: readonly FlightPassenger[]; services: FlightService[]; attached: FlightServiceSelection[] }
-  >();
+  // What the provider keeps: in this process's memory, or shared by the demo's processes (see mock/state.ts).
+  private readonly prebooks: MockCollection<{
+    offerRef: string;
+    transactionId: string | null;
+    price: Money;
+    passengers: readonly FlightPassenger[];
+    services: FlightService[];
+    attached: FlightServiceSelection[];
+  }>;
   /** Seat and bag markups each offer was searched with (applied to its services). */
   private readonly serviceBp = new Map<string, { seats: bigint; bags: bigint }>();
-  private readonly paid = new Set<string>();
+  private readonly paid: MockCollection<true>;
   /** By prebook (the provider's idempotency key for booking). */
-  private readonly bookings = new Map<string, FlightBookingState>();
+  private readonly bookings: MockCollection<FlightBookingState>;
   /** Test hooks. */
   nextVerifyPriceChange = false;
   nextPrebookPriceChange = false;
@@ -67,7 +73,14 @@ export class MockFlightConnector implements FlightConnector {
   /** The next attach is refused (nothing attached, the payment intent unchanged). */
   nextAttachRefused = false;
 
-  constructor(private readonly clock: () => Date = () => new Date()) {}
+  constructor(
+    private readonly clock: () => Date = () => new Date(),
+    state: MockState = memoryMockState(),
+  ) {
+    this.prebooks = state.collection('flight-prebooks');
+    this.paid = state.collection('flight-paid');
+    this.bookings = state.collection('flight-bookings');
+  }
 
   descriptor(): ConnectorDescriptor {
     return {
@@ -111,7 +124,7 @@ export class MockFlightConnector implements FlightConnector {
 
   /** Marks the simulated payment of a transaction as completed (mock payment page / tests). */
   markPaid(transactionId: string): void {
-    this.paid.add(transactionId);
+    this.paid.set(transactionId, true);
   }
 
   /** The passengers sent with a prebook (tests check what reached the provider). */
@@ -339,6 +352,7 @@ export class MockFlightConnector implements FlightConnector {
     this.seq += 1;
     pre.price = add(pre.price, added);
     if (pre.transactionId) pre.transactionId = `MOCK-FTX-${this.run}-${this.seq}`;
+    this.prebooks.set(input.prebookRef, pre);
     if (this.nextAttachLost) {
       this.nextAttachLost = false;
       return { kind: 'UNKNOWN', reason: 'AMBIGUOUS', evidence: this.evidence('attach:lost') };
@@ -390,7 +404,7 @@ export class MockFlightConnector implements FlightConnector {
   }
 
   private entry(providerBookingRef: OpaqueRef): [string, FlightBookingState] | null {
-    return [...this.bookings.entries()].find(([, b]) => b.providerBookingRef === providerBookingRef) ?? null;
+    return this.bookings.entries().find(([, b]) => b.providerBookingRef === providerBookingRef) ?? null;
   }
 
   async getBooking(providerBookingRef: OpaqueRef): Promise<ExternalOutcome<FlightBookingState>> {

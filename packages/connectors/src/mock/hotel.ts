@@ -19,6 +19,7 @@ import {
   type QuotedOffer,
 } from '@texholiday/contracts';
 import { money, percentOf, add, type Money } from '@texholiday/pricing';
+import { memoryMockState, type MockCollection, type MockState } from './state';
 
 /**
  * MOCK hotel connector for local development, UI work and automated tests (ADR-0005). Every id starts with MOCK,
@@ -32,11 +33,12 @@ export class MockHotelConnector implements HotelConnector {
   /** Ids stay unique across restarts (like real provider ids), so stored orders never collide. */
   private readonly run = Math.random().toString(36).slice(2, 8).toUpperCase();
   private readonly offers = new Map<string, { offer: QuotedOffer; hotelId: string }>();
-  private readonly prebooks = new Map<string, { offerRef: string; transactionId: string | null; price: Money; commission: Money }>();
-  private readonly paid = new Set<string>();
-  private readonly bookings = new Map<string, ProviderBookingState>();
-  private readonly usedReferences = new Set<string>();
-  private readonly consumedTransactions = new Set<string>();
+  // What the provider keeps: in this process's memory, or shared by the demo's processes (see mock/state.ts).
+  private readonly prebooks: MockCollection<{ offerRef: string; transactionId: string | null; price: Money; commission: Money }>;
+  private readonly paid: MockCollection<true>;
+  private readonly bookings: MockCollection<ProviderBookingState>;
+  private readonly usedReferences: MockCollection<true>;
+  private readonly consumedTransactions: MockCollection<true>;
   /** Test hooks: force the next book/prebook outcome. */
   nextBook: ExternalOutcome<ProviderBookingState> | null = null;
   nextPrebookPriceChange = false;
@@ -52,6 +54,14 @@ export class MockHotelConnector implements HotelConnector {
   nextCancel: ExternalOutcome<ProviderBookingState & { penalty: Money | null; refundAmount: Money | null }> | null = null;
   /** Calls made, per operation (tests count provider calls). */
   readonly calls: Record<string, number> = {};
+
+  constructor(state: MockState = memoryMockState()) {
+    this.prebooks = state.collection('hotel-prebooks');
+    this.paid = state.collection('hotel-paid');
+    this.bookings = state.collection('hotel-bookings');
+    this.usedReferences = state.collection('hotel-client-references');
+    this.consumedTransactions = state.collection('hotel-consumed-transactions');
+  }
 
   descriptor(): ConnectorDescriptor {
     return {
@@ -101,7 +111,7 @@ export class MockHotelConnector implements HotelConnector {
 
   /** Marks the simulated payment of a transaction as completed (mock payment page / tests). */
   markPaid(transactionId: string): void {
-    this.paid.add(transactionId);
+    this.paid.set(transactionId, true);
   }
 
   async searchPlaces(input: { text: string; language: string }): Promise<ExternalOutcome<readonly PlaceSuggestion[]>> {
@@ -271,12 +281,12 @@ export class MockHotelConnector implements HotelConnector {
     if (this.usedReferences.has(input.clientReference)) return { kind: 'UNKNOWN', reason: 'AMBIGUOUS', evidence: this.evidence('book:duplicate') };
     const pre = this.prebooks.get(input.prebookRef);
     if (!pre) return { kind: 'REJECTED', code: 'NUITEE_4002', message: 'MOCK prebook not found', evidence: this.evidence('book') };
-    this.usedReferences.add(input.clientReference);
+    this.usedReferences.set(input.clientReference, true);
     if (input.funding.kind === 'PROVIDER_MANAGED') {
       const tx = input.funding.transaction.transactionId;
       if (tx !== pre.transactionId) return { kind: 'REJECTED', code: 'NUITEE_4002', message: 'MOCK transaction mismatch', evidence: this.evidence('book') };
       if (!this.paid.has(tx) || this.consumedTransactions.has(tx)) return { kind: 'REJECTED', code: 'NUITEE_PAYMENT_NOT_COMPLETED', message: 'payment not completed', evidence: this.evidence('book') };
-      this.consumedTransactions.add(tx);
+      this.consumedTransactions.set(tx, true);
     }
     this.seq += 1;
     const state: ProviderBookingState = {
@@ -300,7 +310,7 @@ export class MockHotelConnector implements HotelConnector {
   }
 
   async getBooking(providerBookingRef: OpaqueRef): Promise<ExternalOutcome<ProviderBookingState>> {
-    const b = [...this.bookings.values()].find((x) => x.providerBookingRef === providerBookingRef);
+    const b = this.bookings.entries().map(([, x]) => x).find((x) => x.providerBookingRef === providerBookingRef);
     return b ? { kind: 'SUCCEEDED', value: b, evidence: this.evidence('get') } : { kind: 'REJECTED', code: 'NUITEE_BOOKING_NOT_FOUND', message: 'MOCK not found', evidence: this.evidence('get') };
   }
 
@@ -311,7 +321,7 @@ export class MockHotelConnector implements HotelConnector {
       this.nextCancel = null;
       return forced;
     }
-    const entry = [...this.bookings.entries()].find(([, x]) => x.providerBookingRef === providerBookingRef);
+    const entry = this.bookings.entries().find(([, x]) => x.providerBookingRef === providerBookingRef);
     if (!entry) return { kind: 'REJECTED', code: 'NUITEE_BOOKING_NOT_FOUND', message: 'MOCK not found', evidence: this.evidence('cancel') };
     const cancelled: ProviderBookingState = { ...entry[1], status: 'CANCELLED', voucherReady: false };
     this.bookings.set(entry[0], cancelled);
