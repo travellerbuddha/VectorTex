@@ -7,6 +7,7 @@ import { FAQ_DIR, GUIDE_DIR, PATHS } from '../../server/seo';
 import { breadcrumbList, faqPage, guideArticle, jsonLd, lexicalText } from '../../server/structured-data';
 import { cmsMetadata, PreviewBanner } from '../cms/CmsPage';
 import { RichText } from '../cms/RichText';
+import { Postcard } from '../ui/HotelBits';
 
 /**
  * Guide articles and the FAQ page (P06): /tr/rehber, /en/guides (+ /{slug}), /tr/sss, /en/faq. Each language has its own
@@ -75,25 +76,16 @@ export async function GuideHub({ locale, page }: { locale: Locale; page: number 
       {posts.length === 0 ? (
         <p className="card">{t.none}</p>
       ) : (
-        <ul className="guide-cards" data-testid="guide-cards">
+        <ul className="postcards postcards-grid" data-testid="guide-cards">
           {posts.map((p) => (
-            <li key={p.slug} className="card">
-              {p.image && (
-                // eslint-disable-next-line @next/next/no-img-element -- CMS image with its stored size
-                <img src={p.image.url} alt={p.image.alt ?? ''} width={p.image.width ?? undefined} height={p.image.height ?? undefined} loading="lazy" />
-              )}
-              <h2>
-                <a href={guidePath(locale, p.slug)}>{p.title}</a>
-              </h2>
-              {p.publishedAt && (
-                <p className="muted small">
-                  <time dateTime={p.publishedAt}>{day(p.publishedAt, locale)}</time>
-                </p>
-              )}
-              {p.excerpt && <p>{p.excerpt}</p>}
-              <a href={guidePath(locale, p.slug)} aria-label={`${t.readMore}: ${p.title}`}>
-                {t.readMore} →
-              </a>
+            <li key={p.slug}>
+              <Postcard heading="h2" href={guidePath(locale, p.slug)} title={p.title} text={p.excerpt} image={p.image} seed={`guide-${p.slug}`}>
+                {p.publishedAt && (
+                  <p className="postcard-meta">
+                    <time dateTime={p.publishedAt}>{day(p.publishedAt, locale)}</time>
+                  </p>
+                )}
+              </Postcard>
             </li>
           ))}
         </ul>

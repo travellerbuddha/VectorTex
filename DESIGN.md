@@ -42,6 +42,11 @@ Bütün metin/zemin çiftleri WCAG AA (4,5:1) geçer; koyu zeminde odak halkası
 - Delik ve çentik: `2px dashed` çizgi + zemin renginde 18 px yarım daireler (`.offer .price`, `.summary .total`, `.promise li`).
 - Arama kartı **bölmeli** bir çubuktur (`.search-main` + `.seg`): etiket küçük ve üstte, alan çerçevesiz; odakta bölme 3 px odak halkası alır.
 - Dokunma hedefi en az 44 px; birincil düğme 48–52 px.
+- Liste ve rehber kartları her yerde aynı **kartpostaldır** (`Postcard`, `components/ui/HotelBits.tsx`): CMS görseli ya da `HotelArt`, başlık ve kısa metin; kartın tamamı bağlantıdır. Ana sayfada yana kayar, dizin sayfalarında (`.postcards-grid`) satır satır dizilir.
+- Kart içindeki form grupları (`fieldset`) ikinci bir çerçeve almaz: başlık ve aralarında ince çizgi.
+- SSS: konu başına tek kâğıt liste, sorular arasında ince çizgi, tarayıcı üçgeni yerine deniz renginde ok.
+- Arama alanları boş durmaz: yer tutucu örnek verir (`Antalya, Belek, Kemer…`), ipucu altta kalır.
+- Üst menüde bulunulan **sayfa** dolgulu hap alır; yalnız **bölüm** (ör. otel listeleri sayfasında "Otel") güneş rengi alt çizgi alır, iki hap yan yana yanmaz.
 
 ## Hareket
 

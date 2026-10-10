@@ -3,7 +3,8 @@ import { notFound } from 'next/navigation';
 import { guidePath, guideHubPath } from '../../components/content/GuidePages';
 import { featuredLists, hubPath, listPath } from '../../components/hotels/HotelListPage';
 import { SearchForm } from '../../components/SearchForm';
-import { CoastScene, HotelArt } from '../../components/ui/Art';
+import { CoastScene } from '../../components/ui/Art';
+import { Postcard } from '../../components/ui/HotelBits';
 import { countryOptions } from '../../i18n/countries';
 import { dict, isLocale } from '../../i18n/dictionaries';
 import { booking } from '../../server/booking';
@@ -72,22 +73,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
             <ul className="postcards">
               {lists.map((l) => (
                 <li key={l.slug}>
-                  <article className="postcard">
-                    <div className="postcard-media">
-                      {l.image ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- CMS image
-                        <img src={l.image.url} alt="" loading="lazy" />
-                      ) : (
-                        <HotelArt seed={l.slug} />
-                      )}
-                    </div>
-                    <div className="postcard-body">
-                      <h3>
-                        <a href={listPath(locale, l.slug)}>{l.title}</a>
-                      </h3>
-                      {l.intro && <p>{l.intro}</p>}
-                    </div>
-                  </article>
+                  <Postcard href={listPath(locale, l.slug)} title={l.title} text={l.intro} image={l.image} seed={l.slug} />
                 </li>
               ))}
             </ul>
@@ -122,22 +108,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
             <ul className="postcards">
               {guides.posts.map((p) => (
                 <li key={p.slug}>
-                  <article className="postcard">
-                    <div className="postcard-media">
-                      {p.image ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- CMS image
-                        <img src={p.image.url} alt="" loading="lazy" />
-                      ) : (
-                        <HotelArt seed={`guide-${p.slug}`} />
-                      )}
-                    </div>
-                    <div className="postcard-body">
-                      <h3>
-                        <a href={guidePath(locale, p.slug)}>{p.title}</a>
-                      </h3>
-                      {p.excerpt && <p>{p.excerpt}</p>}
-                    </div>
-                  </article>
+                  <Postcard href={guidePath(locale, p.slug)} title={p.title} text={p.excerpt} image={p.image} seed={`guide-${p.slug}`} />
                 </li>
               ))}
             </ul>
