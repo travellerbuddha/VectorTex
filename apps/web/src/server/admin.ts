@@ -1,6 +1,6 @@
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { adminSettingsFromEnv, mailSettingsFromEnv, OrdersQuery, StaffAuthService, type AdminSettings, type MailSettings, type StaffIdentity, type StaffSessionView } from '@texholiday/admin';
+import { adminSettingsFromEnv, FinanceReports, mailSettingsFromEnv, OrdersQuery, StaffAuthService, type AdminSettings, type MailSettings, type StaffIdentity, type StaffSessionView } from '@texholiday/admin';
 import { loadConfig } from '@texholiday/config';
 import type { Permission } from '@texholiday/contracts';
 import { PermissionRepository, PolicyRepository } from '@texholiday/db';
@@ -11,6 +11,8 @@ export interface Admin {
   permissions: PermissionRepository;
   policies: PolicyRepository;
   orders: OrdersQuery;
+  /** Finance reports (orders.view_financials). */
+  finance: FinanceReports;
   settings: AdminSettings;
   /** Outgoing mail for setup links; null = the panel hands links over itself. */
   mail: MailSettings | null;
@@ -30,6 +32,7 @@ export function admin(): Admin {
       policies: new PolicyRepository(db),
       // Operations screens show the orders of this deployment's provider environment only.
       orders: new OrdersQuery(db, environment),
+      finance: new FinanceReports(db, environment),
       settings,
       mail: mailSettingsFromEnv(process.env),
     };

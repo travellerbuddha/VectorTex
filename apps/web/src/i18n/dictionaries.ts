@@ -226,6 +226,26 @@ const tr = {
   },
   footer: 'TexHoliday · Otel ve uçak rezervasyonları Nuitee altyapısıyla yapılır.',
   room: { board: 'Pansiyon' },
+  guides: {
+    hubTitle: 'Seyahat rehberi',
+    hubIntro: 'Destinasyonlar, oteller ve tatil planlaması üzerine yazılarımız.',
+    none: 'Henüz yayında rehber yazısı yok.',
+    home: 'Ana sayfa',
+    readMore: 'Yazıyı oku',
+    published: 'Yayın tarihi',
+    updated: 'Güncellendi',
+    destination: 'Destinasyon',
+    previous: 'Önceki sayfa',
+    next: 'Sonraki sayfa',
+    page: (n: number) => `Sayfa ${n}`,
+  },
+  faq: {
+    title: 'Sık sorulan sorular',
+    intro: 'Rezervasyon, ödeme ve iptal hakkında en çok sorulanlar.',
+    none: 'Henüz yayında soru yok.',
+    home: 'Ana sayfa',
+    categories: { general: 'Genel', booking: 'Rezervasyon', payment: 'Ödeme', cancellation: 'İptal ve iade' } as Record<string, string>,
+  },
 };
 
 type Dict = typeof tr;
@@ -454,6 +474,26 @@ const en: Dict = {
   },
   footer: 'TexHoliday · Hotel and flight bookings are made through Nuitee.',
   room: { board: 'Board' },
+  guides: {
+    hubTitle: 'Travel guide',
+    hubIntro: 'Our articles on destinations, hotels and holiday planning.',
+    none: 'No guide article is published yet.',
+    home: 'Home',
+    readMore: 'Read the article',
+    published: 'Published',
+    updated: 'Updated',
+    destination: 'Destination',
+    previous: 'Previous page',
+    next: 'Next page',
+    page: (n: number) => `Page ${n}`,
+  },
+  faq: {
+    title: 'Frequently asked questions',
+    intro: 'The most common questions about booking, payment and cancellation.',
+    none: 'No question is published yet.',
+    home: 'Home',
+    categories: { general: 'General', booking: 'Booking', payment: 'Payment', cancellation: 'Cancellation and refund' } as Record<string, string>,
+  },
 };
 
 export function dict(locale: Locale): Dict {

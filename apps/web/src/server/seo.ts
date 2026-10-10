@@ -6,7 +6,7 @@ import { LOCALES, type Locale } from '../i18n/dictionaries';
  * app/sitemap.ts and app/robots.ts feed them with published CMS documents and the environment.
  */
 export interface SitemapDoc {
-  collection: 'pages' | 'destinations' | 'hotelLists' | 'hotels';
+  collection: 'pages' | 'destinations' | 'hotelLists' | 'hotels' | 'posts';
   /** Address per language; a language without one has no page. */
   slugs: Partial<Record<Locale, string | null>>;
   noindex: boolean;
@@ -16,22 +16,28 @@ export interface SitemapDoc {
 /** Hotel list and hotel page directories per language (ADR-0014). */
 export const HOTEL_LIST_DIR: Record<Locale, string> = { tr: 'oteller', en: 'hotels' };
 export const HOTEL_DIR: Record<Locale, string> = { tr: 'otel', en: 'hotel' };
+/** Guide articles and the FAQ page per language (P06). */
+export const GUIDE_DIR: Record<Locale, string> = { tr: 'rehber', en: 'guides' };
+export const FAQ_DIR: Record<Locale, string> = { tr: 'sss', en: 'faq' };
 
 export const PATHS: Record<SitemapDoc['collection'], (l: Locale, slug: string) => string> = {
   pages: (l, s) => `/${l}/${s}`,
   destinations: (l, s) => `/${l}/destinations/${s}`,
   hotelLists: (l, s) => `/${l}/${HOTEL_LIST_DIR[l]}/${s}`,
   hotels: (l, s) => `/${l}/${HOTEL_DIR[l]}/${s}`,
+  posts: (l, s) => `/${l}/${GUIDE_DIR[l]}/${s}`,
 };
 
 /** Fixed pages of the site that are meant to be found (search and booking pages are not). */
 const FIXED: ReadonlyArray<(l: Locale) => string> = [(l) => `/${l}`, (l) => `/${l}/terms`, (l) => `/${l}/${HOTEL_LIST_DIR[l]}`];
 
-/** One entry per page and language, each listing every language version (hreflang). */
-export function sitemapEntries(base: string, docs: readonly SitemapDoc[]): MetadataRoute.Sitemap {
+/** One entry per page and language, each listing every language version (hreflang). The guide and FAQ hubs are listed
+ * only while they have published content (an empty page is not worth crawling). */
+export function sitemapEntries(base: string, docs: readonly SitemapDoc[], sections: { guides?: boolean; faq?: boolean } = {}): MetadataRoute.Sitemap {
   const origin = base.replace(/\/$/, '');
   const out: MetadataRoute.Sitemap = [];
-  for (const path of FIXED) {
+  const fixed = [...FIXED, ...(sections.guides ? [(l: Locale) => `/${l}/${GUIDE_DIR[l]}`] : []), ...(sections.faq ? [(l: Locale) => `/${l}/${FAQ_DIR[l]}`] : [])];
+  for (const path of fixed) {
     const languages = Object.fromEntries(LOCALES.map((l) => [l, `${origin}${path(l)}`]));
     for (const l of LOCALES) out.push({ url: `${origin}${path(l)}`, alternates: { languages } });
   }

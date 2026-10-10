@@ -99,7 +99,7 @@ test('hotel lists: publish a list, prices from the scan, ItemList markup, hotel 
   await page.getByRole('link', { name: 'Liste fiyatı doğruluğu' }).click();
   const eur = page.getByTestId('accuracy-EUR');
   await expect(eur).toBeVisible();
-  const shownRow = eur.getByRole('row', { name: /Sayfada gösterilen fiyatlar/ });
+  const shownRow = eur.getByRole('row', { name: /Sayfada gösterilen/ });
   await expect(shownRow.locator('td').nth(1)).not.toHaveText(/^0 /);
 
   // Ads page feed: the list page and its hotel pages with labels; staff only.

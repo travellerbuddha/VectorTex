@@ -5,8 +5,8 @@ import { cms, cmsEnabled } from '../server/cms';
 import { sitemapEntries, type SitemapDoc } from '../server/seo';
 
 /**
- * /sitemap.xml from published CMS pages, destinations and hotel lists (visitor rights), plus the hotel pages those
- * lists show (ADR-0014), read at request time.
+ * /sitemap.xml from published CMS pages, destinations, hotel lists and guide articles (visitor rights), plus the hotel
+ * pages those lists show (ADR-0014) and the guide/FAQ hubs once they have content, read at request time.
  */
 export const dynamic = 'force-dynamic';
 
@@ -14,12 +14,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = process.env.PUBLIC_BASE_URL?.trim();
   if (!base) return [];
   const docs: SitemapDoc[] = [];
+  const sections = { guides: false, faq: false };
   if (cmsEnabled()) {
     const payload = await cms();
     for (const [collection, kind] of [
       ['pages', 'pages'],
       ['destinations', 'destinations'],
       ['hotel-lists', 'hotelLists'],
+      ['posts', 'posts'],
     ] as const) {
       for (let page = 1; ; page += 1) {
         const res = await payload.find({ collection, locale: 'all', depth: 0, limit: 500, page, overrideAccess: false, select: { slug: true, seo: true, updatedAt: true } });
@@ -29,6 +31,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         if (!res.hasNextPage) break;
       }
     }
+    sections.guides = docs.some((d) => d.collection === 'posts');
+    sections.faq = (await payload.count({ collection: 'faqs', overrideAccess: false })).totalDocs > 0;
   }
   // Hotel pages shown on a published list (content rights pending: HOTEL_PAGES_NOINDEX=true keeps them out).
   if (process.env.HOTEL_PAGES_NOINDEX !== 'true') {
@@ -39,5 +43,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       console.error(JSON.stringify({ level: 'error', msg: 'hotel pages left out of the sitemap', error: err instanceof Error ? err.message : String(err) }));
     }
   }
-  return sitemapEntries(base, docs);
+  return sitemapEntries(base, docs, sections);
 }
