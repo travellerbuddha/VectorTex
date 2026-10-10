@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DomainError } from '@texholiday/contracts';
+import { DomainError, HOTEL_BOARD_TYPES } from '@texholiday/contracts';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD').refine((d) => !Number.isNaN(Date.parse(`${d}T00:00:00Z`)), 'invalid date');
 const name = z
@@ -25,6 +25,8 @@ export const hotelSearchInput = z
     nationality: z.string().regex(/^[A-Z]{2}$/),
     currency: z.string().regex(/^[A-Z]{3}$/),
     locale: z.enum(['tr', 'en']),
+    /** Only rates of this board type (an "all inclusive" list's price must be findable, ADR-0014). */
+    boardType: z.enum(HOTEL_BOARD_TYPES).optional(),
   })
   .superRefine((v, ctx) => {
     const nights = (Date.parse(`${v.checkout}T00:00:00Z`) - Date.parse(`${v.checkin}T00:00:00Z`)) / 86_400_000;

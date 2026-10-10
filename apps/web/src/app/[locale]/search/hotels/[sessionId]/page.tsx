@@ -1,12 +1,12 @@
 import { isDomainError } from '@texholiday/contracts';
 import { notFound } from 'next/navigation';
-import { OfferButton } from '../../../../components/OfferButton';
-import { CancellationLine } from '../../../../components/QuoteSummary';
-import { SearchForm } from '../../../../components/SearchForm';
-import { countryOptions } from '../../../../i18n/countries';
-import { dict, type Locale } from '../../../../i18n/dictionaries';
-import { boardLabel, formatDate, formatMoney } from '../../../../i18n/format';
-import { booking } from '../../../../server/booking';
+import { OfferButton } from '../../../../../components/OfferButton';
+import { CancellationLine } from '../../../../../components/QuoteSummary';
+import { SearchForm } from '../../../../../components/SearchForm';
+import { countryOptions } from '../../../../../i18n/countries';
+import { dict, type Locale } from '../../../../../i18n/dictionaries';
+import { boardLabel, formatDate, formatMoney } from '../../../../../i18n/format';
+import { booking } from '../../../../../server/booking';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,8 +19,22 @@ export default async function Results({ params, searchParams }: { params: Promis
   const criteria = await app.searchCriteria(sessionId);
   if (!criteria) notFound();
   const currencies = await app.availableCurrencies();
-  const place = sp.place && sp.placeName ? { placeId: sp.place, name: sp.placeName, address: '' } : undefined;
-  const form = <SearchForm locale={locale} currencies={currencies} countries={countryOptions(locale)} today={new Date().toISOString().slice(0, 10)} initial={{ place, checkin: criteria.checkin, checkout: criteria.checkout, rooms: criteria.rooms, nationality: criteria.nationality, currency: criteria.currency }} />;
+  const hotelTarget = 'hotelIds' in criteria.target ? criteria.target.hotelIds[0] : undefined;
+  const place =
+    hotelTarget && sp.hotel === hotelTarget
+      ? { placeId: `hotel:${hotelTarget}`, hotelId: hotelTarget, name: sp.hotelName ?? hotelTarget, address: '' }
+      : sp.place && sp.placeName
+        ? { placeId: sp.place, name: sp.placeName, address: '' }
+        : undefined;
+  const form = (
+    <SearchForm
+      locale={locale}
+      currencies={currencies}
+      countries={countryOptions(locale)}
+      today={new Date().toISOString().slice(0, 10)}
+      initial={{ place, checkin: criteria.checkin, checkout: criteria.checkout, rooms: criteria.rooms, nationality: criteria.nationality, currency: criteria.currency, boardType: criteria.boardType ?? null }}
+    />
+  );
 
   let view;
   try {

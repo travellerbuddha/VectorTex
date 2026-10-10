@@ -123,6 +123,90 @@ describe('Nuitee destination search and hotel content (pinned OpenAPI examples)'
   });
 });
 
+describe('Nuitee data for hotel list pages (ADR-0014, pinned hotel-data examples)', () => {
+  it('maps the documented hotel details example to plain-text content with https images only', async () => {
+    const ex = first(examples(hotelData, '/data/hotel', 'get', '200')) as { data: Record<string, unknown> };
+    const { c, t } = connector([res(200, ex)]);
+    const out = await c.hotelContent({ hotelId: String(ex.data.id), language: 'tr' });
+    expect(t.requests[0]!.url).toBe(`https://api.liteapi.travel/v3.0/data/hotel?hotelId=${ex.data.id}&language=tr`);
+    expect(out.kind).toBe('SUCCEEDED');
+    if (out.kind !== 'SUCCEEDED' || !out.value) throw new Error('no content');
+    expect(out.value).toMatchObject({ hotelId: ex.data.id, name: ex.data.name, language: 'tr' });
+    expect(out.value.description ?? '').not.toMatch(/<[a-z/]/i);
+    expect(out.value.images.length).toBeGreaterThan(0);
+    for (const img of out.value.images) expect(img.url).toMatch(/^https:\/\//);
+    expect(out.value.images.length).toBeLessThanOrEqual(20);
+  });
+
+  it('turns provider markup into paragraphs, drops scripts and unsafe images; unknown hotel = null', async () => {
+    const body = {
+      data: {
+        id: 'lp1',
+        name: 'Test Otel',
+        hotelDescription: '<p><strong>Lüks Konaklama</strong><br>Denize &amp; plaja yakın.</p><script>alert(1)</script><ul><li>Havuz</li><li>Spa</li></ul>',
+        hotelImages: [
+          { url: 'http://insecure.example/a.jpg', order: 1 },
+          { url: 'https://img.example/b.jpg', urlHd: 'https://img.example/b-hd.jpg', order: 2 },
+          { url: 'https://img.example/c.jpg', order: 3, defaultImage: true },
+        ],
+        starRating: 5,
+        rating: 8.4,
+        reviewCount: 1200,
+        location: { latitude: 36.8, longitude: 30.7 },
+        facilities: [{ facilityId: 1, name: 'Havuz' }, { facilityId: 2, name: 'Havuz' }],
+        checkinCheckoutTimes: { checkin_start: '14:00', checkout: '12:00' },
+      },
+    };
+    const { c } = connector([res(200, body), res(404, { error: { code: 404, message: 'not found' } })]);
+    const out = await c.hotelContent({ hotelId: 'lp1', language: 'tr' });
+    if (out.kind !== 'SUCCEEDED' || !out.value) throw new Error('no content');
+    expect(out.value.description).toBe('Lüks Konaklama\nDenize & plaja yakın.\n\n• Havuz\n\n• Spa');
+    expect(out.value.images.map((i) => i.url)).toEqual(['https://img.example/c.jpg', 'https://img.example/b-hd.jpg']);
+    expect(out.value).toMatchObject({ stars: 5, rating: 8.4, reviewCount: 1200, facilities: ['Havuz'], checkinTime: '14:00', checkoutTime: '12:00', location: { latitude: 36.8, longitude: 30.7 } });
+    expect(await c.hotelContent({ hotelId: 'lp404', language: 'tr' })).toMatchObject({ kind: 'SUCCEEDED', value: null });
+    expect((await c.hotelContent({ hotelId: 'lp1/../x', language: 'tr' })).kind).toBe('CAPABILITY_NOT_AVAILABLE');
+  });
+
+  it('a hotel answer for another id is never used', async () => {
+    const { c } = connector([res(200, { data: { id: 'lp2', name: 'Other' } })]);
+    expect((await c.hotelContent({ hotelId: 'lp1', language: 'en' })).kind).toBe('UNKNOWN');
+  });
+
+  it('place details show the address that tells two places of one name apart (sandbox: Rome GA vs Rome IT)', async () => {
+    const ex = hotelData.paths['/data/places/{placeId}'].get.responses['200'].content['application/json'].example;
+    const { c, t } = connector([
+      res(200, ex),
+      res(200, {
+        data: {
+          displayName: 'Rome',
+          location: { latitude: 34.25, longitude: -85.16 },
+          addressComponents: [
+            { longText: 'Rome', types: ['locality', 'political'] },
+            { longText: 'Floyd, Georgia', types: ['administrative_area_level_2', 'political'] },
+            { longText: 'Georgia', types: ['administrative_area_level_1', 'political'] },
+            { longText: 'Amerika Birleşik Devletleri', types: ['country', 'political'] },
+          ],
+        },
+      }),
+    ]);
+    const out = await c.placeDetails({ placeId: 'ChIJ-example', language: 'tr' });
+    expect(t.requests[0]!.url).toBe('https://api.liteapi.travel/v3.0/data/places/ChIJ-example?language=tr');
+    expect(out.kind === 'SUCCEEDED' && out.value).toMatchObject({ placeId: 'ChIJ-example', name: ex.data.displayName });
+    const rome = await c.placeDetails({ placeId: 'ChIJ-0CeYsCkiogRKx3zvPnFUCg', language: 'tr' });
+    expect(rome.kind === 'SUCCEEDED' && rome.value).toMatchObject({ name: 'Rome', address: 'Floyd, Georgia, Georgia, Amerika Birleşik Devletleri' });
+  });
+
+  it('list scans send the board type and the price order; unknown board types are refused before any call', async () => {
+    const ex = first(examples(search, '/hotels/rates', 'post', '200'));
+    const { c, t } = connector([res(200, ex)]);
+    const { hotelIds: _ids, ...rest } = criteria;
+    await c.searchHotelRates({ ...rest, placeId: 'ChIJ-place', boardType: 'AI', order: 'PRICE', maxRatesPerHotel: 8, limit: 200 });
+    expect(JSON.parse(t.requests[0]!.body!)).toMatchObject({ placeId: 'ChIJ-place', boardType: 'AI', sort: [{ field: 'price', direction: 'ascending' }], limit: 200 });
+    expect((await c.searchHotelRates({ ...rest, placeId: 'p', boardType: 'XX' as never })).kind).toBe('CAPABILITY_NOT_AVAILABLE');
+    expect(t.requests).toHaveLength(1);
+  });
+});
+
 describe('Nuitee hotel prebook (pinned booking OpenAPI example)', () => {
   it('returns the prebook with exact price, change flags and the SDK transaction only when requested', async () => {
     const ex = first(examples(booking, '/rates/prebook', 'post', '200'));

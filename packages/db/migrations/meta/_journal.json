@@ -99,6 +99,13 @@
       "when": 1791633897775,
       "tag": "0013_payment_secret_issued",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791637389125,
+      "tag": "0014_hotel_list_pages",
+      "breakpoints": true
     }
   ]
 }

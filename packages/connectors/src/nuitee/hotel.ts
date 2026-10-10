@@ -8,9 +8,11 @@ import {
   type ConnectorDescriptor,
   type ExternalOutcome,
   type HotelConnector,
+  type HotelContent,
   type HotelFunding,
   type HotelOffer,
   type HotelRoomGuest,
+  HOTEL_BOARD_TYPES,
   type HotelSearchCriteria,
   type HotelSummary,
   type PlaceSuggestion,
@@ -22,6 +24,7 @@ import {
 } from '@texholiday/contracts';
 import { D, add, fromMajor, money, type Money } from '@texholiday/pricing';
 import { classifyHttp, type ParsedHttp } from '../http-outcome';
+import { plainText } from '../plain-text';
 
 /**
  * Nuitee (liteAPI) hotel connector built from the pinned contracts:
@@ -36,7 +39,14 @@ export const NUITEE_HOTEL_REQUIRED_SOURCES = [
   'nuitee-guide-account-credit-card',
   'nuitee-guide-credit-line',
   'nuitee-guide-user-payment',
+  'nuitee-openapi-hotel-data',
 ] as const;
+
+/**
+ * Provider-side budgets used by every process (web search, worker, list scanner): the search budget is part of what a
+ * price depends on, so it is one constant ("approximately 6 seconds" search; book up to ~2 minutes, hotel-integration guide).
+ */
+export const NUITEE_HOTEL_TIMEOUTS = { searchTimeoutSeconds: 6, bookTimeoutSeconds: 120 } as const;
 
 export interface NuiteeHotelConfig {
   apiKey: string;
@@ -93,6 +103,8 @@ export class NuiteeHotelConnector implements HotelConnector {
       requiredSources: NUITEE_HOTEL_REQUIRED_SOURCES,
       operations: {
         searchRates: { effect: 'READ_ONLY', lostResponse: 'NONE' },
+        placeDetails: { effect: 'READ_ONLY', lostResponse: 'NONE' },
+        hotelContent: { effect: 'READ_ONLY', lostResponse: 'NONE' },
         prebook: { effect: 'CREATES_PROVIDER_SESSION', lostResponse: 'NONE' },
         // clientReference "acts as an idempotency key"; a repeat returns 4005 (booking OpenAPI).
         book: { effect: 'CREATES_PROVIDER_RESERVATION', lostResponse: 'CLIENT_REFERENCE_LOOKUP' },
@@ -298,6 +310,7 @@ export class NuiteeHotelConnector implements HotelConnector {
   async searchHotelRates(criteria: HotelSearchCriteria): Promise<ExternalOutcome<{ offers: readonly HotelOffer[]; hotels: readonly HotelSummary[] }>> {
     const targets = [criteria.hotelIds !== undefined, criteria.placeId !== undefined, criteria.city !== undefined].filter(Boolean).length;
     if (targets !== 1) return notAvailable('SEARCH_TARGET', 'Search by exactly one of hotel ids, place id or country/city');
+    if (criteria.boardType !== undefined && !HOTEL_BOARD_TYPES.includes(criteria.boardType)) return notAvailable('BOARD_TYPE', 'Unknown board type');
     if (criteria.hotelIds && (criteria.hotelIds.length === 0 || criteria.hotelIds.length > 200)) {
       return notAvailable('HOTEL_IDS', 'Send between 1 and ~200 hotel ids per request (hotel-integration guide)');
     }
@@ -316,6 +329,8 @@ export class NuiteeHotelConnector implements HotelConnector {
       margin: criteria.margin ? new D(criteria.margin.basisPoints).div(100).toNumber() : 0,
       ...(criteria.maxRatesPerHotel ? { maxRatesPerHotel: criteria.maxRatesPerHotel } : {}),
       ...(criteria.limit ? { limit: criteria.limit } : {}),
+      ...(criteria.boardType ? { boardType: criteria.boardType } : {}),
+      ...(criteria.order === 'PRICE' ? { sort: [{ field: 'price', direction: 'ascending' }] } : {}),
     };
     const http = await this.send('searchRates', 'POST', `${this.cfg.searchBaseUrl}/hotels/rates`, body, this.cfg.searchTimeoutSeconds);
     if (!http.ok) return http.outcome;
@@ -356,6 +371,95 @@ export class NuiteeHotelConnector implements HotelConnector {
       places.push({ placeId, name, address: str(p.formattedAddress) ?? '', types: Array.isArray(p.types) ? (p.types as unknown[]).filter((t): t is string => typeof t === 'string') : [] });
     }
     return { kind: 'SUCCEEDED', value: places, evidence: http.evidence };
+  }
+
+  /** GET /data/places/{placeId}: the place's name and address, so an editor sees which "Rome" a list uses. */
+  async placeDetails(input: { placeId: string; language: string }): Promise<ExternalOutcome<PlaceSuggestion | null>> {
+    if (!/^[\w-]{3,200}$/.test(input.placeId)) return notAvailable('PLACE_ID', 'Place ids are letters, digits, _ and -');
+    const url = `${this.cfg.searchBaseUrl}/data/places/${encodeURIComponent(input.placeId)}?language=${encodeURIComponent(input.language)}`;
+    const http = await this.send('placeDetails', 'GET', url, null, 10, true);
+    if (!http.ok) return http.outcome;
+    if (http.status === 404 || http.status === 400) return { kind: 'SUCCEEDED', value: null, evidence: http.evidence };
+    if (http.status >= 400) return { kind: 'REJECTED', code: `HTTP_${http.status}`, message: this.errorOf(http.json)?.message ?? 'refused', evidence: http.evidence };
+    const d = (http.json as Json | null)?.data as Json | undefined;
+    const name = str(d?.displayName);
+    if (!d || !name) return this.unknown(http.evidence, 'MALFORMED_RESPONSE');
+    const comps = Array.isArray(d.addressComponents) ? (d.addressComponents as Json[]) : [];
+    // Broadest last: "Floyd, Georgia, Amerika Birleşik Devletleri" tells Rome GA from Rome IT.
+    const address = comps
+      .filter((c) => Array.isArray(c.types) && !(c.types as unknown[]).includes('locality') && !(c.types as unknown[]).includes('postal_code'))
+      .map((c) => str(c.longText))
+      .filter((x): x is string => x !== null && x !== name);
+    const types = Array.isArray(d.types) ? (d.types as unknown[]).filter((t): t is string => typeof t === 'string') : [];
+    return { kind: 'SUCCEEDED', value: { placeId: input.placeId, name, address: [...new Set(address)].join(', '), types }, evidence: http.evidence };
+  }
+
+  /**
+   * GET /data/hotel: static content for the public hotel page. Provider markup is reduced to plain text and only https
+   * images are kept; a hotel the provider does not know answers null. Static-data endpoints have stricter rate
+   * limits (hotel-integration guide): callers throttle.
+   */
+  async hotelContent(input: { hotelId: string; language: string }): Promise<ExternalOutcome<HotelContent | null>> {
+    if (!/^[\w-]{2,64}$/.test(input.hotelId)) return notAvailable('HOTEL_ID', 'Hotel ids are letters, digits, _ and -');
+    if (!/^[a-z]{2}$/.test(input.language)) return notAvailable('LANGUAGE', 'ISO 639-1 language code');
+    const url = `${this.cfg.searchBaseUrl}/data/hotel?hotelId=${encodeURIComponent(input.hotelId)}&language=${input.language}`;
+    const http = await this.send('hotelContent', 'GET', url, null, 15, true);
+    if (!http.ok) return http.outcome;
+    if (http.status === 404) return { kind: 'SUCCEEDED', value: null, evidence: http.evidence };
+    if (http.status >= 400) return { kind: 'REJECTED', code: `HTTP_${http.status}`, message: this.errorOf(http.json)?.message ?? 'refused', evidence: http.evidence };
+    const d = (http.json as Json | null)?.data as Json | undefined;
+    if (!d || typeof d !== 'object') return this.unknown(http.evidence, 'MALFORMED_RESPONSE');
+    if (str(d.id) !== input.hotelId || !str(d.name)) return this.unknown(http.evidence, 'MALFORMED_RESPONSE');
+    const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+    const loc = d.location as Json | undefined;
+    const lat = num(loc?.latitude);
+    const lng = num(loc?.longitude);
+    const rawImages = Array.isArray(d.hotelImages) ? (d.hotelImages as Json[]) : [];
+    const images = rawImages
+      .map((x, i) => ({ url: safeUrl(x.urlHd) ?? safeUrl(x.url), caption: str(x.caption), first: x.defaultImage === true, order: num(x.order) ?? 1000 + i }))
+      .filter((x): x is { url: string; caption: string | null; first: boolean; order: number } => x.url !== null)
+      .sort((a, b) => Number(b.first) - Number(a.first) || a.order - b.order)
+      .slice(0, 20)
+      .map(({ url, caption }) => ({ url, caption }));
+    const main = safeUrl(d.main_photo);
+    if (images.length === 0 && main) images.push({ url: main, caption: null });
+    const facilityNames = [
+      ...(Array.isArray(d.facilities) ? (d.facilities as Json[]).map((f) => str(f?.name)) : []),
+      ...(Array.isArray(d.hotelFacilities) ? (d.hotelFacilities as unknown[]).map(str) : []),
+    ].filter((x): x is string => x !== null);
+    const times = d.checkinCheckoutTimes as Json | undefined;
+    const nearby = (Array.isArray(d.poi) ? (d.poi as Json[]) : [])
+      .map((x) => ({ name: str(x.name), category: str(x.category), distanceKm: num(x.distanceKm) }))
+      .filter((x): x is { name: string; category: string | null; distanceKm: number | null } => x.name !== null)
+      .sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity))
+      .slice(0, 10);
+    const rating = num(d.rating);
+    const stars = num(d.starRating);
+    return {
+      kind: 'SUCCEEDED',
+      value: {
+        hotelId: input.hotelId,
+        language: input.language,
+        name: str(d.name)!,
+        description: plainText(typeof d.hotelDescription === 'string' ? d.hotelDescription : null, 8000),
+        stars: stars !== null && stars >= 0 && stars <= 5 ? stars : null,
+        rating: rating !== null && rating >= 0 && rating <= 10 ? rating : null,
+        reviewCount: num(d.reviewCount) !== null && num(d.reviewCount)! >= 0 ? Math.trunc(num(d.reviewCount)!) : null,
+        address: str(d.address),
+        city: str(d.city),
+        country: str(d.country),
+        location: lat !== null && lng !== null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { latitude: lat, longitude: lng } : null,
+        images,
+        facilities: [...new Set(facilityNames)].slice(0, 60),
+        checkinTime: str(times?.checkin_start),
+        checkoutTime: str(times?.checkout),
+        importantInformation: plainText(typeof d.hotelImportantInformation === 'string' ? d.hotelImportantInformation : null, 4000),
+        nearby,
+        hotelType: str(d.hotelType),
+        chain: str(d.chain),
+      },
+      evidence: http.evidence,
+    };
   }
 
   async prebook(input: { offerRef: OpaqueRef; usePaymentSdk: boolean; clientReference: string }): Promise<

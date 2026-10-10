@@ -1,4 +1,5 @@
 import type { ProviderEnvironment } from '@texholiday/contracts';
+import { hotelPricingSettingsFromEnv } from './hotel-pricing';
 
 /**
  * Technical settings of the booking application. Business values (margins, fees, risk limits) are never here: they
@@ -34,6 +35,19 @@ export interface BookingSettings {
   flightPointOfSale?: string | null;
   /** Flights: offers kept per search, cheapest first (default 50). */
   maxFlightOffers?: number;
+  /** Hotel list pages (ADR-0014): provider call budget and refresh pace (technical, not business values). */
+  hotelLists?: HotelListTechSettings;
+}
+
+export interface HotelListTechSettings {
+  /** A scope's 30-day price scan is repeated after this many hours (default 24). */
+  refreshHours: number;
+  /** Provider calls per second while scanning (default 1; the sandbox allows 5). */
+  callsPerSecond: number;
+  /** Hotels taken per place and date (the provider's `limit`, default 100). */
+  candidates: number;
+  /** Hotel content (`/data/hotel`) is re-read after this many days (default 7). */
+  contentRefreshDays: number;
 }
 
 export function bookingSettingsFromEnv(env: Record<string, string | undefined>, environment: ProviderEnvironment, policyId: string): BookingSettings {
@@ -48,12 +62,9 @@ export function bookingSettingsFromEnv(env: Record<string, string | undefined>, 
   if (secret.length < 32) throw new Error('ORDER_ACCESS_SECRET must be set (at least 32 characters)');
   const terms = env.TERMS_VERSION ?? '';
   if (!/^[\w.-]{1,40}$/.test(terms)) throw new Error('TERMS_VERSION must name the published sales terms version');
-  const skipParity = env.SANDBOX_SKIP_RATE_PARITY ?? '';
-  if (skipParity !== '' && skipParity !== 'true' && skipParity !== 'false') throw new Error('SANDBOX_SKIP_RATE_PARITY must be true or false');
-  if (skipParity === 'true' && environment !== 'sandbox') throw new Error('SANDBOX_SKIP_RATE_PARITY is only allowed with PROVIDER_ENV=sandbox');
+  const pricing = hotelPricingSettingsFromEnv(env, environment, policyId);
   const pos = (env.FLIGHT_POINT_OF_SALE ?? '').trim().toUpperCase();
   if (pos !== '' && !/^[A-Z]{2}$/.test(pos)) throw new Error('FLIGHT_POINT_OF_SALE must be an ISO 3166-1 alpha-2 country code');
-  const currencies = (env.SALE_CURRENCIES ?? 'EUR,USD,GBP,TRY').split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
   return {
     environment,
     policyId,
@@ -62,14 +73,32 @@ export function bookingSettingsFromEnv(env: Record<string, string | undefined>, 
     payBySeconds: int('PAY_BY_SECONDS', 1800),
     termsVersion: terms,
     accessTokenSecret: secret,
-    currencies,
+    currencies: pricing.currencies,
     maxHotels: int('SEARCH_MAX_HOTELS', 60),
-    maxRatesPerHotel: int('SEARCH_MAX_RATES_PER_HOTEL', 8),
+    maxRatesPerHotel: pricing.maxRatesPerHotel,
     // Must exceed the provider's longest documented booking call (~2 minutes) plus our HTTP margin.
     intentLeaseSeconds: int('INTENT_LEASE_SECONDS', 600),
     maxAutomaticLookups: int('MAX_AUTOMATIC_LOOKUPS', 6),
-    enforceRateParity: skipParity !== 'true',
+    enforceRateParity: pricing.enforceRateParity,
     flightPointOfSale: pos === '' ? null : pos,
     maxFlightOffers: int('SEARCH_MAX_FLIGHT_OFFERS', 50),
+    hotelLists: hotelListTechSettingsFromEnv(env),
+  };
+}
+
+export function hotelListTechSettingsFromEnv(env: Record<string, string | undefined>): HotelListTechSettings {
+  const int = (name: string, fallback: number, max: number) => {
+    const raw = env[name];
+    if (raw === undefined || raw === '') return fallback;
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 1 || n > max) throw new Error(`${name} must be an integer 1-${max}`);
+    return n;
+  };
+  return {
+    refreshHours: int('HOTEL_LIST_REFRESH_HOURS', 24, 168),
+    // The sandbox key allows 5 requests per second for every call of the account (rate-limiting reference).
+    callsPerSecond: int('HOTEL_LIST_CALLS_PER_SECOND', 1, 20),
+    candidates: int('HOTEL_LIST_CANDIDATES', 100, 500),
+    contentRefreshDays: int('HOTEL_CONTENT_REFRESH_DAYS', 7, 90),
   };
 }

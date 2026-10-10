@@ -174,3 +174,12 @@ export function planRedirectImport(csv: string, existing: readonly { from: strin
   });
   return { rules, problems: problems.sort((a, b) => a.line - b.line) };
 }
+
+/**
+ * Search results moved from /{l}/hotels/{session} to /{l}/search/hotels/{session} (ADR-0014): /en/hotels/ now holds the
+ * public hotel lists. Only a session id (a UUID) is moved, with its query string; anything else is a list address.
+ */
+export function legacySearchLocation(pathname: string, search: string): string | null {
+  const m = /^\/(tr|en)\/hotels\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(pathname);
+  return m ? `/${m[1]}/search/hotels/${m[2]}${search}` : null;
+}

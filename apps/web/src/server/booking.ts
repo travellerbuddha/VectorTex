@@ -1,6 +1,6 @@
 import { BookingApp, bookingSettingsFromEnv, type BookingSettings } from '@texholiday/booking';
 import { loadConfig } from '@texholiday/config';
-import { MockFlightConnector, MockHotelConnector, NuiteeFlightConnector, NuiteeHotelConnector } from '@texholiday/connectors';
+import { MockFlightConnector, MockHotelConnector, NuiteeFlightConnector, NuiteeHotelConnector, NUITEE_HOTEL_TIMEOUTS } from '@texholiday/connectors';
 import { DomainError, parseCapabilityMatrix, parseSourceLock, type FlightConnector, type HotelConnector } from '@texholiday/contracts';
 import matrixJson from '../../../../contracts/capability-matrix.json';
 import lockJson from '../../../../contracts/sources.lock.json';
@@ -42,8 +42,7 @@ async function create(): Promise<Booking> {
       environment: config.nuitee.keyEnvironment,
       searchBaseUrl: config.nuitee.searchBaseUrl,
       bookBaseUrl: config.nuitee.bookBaseUrl,
-      searchTimeoutSeconds: 6,
-      bookTimeoutSeconds: 120,
+      ...NUITEE_HOTEL_TIMEOUTS,
     });
     // The flights OpenAPI serves every flight operation from the search host (api.liteapi.travel/v3.0). Sales open only
     // with an approved FLIGHT pricing rule and a route the capability matrix allows (ADR-0012).

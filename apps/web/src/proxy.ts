@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { originOf } from './server/origin';
-import { buildRedirectMap, locationOf, lookupRedirect, type RedirectRule } from './server/redirects';
+import { buildRedirectMap, legacySearchLocation, locationOf, lookupRedirect, type RedirectRule } from './server/redirects';
 
 /**
  * Old-site addresses (P17): a request matching a rule of the CMS redirect map gets a permanent redirect before any page
@@ -33,6 +33,8 @@ const redirectTo = (request: NextRequest, status: number, path: string) => new N
 export async function proxy(request: NextRequest) {
   if (request.method !== 'GET' && request.method !== 'HEAD') return NextResponse.next();
   const { pathname, search } = request.nextUrl;
+  const moved = legacySearchLocation(pathname, search);
+  if (moved) return redirectTo(request, 308, moved);
   if (process.env.PAYLOAD_ENABLED !== 'false') {
     if (Date.now() >= cache.until) {
       loading ??= refresh(request.nextUrl.origin).finally(() => {

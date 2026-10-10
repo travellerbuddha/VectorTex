@@ -30,7 +30,7 @@ export interface Loaded {
 }
 
 /** A page or destination by its address in `locale`; drafts only in an authorized preview. */
-export async function loadBySlug(collection: 'pages' | 'destinations', slug: string, locale: Locale): Promise<Loaded | null> {
+export async function loadBySlug(collection: 'pages' | 'destinations' | 'hotel-lists', slug: string, locale: Locale): Promise<Loaded | null> {
   if (!cmsEnabled() || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) return null;
   const payload = await cms();
   const user = await previewUser(payload);

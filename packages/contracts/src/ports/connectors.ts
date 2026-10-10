@@ -94,6 +94,10 @@ export interface HotelOccupancy {
   childAges: readonly number[];
 }
 
+/** Board type codes of the rates search (documented example values of `boardType`, nuitee-openapi-search). */
+export const HOTEL_BOARD_TYPES = ['RO', 'BI', 'HB', 'FB', 'AI', 'DI', 'LI', 'BDI', 'BLI', 'LDI'] as const;
+export type HotelBoardType = (typeof HOTEL_BOARD_TYPES)[number];
+
 export interface HotelSearchCriteria {
   /** Exactly one target: hotel ids, a place id (from place search) or a country/city. */
   hotelIds?: readonly string[];
@@ -109,6 +113,10 @@ export interface HotelSearchCriteria {
   maxRatesPerHotel?: number;
   /** Maximum number of hotels. */
   limit?: number;
+  /** Only rates of this board type (e.g. AI = all inclusive). */
+  boardType?: HotelBoardType;
+  /** Which hotels fill `limit` first: the provider's top picks (default) or the cheapest. */
+  order?: 'TOP_PICKS' | 'PRICE';
 }
 
 /** Hotel content returned with a rates search (name, photo, address, rating). */
@@ -140,6 +148,35 @@ export interface PlaceSuggestion {
   types: readonly string[];
 }
 
+/**
+ * Static hotel content for public hotel pages (`GET /data/hotel`, hotel-data OpenAPI). Provider text is untrusted:
+ * descriptions arrive as plain text paragraphs (markup removed) and image URLs are https only.
+ */
+export interface HotelContent {
+  hotelId: string;
+  /** Language the provider answered for (ISO 639-1). */
+  language: string;
+  name: string;
+  /** Plain text; paragraphs separated by a blank line. */
+  description: string | null;
+  stars: number | null;
+  /** The provider's guest rating (0-10) and its review count: shown with its source, never marked up as ours. */
+  rating: number | null;
+  reviewCount: number | null;
+  address: string | null;
+  city: string | null;
+  country: string | null;
+  location: { latitude: number; longitude: number } | null;
+  images: ReadonlyArray<{ url: string; caption: string | null }>;
+  facilities: readonly string[];
+  checkinTime: string | null;
+  checkoutTime: string | null;
+  importantInformation: string | null;
+  nearby: ReadonlyArray<{ name: string; category: string | null; distanceKm: number | null }>;
+  hotelType: string | null;
+  chain: string | null;
+}
+
 export interface HotelRoomGuest {
   occupancyNumber: number;
   leadGuest: { firstName: string; lastName: string; email: string };
@@ -152,6 +189,10 @@ export interface HotelConnector {
   searchHotelRates(criteria: HotelSearchCriteria): Promise<ExternalOutcome<{ offers: readonly HotelOffer[]; hotels: readonly HotelSummary[] }>>;
   /** Destination autocomplete. */
   searchPlaces(input: { text: string; language: string }): Promise<ExternalOutcome<readonly PlaceSuggestion[]>>;
+  /** One place by id with its address (to show editors which "Rome" a list uses); null when unknown. */
+  placeDetails(input: { placeId: string; language: string }): Promise<ExternalOutcome<PlaceSuggestion | null>>;
+  /** Static content of one hotel; null when the provider does not know the hotel. */
+  hotelContent(input: { hotelId: string; language: string }): Promise<ExternalOutcome<HotelContent | null>>;
   prebook(input: { offerRef: OpaqueRef; usePaymentSdk: boolean; clientReference: string }): Promise<
     ExternalOutcome<{
       prebookRef: OpaqueRef;

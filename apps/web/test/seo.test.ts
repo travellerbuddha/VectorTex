@@ -98,12 +98,14 @@ describe('P17 sitemap and robots', () => {
       'https://www.example.test/en',
       'https://www.example.test/tr/terms',
       'https://www.example.test/en/terms',
+      'https://www.example.test/tr/oteller',
+      'https://www.example.test/en/hotels',
       'https://www.example.test/tr/destinations/antalya',
       'https://www.example.test/en/destinations/antalya',
       'https://www.example.test/tr/hakkimizda',
     ]);
-    expect(entries[4]).toMatchObject({ lastModified: new Date('2026-10-09T10:00:00.000Z'), alternates: { languages: { tr: 'https://www.example.test/tr/destinations/antalya', en: 'https://www.example.test/en/destinations/antalya' } } });
-    expect(entries[6]!.alternates).toEqual({ languages: { tr: 'https://www.example.test/tr/hakkimizda' } });
+    expect(entries[6]).toMatchObject({ lastModified: new Date('2026-10-09T10:00:00.000Z'), alternates: { languages: { tr: 'https://www.example.test/tr/destinations/antalya', en: 'https://www.example.test/en/destinations/antalya' } } });
+    expect(entries[8]!.alternates).toEqual({ languages: { tr: 'https://www.example.test/tr/hakkimizda' } });
   });
 
   it('only production is indexed; booking, order and panel paths are never crawled', () => {
@@ -111,6 +113,7 @@ describe('P17 sitemap and robots', () => {
     expect(robotsRules('production', undefined)).toEqual({ rules: { userAgent: '*', disallow: '/' } });
     const prod = robotsRules('production', 'https://www.example.test/');
     expect(prod.sitemap).toBe('https://www.example.test/sitemap.xml');
-    expect(prod.rules).toMatchObject({ allow: '/', disallow: expect.arrayContaining(['/yonetim', '/api/', '/tr/checkout/', '/en/orders/', '/tr/hotels/']) });
+    expect(prod.rules).toMatchObject({ allow: '/', disallow: expect.arrayContaining(['/yonetim', '/api/', '/tr/checkout/', '/en/orders/', '/tr/search/']) });
+    expect((prod.rules as { disallow: string[] }).disallow).not.toContain('/en/hotels/');
   });
 });
