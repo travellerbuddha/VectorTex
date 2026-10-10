@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { LOCALES, type Locale } from '../i18n/dictionaries';
+import { COOKIE_POLICY_DIR } from '../components/tracking/cookie-registry';
 
 /**
  * Sitemap and robots rules (P17: "URL, metadata, canonical, hreflang ve sitemap korunur"). Pure functions; the routes in
@@ -31,7 +32,7 @@ export const PATHS: Record<SitemapDoc['collection'], (l: Locale, slug: string) =
 };
 
 /** Fixed pages of the site that are meant to be found (search and booking pages are not). */
-const FIXED: ReadonlyArray<(l: Locale) => string> = [(l) => `/${l}`, (l) => `/${l}/terms`, (l) => `/${l}/${HOTEL_LIST_DIR[l]}`];
+const FIXED: ReadonlyArray<(l: Locale) => string> = [(l) => `/${l}`, (l) => `/${l}/terms`, (l) => `/${l}/${HOTEL_LIST_DIR[l]}`, (l) => `/${l}/${COOKIE_POLICY_DIR[l]}`];
 
 /** One entry per page and language, each listing every language version (hreflang). The guide and FAQ hubs are listed
  * only while they have published content (an empty page is not worth crawling). */

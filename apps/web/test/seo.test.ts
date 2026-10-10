@@ -100,12 +100,14 @@ describe('P17 sitemap and robots', () => {
       'https://www.example.test/en/terms',
       'https://www.example.test/tr/oteller',
       'https://www.example.test/en/hotels',
+      'https://www.example.test/tr/cerez-politikasi',
+      'https://www.example.test/en/cookie-policy',
       'https://www.example.test/tr/destinations/antalya',
       'https://www.example.test/en/destinations/antalya',
       'https://www.example.test/tr/hakkimizda',
     ]);
-    expect(entries[6]).toMatchObject({ lastModified: new Date('2026-10-09T10:00:00.000Z'), alternates: { languages: { tr: 'https://www.example.test/tr/destinations/antalya', en: 'https://www.example.test/en/destinations/antalya' } } });
-    expect(entries[8]!.alternates).toEqual({ languages: { tr: 'https://www.example.test/tr/hakkimizda' } });
+    expect(entries[8]).toMatchObject({ lastModified: new Date('2026-10-09T10:00:00.000Z'), alternates: { languages: { tr: 'https://www.example.test/tr/destinations/antalya', en: 'https://www.example.test/en/destinations/antalya' } } });
+    expect(entries[10]!.alternates).toEqual({ languages: { tr: 'https://www.example.test/tr/hakkimizda' } });
   });
 
   it('only production is indexed; booking, order and panel paths are never crawled', () => {

@@ -7,6 +7,7 @@ import { siteChrome } from '../../server/cms-content';
 import { ACCOUNT_DIR } from '../../server/seo';
 import { CONSENT_BOOTSTRAP, trackingSettings } from '../../server/tracking';
 import { ConsentManager, ConsentReopen } from '../../components/tracking/ConsentManager';
+import { COOKIE_POLICY_DIR } from '../../components/tracking/cookie-registry';
 import './globals.css';
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -16,7 +17,16 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     title: 'TexHoliday',
     description: 'Otel, uçak, tur ve transfer rezervasyonu',
     // Search Console ownership (HTML tag method), entered in the CMS (ADR-0018).
-    ...(tracking?.verification ? { verification: { google: tracking.verification } } : {}),
+    // Site ownership tags (Search Console, Yandex Webmaster, Meta domain verification), from the panel.
+    ...(tracking && (tracking.verification || tracking.yandexVerification || tracking.metaDomainVerification)
+      ? {
+          verification: {
+            ...(tracking.verification ? { google: tracking.verification } : {}),
+            ...(tracking.yandexVerification ? { yandex: tracking.yandexVerification } : {}),
+            ...(tracking.metaDomainVerification ? { other: { 'facebook-domain-verification': tracking.metaDomainVerification } } : {}),
+          },
+        }
+      : {}),
   };
 }
 export const viewport: Viewport = { width: 'device-width', initialScale: 1 };
@@ -87,9 +97,12 @@ export default async function LocaleLayout({ children, params }: { children: Rea
             </div>
           )}
           <p>{chrome.footer?.legal ?? t.footer}</p>
-          {tags && <ConsentReopen label={locale === 'tr' ? 'Çerez tercihleri' : 'Cookie preferences'} />}
+          <p className="footer-legal-links">
+            <a href={`/${locale}/${COOKIE_POLICY_DIR[locale]}`}>{locale === 'tr' ? 'Çerez politikası' : 'Cookie policy'}</a>
+            {tags && <ConsentReopen label={locale === 'tr' ? 'Çerez tercihleri' : 'Cookie preferences'} />}
+          </p>
         </footer>
-        {tags && <ConsentManager locale={locale} gtm={tags.gtm} ga4={tags.ga4} mode={tags.mode} bannerText={tags.bannerText} privacyUrl={tags.privacyUrl} />}
+        {tags && <ConsentManager locale={locale} gtm={tags.gtm} ga4={tags.ga4} mode={tags.mode} bannerText={tags.bannerText} privacyUrl={`/${locale}/${COOKIE_POLICY_DIR[locale]}`} />}
       </body>
     </html>
   );

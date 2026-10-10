@@ -9,7 +9,8 @@ function boot(cookie: string) {
   const ctx: Record<string, unknown> = { document: { cookie } };
   ctx.window = ctx;
   runInNewContext(CONSENT_BOOTSTRAP, ctx);
-  return (ctx.dataLayer as unknown[]).map((a) => Array.from(a as ArrayLike<unknown>));
+  // gtag calls are `arguments` objects; plain objects are dataLayer events.
+  return (ctx.dataLayer as unknown[]).map((a) => (Object.prototype.toString.call(a) === '[object Arguments]' ? Array.from(a as ArrayLike<unknown>) : a));
 }
 
 describe('consent bootstrap', () => {
@@ -22,9 +23,12 @@ describe('consent bootstrap', () => {
 
   it('applies the stored choice at once: analytics only, or everything', () => {
     const analytics = boot(`x=1; th_consent=${encodeURIComponent(JSON.stringify({ a: true, m: false, v: 1 }))}`);
-    expect(analytics.at(-1)).toEqual(['consent', 'update', { analytics_storage: 'granted', ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied' }]);
+    expect(analytics.at(-2)).toEqual(['consent', 'update', { analytics_storage: 'granted', ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied' }]);
+    // The stored choice is also announced for the GTM container's consent triggers.
+    expect(analytics.at(-1)).toEqual({ event: 'consent_state', consent_analytics: true, consent_marketing: false });
     const all = boot(`th_consent=${encodeURIComponent(JSON.stringify({ a: true, m: true, v: 1 }))}`);
-    expect(all.at(-1)).toEqual(['consent', 'update', { analytics_storage: 'granted', ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted' }]);
+    expect(all.at(-2)).toEqual(['consent', 'update', { analytics_storage: 'granted', ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted' }]);
+    expect(all.at(-1)).toEqual({ event: 'consent_state', consent_analytics: true, consent_marketing: true });
     // A damaged cookie leaves the defaults (denied).
     expect(boot('th_consent=%7Bbroken').some((c) => c[1] === 'update')).toBe(false);
   });
