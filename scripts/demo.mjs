@@ -14,6 +14,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { createHmac, randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -22,13 +23,46 @@ const stateDir = join(root, '.demo');
 const envFile = join(root, '.env.demo');
 const compose = ['compose', '-f', join(root, 'compose.demo.yaml')];
 const isWin = process.platform === 'win32';
-const SITE = 'http://localhost:3000';
 
 const say = (msg) => console.log(`\x1b[36m[demo]\x1b[0m ${msg}`);
 const fail = (msg) => {
   console.error(`\x1b[31m[demo] ${msg}\x1b[0m`);
   process.exit(1);
 };
+
+// The site's port: 3000, or DEMO_PORT when another program already uses 3000. `pnpm demo:kod` shows the port the
+// demo was last started on.
+const portFile = join(stateDir, 'port');
+const PORT = (() => {
+  const saved = process.argv[2] === 'kod' && existsSync(portFile) ? readFileSync(portFile, 'utf8').trim() : null;
+  const raw = (process.env.DEMO_PORT ?? saved ?? '3000').trim();
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1024 || n > 65535) fail(`DEMO_PORT 1024 ile 65535 arasında bir sayı olmalı (verilen: ${raw}).`);
+  return n;
+})();
+const SITE = `http://localhost:${PORT}`;
+
+/** True when nothing listens on the demo port yet (checked before the slow steps). */
+function portFree(port) {
+  return new Promise((resolve) => {
+    const srv = createServer();
+    srv.once('error', () => resolve(false));
+    srv.once('listening', () => srv.close(() => resolve(true)));
+    srv.listen(port, '127.0.0.1');
+  });
+}
+
+async function checkPort() {
+  if (await portFree(PORT)) return;
+  const who = isWin ? `netstat -ano | findstr :${PORT}` : `lsof -nP -iTCP:${PORT} -sTCP:LISTEN`;
+  const other = PORT === 3000 ? 3001 : PORT + 1;
+  const alt = isWin ? `$env:DEMO_PORT=${other}; pnpm demo` : `DEMO_PORT=${other} pnpm demo`;
+  fail(
+    `${PORT} portunu başka bir program kullanıyor (ör. açık kalmış başka bir site ya da önceki demo).\n` +
+      `  Hangi program olduğunu görmek için:  ${who}\n` +
+      `  O programı kapatıp yeniden deneyin ya da demoyu başka portta açın:  ${alt}`,
+  );
+}
 
 function run(cmd, args, opts = {}) {
   const r = spawnSync(cmd, args, { cwd: root, stdio: 'inherit', shell: isWin, ...opts });
@@ -198,7 +232,9 @@ function start(env) {
   };
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
-  launch('site', '32', ['--filter', '@texholiday/web', 'exec', 'next', 'start', '--port', '3000', '--hostname', '127.0.0.1']);
+  mkdirSync(stateDir, { recursive: true });
+  writeFileSync(portFile, String(PORT));
+  launch('site', '32', ['--filter', '@texholiday/web', 'exec', 'next', 'start', '--port', String(PORT), '--hostname', '127.0.0.1']);
   launch('worker', '35', ['worker']);
   setTimeout(() => banner(env), 4000);
 }
@@ -271,6 +307,7 @@ if (cmd === 'kod') {
   say('Sıfırlandı. Başlatmak için: pnpm demo');
 } else if (cmd === 'baslat') {
   checkTools();
+  await checkPort();
   ensureEnvFile();
   servicesUp();
   const env = demoEnv();
