@@ -37,6 +37,8 @@ export interface SeedItem {
   charge: bigint;
   rank: number;
   needsPrebook?: boolean;
+  /** Quote option snapshot; defaults to a label (tests that render customer views pass a hotel-shaped one). */
+  option?: Record<string, unknown>;
   requiresIssuance?: boolean;
   /** Commission included in the supplier cost (PROVIDER_API margin); default 0. */
   commission?: bigint;
@@ -68,7 +70,7 @@ export async function seedOrder(core: CoreDatabase, items: SeedItem[] = SEED_PAC
       productType: it.productType,
       providerId: it.providerId,
       offerRef: opaque(`MOCK-OFFER-${it.productType}`),
-      option: { label: it.productType },
+      option: it.option ?? { label: it.productType },
       travelers: [{ travelerId: 't1', type: 'ADULT', age: null }],
       supplierCost: money('EUR', (it.charge * 9n) / 10n),
       providerCommission: money('EUR', it.commission ?? 0n),

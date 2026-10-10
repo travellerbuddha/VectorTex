@@ -2,10 +2,11 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describeConfig, type AppConfig } from '@texholiday/config';
-import { NuiteeHotelProviderManagedPort } from '@texholiday/booking';
+import { mailSettingsFromEnv } from '@texholiday/admin';
+import { CUSTOMER_MAIL_EVENTS, CustomerNotifier, NuiteeHotelProviderManagedPort, loadOrderView } from '@texholiday/booking';
 import { NuiteeHotelConnector } from '@texholiday/connectors';
 import { DomainError, parseSourceLock, type HotelConnector, type SourceLock } from '@texholiday/contracts';
-import { CheckoutRepository, DrizzleOrderStore, OutboxRepository, PolicyRepository, QuoteRepository, createCoreDatabase, type CoreDatabase } from '@texholiday/db';
+import { CheckoutRepository, DrizzleOrderStore, NotificationRepository, OutboxRepository, PolicyRepository, QuoteRepository, createCoreDatabase, type CoreDatabase } from '@texholiday/db';
 import { PackageOrchestrator, ProviderManagedOrchestrator, type ItemBookingPort, type OrchestrationPolicy, type OrderItemState } from '@texholiday/domain';
 import { GatewayRegistry, IYZICO_REQUIRED_SOURCES, IyzicoGateway } from '@texholiday/payments';
 import type { EventHandler, Logger } from './relay';
@@ -128,7 +129,27 @@ export async function createRuntime(
     if (!providerManaged) throw new ConnectorUnavailableError('nuitee-hotel');
     return providerManaged;
   };
+  // Customer booking e-mails (P16): SMTP, or the MOCK directory in development/test; none configured = recorded as
+  // not sent on the order. The same settings and refusals as staff mails (packages/admin/mail.ts).
+  const mail = mailSettingsFromEnv(env);
+  const quotes = new QuoteRepository(core.db);
+  const notifier = new CustomerNotifier({
+    notifications: new NotificationRepository(core.db),
+    orderView: (orderId) => loadOrderView(store, quotes, orderId, env.TERMS_VERSION ?? ''),
+    mailer: mail?.mailer ?? null,
+    context: mail ? { brand: env.MAIL_BRAND?.trim() || 'TexHoliday', publicBaseUrl: mail.publicBaseUrl } : null,
+  });
+  log.info('customer mail', { mailer: mail?.mailer.kind ?? 'NONE' });
+  const mailHandlers: Record<string, EventHandler> = Object.fromEntries(
+    CUSTOMER_MAIL_EVENTS.map((type) => [
+      type,
+      async (payload: Record<string, unknown>, ctx: { eventId: string }) => {
+        await notifier.handle(type, ctx.eventId, payload);
+      },
+    ]),
+  );
   const handlers: Record<string, EventHandler> = {
+    ...mailHandlers,
     'order.provider_managed.finalize': async (payload) => {
       await pm().finalize(String(payload.orderId), Number.isInteger(payload.attempt) ? Number(payload.attempt) : 1);
     },

@@ -13,7 +13,6 @@ import {
   ProviderManagedOrchestrator,
   QuoteError,
   assertQuoteUsable,
-  freeCancellation,
   selectPaymentRoutes,
   type OrderAggregate,
   type QuoteVersionSnapshot,
@@ -31,6 +30,7 @@ import {
   type PricingPolicyVersion,
 } from '@texholiday/pricing';
 import { canAccessOrder, orderAccessToken } from './access';
+import { cancellationView, loadOrderView, orderStage, quoteView } from './order-view';
 import { NuiteeHotelProviderManagedPort } from './nuitee-pm-port';
 import { StaffOrderCommands } from './staff-orders';
 import type { BookingSettings } from './settings';
@@ -83,15 +83,6 @@ function nightsBetween(checkin: string, checkout: string): number {
 }
 
 const storedCancellation = (c: StoredOffer['cancellation']): QuoteVersionSnapshot['cancellation'] => ({ ...c, steps: c.steps.map((s) => ({ from: s.from, penalty: fromJson(s.penalty) })) });
-
-function cancellationView(c: QuoteVersionSnapshot['cancellation']): CancellationView {
-  const free = freeCancellation(c);
-  return {
-    refundable: c.refundable,
-    freeUntil: free.kind === 'FREE_UNTIL' ? free.lastFreeInstant.toISOString() : null,
-    steps: c.steps.map((s) => ({ from: s.from, penalty: toJson(s.penalty) })),
-  };
-}
 
 /**
  * Application services for the hotel booking flow (spec §14) with the provider-managed payment (ADR-0008):
@@ -403,33 +394,9 @@ export class BookingApp {
   }
 
   private quoteView(q: QuoteVersionSnapshot): QuoteView {
-    const o = q.option as {
-      hotelId: string;
-      hotelName: string;
-      address: string | null;
-      photo: string | null;
-      room: QuoteView['room'];
-      checkin: string;
-      checkout: string;
-      nights: number;
-      rooms: QuoteView['rooms'];
-    };
-    return {
-      quoteVersionId: q.id,
-      expiresAt: q.expiresAt,
-      hotel: { hotelId: o.hotelId, name: o.hotelName, address: o.address, photo: o.photo },
-      room: o.room,
-      checkin: o.checkin,
-      checkout: o.checkout,
-      nights: o.nights,
-      rooms: o.rooms,
-      total: toJson(q.chargeNow),
-      payAtProperty: q.payAtProperty.map(toJson),
-      cancellation: cancellationView(q.cancellation),
-      termsVersion: this.deps.settings.termsVersion,
-      paymentProvider: 'NUITEE',
-    };
+    return quoteView(q, this.deps.settings.termsVersion);
   }
+
 
   async quote(quoteVersionId: string): Promise<QuoteView> {
     if (!/^[0-9a-f-]{36}$/i.test(quoteVersionId)) throw notFound();
@@ -550,35 +517,12 @@ export class BookingApp {
   }
 
   private stage(agg: OrderAggregate): OrderStage {
-    const it = agg.items[0]!;
-    const p = agg.payment!;
-    if (agg.status === 'CONFIRMED') return 'CONFIRMED';
-    if (agg.status === 'ACTION_REQUIRED') return 'NEEDS_ATTENTION';
-    if (agg.status === 'CANCELLED') {
-      if (it.booking.status === 'CANCELLED') return 'CANCELLED';
-      const code = it.booking.failureCode ?? agg.compensationReason ?? '';
-      if (code === 'CHECKOUT_EXPIRED') return 'EXPIRED';
-      if (code.startsWith('QUOTE_CHANGED')) return 'PRICE_CHANGED';
-      return 'FAILED';
-    }
-    if (p.status === 'NEW') return 'PREPARING_PAYMENT';
-    if (it.booking.intent?.op === 'BOOK' || it.booking.status === 'UNKNOWN' || it.booking.status === 'PENDING_CONFIRMATION') return 'CONFIRMING';
-    if (p.status === 'PENDING' && it.booking.status === 'PREPARED') return 'AWAITING_PAYMENT';
-    return 'CONFIRMING';
+    return orderStage(agg);
   }
 
+
   private async view(orderId: string): Promise<OrderView> {
-    const agg = await this.store.load(orderId);
-    const it = agg.items[0]!;
-    const q = await this.quotes.get(it.quoteVersionId);
-    return {
-      orderId,
-      stage: this.stage(agg),
-      paymentHoldMayExist: agg.tasks.some((t) => t.reason === 'PROVIDER_PAYMENT_HOLD'),
-      bookingReference: agg.status === 'CONFIRMED' ? it.booking.providerBookingRef : null,
-      voucherReady: it.booking.voucherReady,
-      payBy: agg.payment!.payBy,
-      quote: this.quoteView(q!),
-    };
+    return loadOrderView(this.store, this.quotes, orderId, this.deps.settings.termsVersion);
   }
+
 }

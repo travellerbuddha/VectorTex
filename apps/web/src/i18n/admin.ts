@@ -382,6 +382,15 @@ const tr = {
       'provider_managed.cancel_rejected': 'Nuitee iptali kabul etmedi',
       'provider_managed.cancel_not_applied': 'İptal gerçekleşmemiş; rezervasyon geçerli',
       'provider_managed.refund_recorded': 'Nuitee iadesi kaydedildi',
+      'customer_mail.sent': 'Müşteriye e-posta gönderildi',
+      'customer_mail.failed': 'Müşteri e-postası gönderilemedi; yeniden denenecek',
+      'customer_mail.not_configured': 'Müşteri e-postası gönderilmedi (e-posta ayarı yok)',
+    } as Record<string, string>,
+    mailKinds: {
+      BOOKING_CONFIRMED: 'rezervasyon onayı',
+      BOOKING_CANCELLED: 'iptal bildirimi',
+      REFUND_RECORDED: 'iade bildirimi',
+      PAYMENT_NOT_BOOKED: 'rezervasyon tamamlanamadı bildirimi',
     } as Record<string, string>,
   },
   tasks: {
@@ -877,6 +886,15 @@ const en: Dict = {
       'provider_managed.cancel_rejected': 'Nuitee did not accept the cancellation',
       'provider_managed.cancel_not_applied': 'Cancellation did not happen; booking still valid',
       'provider_managed.refund_recorded': 'Nuitee refund recorded',
+      'customer_mail.sent': 'E-mail sent to the customer',
+      'customer_mail.failed': 'Customer e-mail not delivered; will retry',
+      'customer_mail.not_configured': 'Customer e-mail not sent (no mail settings)',
+    } as Record<string, string>,
+    mailKinds: {
+      BOOKING_CONFIRMED: 'booking confirmation',
+      BOOKING_CANCELLED: 'cancellation notice',
+      REFUND_RECORDED: 'refund notice',
+      PAYMENT_NOT_BOOKED: 'booking not completed notice',
     } as Record<string, string>,
   },
   tasks: {

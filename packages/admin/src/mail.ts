@@ -1,25 +1,14 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createTransport } from 'nodemailer';
+import type { MailMessage, MailResult, Mailer } from '@texholiday/contracts';
 
 /**
- * Outgoing e-mail for staff setup links (ADR-0010). Optional: without mail settings the panel shows the one-time link
- * to the person who created it, as before. Links in e-mails are built from PUBLIC_BASE_URL, never from the request.
+ * Outgoing e-mail (SMTP or the MOCK directory of tests): staff setup links (ADR-0010) and customer booking mails (P16).
+ * Optional: without mail settings the panel shows a setup link once to the person who created it, and customer mails
+ * are recorded as not sent. Links in e-mails are built from PUBLIC_BASE_URL, never from the request.
  */
-export interface MailMessage {
-  to: string;
-  subject: string;
-  text: string;
-  html: string;
-}
-
-/** `delivered: false` covers refusals and lost answers alike: the caller falls back to handing the link over. */
-export type MailResult = { delivered: true } | { delivered: false; reason: string };
-
-export interface Mailer {
-  readonly kind: 'SMTP' | 'MOCK';
-  send(message: MailMessage): Promise<MailResult>;
-}
+export type { MailMessage, MailResult, Mailer } from '@texholiday/contracts';
 
 /** SMTP (any provider: the business chooses the account). TLS is required except for a local test server. */
 export class SmtpMailer implements Mailer {

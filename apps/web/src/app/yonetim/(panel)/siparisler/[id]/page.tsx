@@ -52,6 +52,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     const map = action === 'order.status' ? t.orders.statuses : action === 'booking.status' ? t.orders.bookingStatuses : action === 'payment.status' ? t.orders.paymentStatuses : null;
     if (map && typeof x.from === 'string' && typeof x.to === 'string') return `${label}: ${map[x.from] ?? x.from} → ${map[x.to] ?? x.to}${typeof x.reason === 'string' ? ` (${x.reason})` : ''}`;
     if (action === 'task.opened' || action === 'task.assigned' || action === 'task.resolved') return `${label}: ${t.tasks.reasons[String(x.reason)] ?? String(x.reason ?? '')}`;
+    if (action.startsWith('customer_mail.')) return `${label}: ${t.orders.mailKinds[String(x.kind)] ?? String(x.kind ?? '')}`;
     return label;
   };
 

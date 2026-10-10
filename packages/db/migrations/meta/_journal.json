@@ -78,6 +78,13 @@
       "when": 1791586706631,
       "tag": "0010_content_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791594657429,
+      "tag": "0011_customer_notifications",
+      "breakpoints": true
     }
   ]
 }

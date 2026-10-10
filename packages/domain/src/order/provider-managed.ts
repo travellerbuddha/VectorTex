@@ -348,7 +348,7 @@ export class ProviderManagedOrchestrator {
         now,
       );
     }
-    emit(agg, 'order.provider_managed.failed', { orderId: agg.id, code });
+    emit(agg, 'order.provider_managed.failed', { orderId: agg.id, code, mayHoldPayment });
   }
 
   // ------------------------------------------------------------------ lookup / expiry
@@ -624,7 +624,7 @@ export class ProviderManagedOrchestrator {
         now,
       );
     }
-    emit(agg, 'order.cancelled', { orderId: agg.id, reason });
+    emit(agg, 'order.cancelled', { orderId: agg.id, reason, refundExpected });
   }
 
   /**
@@ -655,7 +655,7 @@ export class ProviderManagedOrchestrator {
       if (p.status !== 'REFUND_PENDING') setPaymentStatus(agg, 'REFUND_PENDING', 'COMMAND', actor, now);
       setPaymentStatus(agg, compare(total, p.amount) === 0 ? 'REFUNDED' : 'PARTIALLY_REFUNDED', 'COMMAND', actor, now);
       audit(agg, 'provider_managed.refund_recorded', actor, now, { amount: { currency: amount.currency, minor: amount.minor.toString() }, reference: ref });
-      emit(agg, 'order.refund_recorded', { orderId: agg.id });
+      emit(agg, 'order.refund_recorded', { orderId: agg.id, amount: { currency: amount.currency, minor: amount.minor.toString() } });
       out = { paymentStatus: p.status, refundedTotal: total };
     });
     return out!;

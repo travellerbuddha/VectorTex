@@ -111,6 +111,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@texholiday/admin':
+        specifier: workspace:*
+        version: link:../../packages/admin
       '@texholiday/booking':
         specifier: workspace:*
         version: link:../../packages/booking

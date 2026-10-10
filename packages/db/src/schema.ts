@@ -487,6 +487,28 @@ export const outboxEvents = core.table(
   (t) => [index('outbox_events_pending_idx').on(t.status, t.availableAt), index('outbox_events_aggregate_idx').on(t.aggregateId)],
 );
 
+/**
+ * Customer e-mails sent for order events (P16): at most one per outbox event (the event id is the key). Holds the outcome
+ * only; the address and the message body (personal data) are never stored here.
+ */
+export const customerNotifications = core.table(
+  'customer_notifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    eventId: uuid('event_id').notNull(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id),
+    kind: text('kind', { enum: ['BOOKING_CONFIRMED', 'BOOKING_CANCELLED', 'REFUND_RECORDED', 'PAYMENT_NOT_BOOKED'] }).notNull(),
+    /** SENDING: handed to the mailer, outcome not recorded yet (a crash here means it may be sent again). */
+    status: text('status', { enum: ['SENDING', 'SENT', 'NOT_CONFIGURED'] }).notNull(),
+    attempts: integer('attempts').notNull().default(1),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('customer_notifications_event_uq').on(t.eventId), index('customer_notifications_order_idx').on(t.orderId)],
+);
+
 export const inboxEvents = core.table(
   'inbox_events',
   {
