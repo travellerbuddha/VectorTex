@@ -23,8 +23,13 @@ test('hotel booking with the provider-managed payment (MOCK): search → select 
 
   await page.getByRole('combobox', { name: 'Nereye?' }).fill('Antalya');
   await page.getByRole('option', { name: /Antalya \(MOCK\)/ }).click();
+  // Rooms and guests sit behind the "Misafirler" segment; no nationality or currency in the form.
+  await page.getByRole('button', { name: /Misafirler/ }).click();
   await page.getByLabel('Çocuk', { exact: true }).selectOption('1');
   await page.getByLabel('Çocuk yaşı 1').selectOption('7');
+  await page.getByRole('button', { name: 'Tamam' }).click();
+  await expect(page.getByRole('button', { name: /Misafirler/ })).toContainText('2 yetişkin, 1 çocuk · 1 oda');
+  await expect(page.getByText('Misafir uyruğu')).toHaveCount(0);
   await page.getByRole('button', { name: 'Ara' }).click();
 
   await expect(page.getByRole('heading', { level: 1, name: 'Sonuçlar' })).toBeVisible();
@@ -84,6 +89,17 @@ test('the order page and APIs are closed to anyone without the order cookie', as
 test('English pages and an unavailable currency route', async ({ page }) => {
   await page.goto('/en');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Find a hotel');
-  // TRY needs our own payment gateway, which is not integrated yet (K13): it is not offered.
-  await expect(page.getByLabel('Currency').locator('option')).toHaveText(['EUR', 'USD', 'GBP']);
+  // Language and currency are chosen together in the header. TRY needs our own payment gateway, which is not
+  // integrated yet (K13): it is not offered.
+  const control = page.getByRole('button', { name: /Language and currency/ });
+  await expect(control).toHaveText('EN · EUR');
+  await control.click();
+  const currencies = page.getByRole('group', { name: 'Currency' }).getByRole('radio');
+  await expect(currencies).toHaveCount(3);
+  await expect(page.getByRole('radio', { name: /TRY/ })).toHaveCount(0);
+  // The choice is kept (cookie) and shown on the next page.
+  await page.getByRole('radio', { name: /USD/ }).click();
+  await expect(control).toHaveText('EN · USD');
+  await page.reload();
+  await expect(page.getByRole('button', { name: /Language and currency/ })).toHaveText('EN · USD');
 });

@@ -1,5 +1,4 @@
 import { SearchForm } from '../SearchForm';
-import { countryOptions } from '../../i18n/countries';
 import type { Locale } from '../../i18n/dictionaries';
 import { RichText, safeHref } from './RichText';
 
@@ -52,7 +51,7 @@ function BlockView({ block, ctx, first }: { block: Block; ctx: BlockContext; fir
             <SearchForm
               locale={ctx.locale}
               currencies={ctx.currencies as string[]}
-              countries={countryOptions(ctx.locale)}
+             
               today={ctx.today}
               initial={ctx.place ? { place: { placeId: ctx.place.placeId, name: ctx.place.name, address: '' } } : undefined}
             />

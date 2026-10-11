@@ -3,7 +3,6 @@ import { notFound } from 'next/navigation';
 import { SearchForm } from '../../../../components/SearchForm';
 import { cmsMetadata, PreviewBanner } from '../../../../components/cms/CmsPage';
 import { RichText } from '../../../../components/cms/RichText';
-import { countryOptions } from '../../../../i18n/countries';
 import { isLocale, type Locale } from '../../../../i18n/dictionaries';
 import { booking } from '../../../../server/booking';
 import { loadBySlug } from '../../../../server/cms-content';
@@ -47,7 +46,7 @@ export default async function DestinationPage({ params }: Params) {
         <SearchForm
           locale={locale}
           currencies={currencies}
-          countries={countryOptions(locale)}
+         
           today={new Date().toISOString().slice(0, 10)}
           initial={placeId ? { place: { placeId, name, address: '' } } : undefined}
         />
