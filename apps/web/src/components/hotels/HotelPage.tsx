@@ -3,7 +3,6 @@ import { notFound, permanentRedirect } from 'next/navigation';
 import { cache } from 'react';
 import { addDays, istanbulDate, type HotelPageView } from '@texholiday/booking';
 import { HOTEL_BOARD_TYPES } from '@texholiday/contracts';
-import { countryOptions } from '../../i18n/countries';
 import { dict, type Locale } from '../../i18n/dictionaries';
 import { boardLabel, formatInstant, analyticsValue } from '../../i18n/format';
 import { TrackEvent } from '../tracking/TrackEvent';
@@ -159,7 +158,7 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
           <SearchForm
             locale={locale}
             currencies={currencies}
-            countries={countryOptions(locale)}
+           
             today={today}
             initial={{
               place: { placeId: `hotel:${view.hotelId}`, hotelId: view.hotelId, name: c.name, address: c.address ?? '' },

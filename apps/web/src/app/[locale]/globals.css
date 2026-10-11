@@ -309,8 +309,122 @@ code {
   font-weight: 600;
   font-size: 0.95rem;
 }
-.account-link {
+.account-link,
+.lang {
   border: 1px solid rgb(255 255 255 / 0.22);
+}
+.site-header button.lang {
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.site-header button.lang:active {
+  transform: none;
+}
+.lang-chevron {
+  width: 0.95em !important;
+  height: 0.95em !important;
+  transition: transform 0.15s ease-out;
+}
+.lang[aria-expanded='true'] .lang-chevron {
+  transform: rotate(180deg);
+}
+.locale-currency {
+  position: relative;
+}
+.lang-panel {
+  width: min(300px, calc(100vw - 2 * var(--gutter)));
+  padding: 0.5rem;
+}
+.lang-group-label {
+  margin: 0;
+  padding: 0.35rem 0.6rem 0.25rem;
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+.lang-options {
+  list-style: none;
+  margin: 0 0 0.35rem;
+  padding: 0 0 0.35rem;
+  border-bottom: 1px solid var(--line);
+}
+.lang-options a,
+.lang-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 44px;
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 560;
+  cursor: pointer;
+  transition: background-color 0.15s ease-out;
+}
+.lang-options a:hover,
+.lang-option:hover {
+  background: var(--sea-50);
+  color: var(--ink);
+}
+.lang-options a[aria-current],
+.lang-option:has(input:checked) {
+  background: var(--sea-50);
+  color: var(--sea-700);
+}
+.lang-options svg.lucide,
+.lang-option svg.lucide {
+  margin-left: auto;
+  color: var(--sea-700);
+}
+.lang-currencies {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.lang-currencies legend {
+  padding: 0.35rem 0.6rem 0.25rem;
+}
+/* The radio stays in the a11y tree and keyboard order; the whole row is its label. */
+.lang-option {
+  position: relative;
+}
+.lang-option input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.lang-option:has(input:focus-visible) {
+  outline: 3px solid var(--focus);
+  outline-offset: -3px;
+}
+.lang-option strong {
+  min-width: 2.6rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.lang-option span {
+  color: var(--ink-2);
+  font-size: 0.925rem;
+}
+.lang-panel :focus-visible {
+  outline-color: var(--focus);
+}
+@media (max-width: 399px) {
+  .lang > svg.lucide:first-child,
+  .lang-chevron {
+    display: none;
+  }
 }
 .account-link:hover,
 .lang:hover {
@@ -396,7 +510,7 @@ code {
   text-decoration: none;
   display: inline-flex;
   align-items: center;
-  min-height: 36px;
+  min-height: 44px;
 }
 .footer-columns a:hover,
 .footer-bottom a:hover,
@@ -761,14 +875,6 @@ legend {
 .search-card {
   padding: 1rem;
 }
-.search-main {
-  display: grid;
-  grid-template-columns: 1fr;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r);
-  background: var(--paper);
-  margin-bottom: 1rem;
-}
 .seg {
   margin: 0;
   padding: 0.55rem 0.9rem 0.5rem;
@@ -815,116 +921,407 @@ legend {
 .seg small {
   font-size: 0.8rem;
 }
-.seg-dates {
+/* Hotel search: one segmented bar (where | in | out | guests | Ara). Rooms live in the guests panel, the currency in
+   the header. Areas re-flow per width; dividers are each segment's own top/left border. */
+.hotel-search {
+  padding: 0.75rem;
+  /* The bar follows the form's width, not the viewport: wide in the hero and results, stacked in the hotel page aside. */
+  container-type: inline-size;
+}
+.search-bar {
+  position: relative;
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'dest' 'in' 'out' 'guests' 'go';
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r);
+  background: var(--paper);
 }
-@media (min-width: 420px) {
-  .seg-dates {
-    grid-template-columns: 1fr 1fr;
-  }
-  .seg-dates .seg + .seg {
-    border-left: 1px solid var(--line);
-  }
-  .seg-dates .seg {
-    border-radius: 0;
-  }
-  .seg-dates .seg:last-child {
-    border-radius: 0 0 var(--r) 0;
-  }
-  .seg-dates .seg:first-child {
-    border-radius: 0 0 0 var(--r);
-    border-top: 1px solid var(--line);
-  }
+.search-bar > .seg {
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  min-width: 0;
 }
-@media (min-width: 900px) {
-  .search-main {
-    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.4fr);
-  }
-  .seg-dates .seg:first-child {
-    border-top: 0;
-    border-left: 1px solid var(--line);
-    border-radius: 0;
-  }
-  .seg-dates .seg:last-child {
-    border-radius: 0 var(--r) var(--r) 0;
-  }
-  .seg-dest {
-    border-radius: var(--r) 0 0 var(--r) !important;
-  }
-  .seg-dates {
-    border-top: 0;
-  }
+.search-bar > .seg-dest {
+  grid-area: dest;
+  border-top: 0;
+  border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
 }
-.search-card .rooms {
+.search-bar > .seg-in {
+  grid-area: in;
+}
+.search-bar > .seg-out {
+  grid-area: out;
+}
+.search-bar > .seg-guests {
+  grid-area: guests;
+  position: relative;
+  padding: 0;
+}
+.seg-go {
+  grid-area: go;
+  display: flex;
+  align-items: stretch;
+  padding: 0.5rem;
+  border-top: 1px solid var(--line);
+}
+.seg-go .search-submit {
+  width: 100%;
+  margin: 0;
+  min-height: 52px !important;
+  padding-inline: 1.5rem !important;
+  border-radius: 10px;
+}
+.search-bar .seg input {
+  min-height: 44px;
+}
+.seg-dest .suggestions,
+.seg-from .suggestions,
+.seg-to .suggestions {
+  min-width: min(22rem, calc(100vw - 2 * var(--gutter)));
+}
+/* The guests segment is one button: label above, summary below, chevron at the end. */
+.guests-toggle {
+  width: 100%;
+  min-height: 64px;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'label chevron' 'value chevron';
+  align-items: center;
+  justify-items: start;
+  gap: 0.1rem 0.5rem;
+  padding: 0.55rem 0.9rem 0.5rem;
+  background: transparent;
   border: 0;
-  padding: 0;
-  margin: 0 0 0.5rem;
+  border-radius: inherit;
+  color: var(--ink);
+  text-align: left;
+  justify-content: stretch;
+  font-weight: 600;
 }
-.search-card .rooms legend {
-  font-size: 0.95rem;
-  padding: 0;
-  margin-bottom: 0.5rem;
+.guests-toggle:focus-visible {
+  outline: none;
 }
-.search-card .rooms legend svg.lucide {
+.guests-toggle:active:not(:disabled) {
+  transform: none;
+}
+.seg-label {
+  grid-area: label;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+.seg-label svg.lucide {
   color: var(--sea-700);
 }
-.room {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0 0.75rem;
-  padding: 0.6rem 0 0.1rem;
+.seg-value {
+  grid-area: value;
+  font-size: 1.05rem;
+  line-height: 40px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.seg-chevron {
+  grid-area: chevron;
+  color: var(--ink-2);
+  transition: transform 0.15s ease-out;
+}
+.guests-toggle[aria-expanded='true'] .seg-chevron {
+  transform: rotate(180deg);
+}
+.guests-toggle:hover {
+  background: var(--sea-50);
+}
+
+/* Floating panels (guests, header language and currency): paper, 14px radius, the float shadow; they slide 4px from
+   the control they belong to. Closing keeps them displayed for the fade (display transitions where supported). */
+.guests-panel,
+.lang-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 30;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-2);
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.18s cubic-bezier(0.23, 1, 0.32, 1),
+    transform 0.18s cubic-bezier(0.23, 1, 0.32, 1),
+    display 0.18s allow-discrete;
+}
+.guests-panel[hidden],
+.lang-panel[hidden] {
+  display: none;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition-duration: 0.12s;
+  transition-timing-function: ease-in;
+}
+@starting-style {
+  .guests-panel:not([hidden]),
+  .lang-panel:not([hidden]) {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.guests-panel {
+  width: min(360px, calc(100vw - 2 * var(--gutter)));
+  padding: 1rem;
+  cursor: default;
+}
+.guest-room {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) minmax(0, 1fr);
+  align-items: end;
+  gap: 0 0.6rem;
+  padding: 0.75rem 0;
   border-top: 1px dashed var(--line);
 }
-.room:first-of-type {
+.guest-room:first-child {
   border-top: 0;
   padding-top: 0;
 }
-.room-title {
-  flex: 1 0 100%;
+.guest-room-title {
   font-weight: 650;
-  font-size: 0.9rem;
-  margin-bottom: 0.25rem;
+  font-size: 0.925rem;
+  align-self: center;
+  padding-top: 1.4rem;
 }
-.room .field {
-  flex: 1 1 110px;
-  max-width: 180px;
+.guest-room .field {
+  margin: 0;
 }
-.room .field.small {
-  flex: 0 1 112px;
-}
-.room .field > label {
+.guest-room .field > label {
   font-size: 0.85rem;
 }
-.room > .row {
-  display: contents;
+.guest-room select {
+  min-height: 44px;
 }
-.room button.link {
-  margin-bottom: 0.875rem;
+.guest-ages {
+  grid-column: 2 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr));
+  gap: 0.5rem 0.6rem;
+  margin-top: 0.6rem;
 }
-@media (min-width: 720px) {
-  .room-title {
-    flex: 0 0 4.5rem;
-    align-self: center;
-    margin: 0 0 0.875rem;
+.guest-remove {
+  grid-column: 2 / -1;
+  justify-self: start;
+}
+.guests-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+.guests-foot button {
+  min-height: 44px;
+}
+.hotel-search > .check {
+  margin: 0.6rem 0.25rem 0;
+}
+.hotel-search > .error {
+  margin: 0.6rem 0 0;
+}
+
+@container (min-width: 330px) {
+  .search-bar {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: 'dest dest' 'in out' 'guests guests' 'go go';
+  }
+  .search-bar > .seg-out {
+    border-left: 1px solid var(--line);
   }
 }
-.add-room {
-  margin: 0.25rem 0 0.75rem;
+/* Flight search: the same bar with from | to in place of the destination; one-way has no return segment. */
+.search-bar > .seg-from {
+  grid-area: from;
+  border-top: 0;
+  border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
 }
-.search-foot {
+.search-bar > .seg-to {
+  grid-area: to;
+}
+.flight-search .search-bar {
+  grid-template-areas: 'from' 'to' 'in' 'out' 'guests' 'go';
+}
+.trip-toggle {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0 0 0.6rem;
+}
+.trip-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 1rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--ink-2);
+  font-weight: 600;
+  font-size: 0.925rem;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease-out,
+    color 0.15s ease-out,
+    border-color 0.15s ease-out;
+}
+/* The radio stays in the a11y tree and keyboard order; the whole pill is its label. */
+.trip-option input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.trip-option:hover {
+  background: var(--sea-50);
+}
+.trip-option:has(input:checked) {
+  background: var(--sea-50);
+  border-color: var(--sea-200);
+  color: var(--sea-700);
+}
+.trip-option:has(input:focus-visible) {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.pax-counts {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 0 0.875rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 0.6rem;
   align-items: end;
-  border-top: 1px solid var(--line);
-  padding-top: 0.875rem;
 }
-.search-foot .error,
-.search-foot .check {
-  grid-column: 1 / -1;
+.pax-panel .field {
+  margin: 0;
 }
+.pax-panel .field > label {
+  font-size: 0.85rem;
+}
+.pax-panel select {
+  min-height: 44px;
+}
+.pax-panel .guest-ages {
+  margin-top: 0.75rem;
+}
+.pax-cabin {
+  margin-top: 0.75rem !important;
+}
+
+@container (max-width: 599px) {
+  .seg-go {
+    border-radius: 0 0 calc(var(--r) - 1px) calc(var(--r) - 1px);
+  }
+  /* Narrow: the panel spans the bar and opens under the guests segment. */
+  .guests-panel {
+    left: 0;
+    width: auto;
+  }
+}
+@container (min-width: 330px) {
+  .flight-search .search-bar {
+    grid-template-areas: 'from to' 'in out' 'guests guests' 'go go';
+  }
+  .flight-search .search-bar.one-way {
+    grid-template-areas: 'from to' 'in in' 'guests guests' 'go go';
+  }
+  .flight-search .search-bar > .seg-to {
+    border-top: 0;
+    border-left: 1px solid var(--line);
+    border-radius: 0 calc(var(--r) - 1px) 0 0;
+  }
+  .flight-search .search-bar > .seg-from {
+    border-radius: calc(var(--r) - 1px) 0 0 0;
+  }
+  /* The right-hand airport's list opens leftwards so it stays on screen. */
+  .seg-to .suggestions {
+    left: auto;
+  }
+}
+@container (min-width: 600px) {
+  .flight-search .search-bar {
+    grid-template-areas: 'from from to to' 'in out guests go';
+  }
+  .flight-search .search-bar.one-way {
+    grid-template-areas: 'from from to to' 'in in guests go';
+  }
+}
+@container (min-width: 600px) {
+  .search-bar {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) auto;
+    grid-template-areas: 'dest dest dest dest' 'in out guests go';
+  }
+  .search-bar > .seg-guests {
+    border-left: 1px solid var(--line);
+  }
+  .search-bar > .seg-in {
+    border-radius: 0 0 0 calc(var(--r) - 1px);
+  }
+  .seg-go {
+    border-top: 1px solid var(--line);
+    padding: 0.5rem;
+  }
+  .seg-go .search-submit {
+    min-height: 48px !important;
+  }
+}
+@container (min-width: 860px) {
+  .flight-search .search-bar {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(0, 0.85fr) minmax(0, 0.85fr) minmax(0, 1.2fr) auto;
+    grid-template-areas: 'from to in out guests go';
+  }
+  .flight-search .search-bar.one-way {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(0, 1.7fr) minmax(0, 1.2fr) auto;
+    grid-template-areas: 'from to in guests go';
+  }
+  .flight-search .search-bar > .seg-from {
+    border-left: 0;
+    border-radius: calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px);
+  }
+  .flight-search .search-bar > .seg-to {
+    border-radius: 0;
+  }
+}
+@container (min-width: 860px) {
+  .search-bar {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.85fr) minmax(0, 0.85fr) minmax(0, 1.35fr) auto;
+    grid-template-areas: 'dest in out guests go';
+  }
+  .search-bar > .seg {
+    border-top: 0;
+    border-left: 1px solid var(--line);
+  }
+  .search-bar > .seg-dest {
+    border-left: 0;
+    border-radius: calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px);
+  }
+  .search-bar > .seg-in {
+    border-radius: 0;
+  }
+  .seg-go {
+    border-top: 0;
+    padding: 0.5rem;
+  }
+  .seg-go .search-submit {
+    min-height: 0 !important;
+    height: 100%;
+    min-width: 7.5rem;
+  }
+}
+
 .search-submit {
   min-height: 52px !important;
   font-size: 1.05rem;
@@ -932,10 +1329,6 @@ legend {
   margin-bottom: 0.875rem;
 }
 @media (min-width: 640px) {
-  .search-foot {
-    grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.7fr) auto;
-    align-items: start;
-  }
   /* Level with the selects: below their labels, the same height. */
   .search-submit {
     margin-top: calc(0.925rem * 1.55 + 0.3rem);
@@ -1005,7 +1398,7 @@ legend {
     min-height: 440px;
     padding-top: 4.5rem;
   }
-  .hero-search .search-card {
+  .hero-search .search-card:not(.hotel-search) {
     padding: 1.5rem;
   }
 }
@@ -1203,6 +1596,11 @@ legend {
 .postcard :is(h2, h3) a {
   color: var(--ink);
   text-decoration: none;
+  /* The title link's own box reaches 44px; the negative margin keeps the text where it was. */
+  display: inline-block;
+  min-height: 44px;
+  padding-block: 0.7rem;
+  margin-block: -0.7rem;
 }
 .postcard :is(h2, h3) a::after {
   content: '';
@@ -1471,9 +1869,38 @@ legend {
   clear: both;
 }
 .filters .check {
-  margin: 0.15rem 0;
-  min-height: 36px;
+  margin: 0;
+  min-height: 44px;
   align-items: center;
+}
+/* The native control keeps a 44px hit box (the target audit measures the input, not its label) while it still
+   looks like a 20px box; negative margins keep the row's layout as before. */
+.filters .check input {
+  appearance: none;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  margin: -12px -12px -12px -12px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: center / 20px 20px no-repeat;
+  cursor: pointer;
+}
+.filters .check input[type='checkbox'] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Crect x='1' y='1' width='18' height='18' rx='4' fill='%23fff' stroke='%237a8f9a' stroke-width='1.5'/%3E%3C/svg%3E");
+}
+.filters .check input[type='checkbox']:checked {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Crect x='1' y='1' width='18' height='18' rx='4' fill='%230b4f6c'/%3E%3Cpath d='m5.5 10.2 3 3 6-6.4' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+.filters .check input[type='radio'] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='9' fill='%23fff' stroke='%237a8f9a' stroke-width='1.5'/%3E%3C/svg%3E");
+}
+.filters .check input[type='radio']:checked {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='9' fill='%23fff' stroke='%230b4f6c' stroke-width='1.5'/%3E%3Ccircle cx='10' cy='10' r='5' fill='%230b4f6c'/%3E%3C/svg%3E");
+}
+.filters .check input:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: -9px;
 }
 .filters .check .n {
   margin-left: auto;
@@ -1724,6 +2151,150 @@ legend {
   }
 }
 
+/* Results density: the card is as tall as its header and offers; the picture is a capped frame at the top, not a
+   column that stretches with the offers. Scoped to .hotel so the account page's .offer tickets keep their size. */
+.hotel .hotel-media {
+  aspect-ratio: 2 / 1;
+  max-height: 170px;
+  width: 100%;
+}
+.hotel .hotel-media .hotel-photo,
+.hotel .hotel-media .hotel-art {
+  object-position: center top;
+}
+.hotel .hotel-body {
+  padding: 0.75rem 0.875rem 0.875rem;
+}
+.hotel .hotel-head {
+  gap: 0.5rem 0.75rem;
+}
+/* Name on its own line, then stars and location on one line. */
+.hotel .hotel-head > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem 0.6rem;
+  min-width: 0;
+  flex: 1 1 14rem;
+}
+.hotel .hotel-head h2 {
+  flex: 1 0 100%;
+  margin: 0;
+  font-size: clamp(1.1rem, 1.04rem + 0.3vw, 1.25rem);
+  line-height: 1.2;
+}
+.hotel .hotel-where {
+  margin: 0;
+  font-size: 0.875rem;
+}
+.hotel .rating-badge .score {
+  min-width: 2.3rem;
+  height: 2.1rem;
+  font-size: 0.98rem;
+}
+.hotel .from {
+  margin-top: 0.35rem;
+  font-size: 0.875rem;
+}
+.hotel .from strong {
+  font-size: 1.1rem;
+}
+.hotel .offer {
+  margin-top: 0.6rem;
+}
+.hotel .offer + .offer {
+  margin-top: 0.5rem;
+}
+/* Room name and board share a line when they fit; the condition and extras sit below. */
+.hotel .offer-info {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  align-items: center;
+  align-content: center;
+  gap: 0.3rem 0.6rem;
+  padding: 0.6rem 0.85rem;
+}
+.hotel .offer-info > :not(.room-name):not(.offer-board) {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+.hotel .offer .room-name {
+  font-size: 0.98rem;
+}
+.hotel .offer-board {
+  font-size: 0.875rem;
+}
+.hotel .offer-info .tag {
+  font-size: 0.825rem;
+  padding: 0.15rem 0.55rem;
+}
+.hotel .offer .price {
+  padding: 0.6rem 0.85rem 0.7rem;
+  gap: 0.05rem;
+}
+.hotel .offer .price strong {
+  font-size: 1.3rem;
+}
+.hotel .price .muted {
+  font-size: 0.8rem;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.hotel .offer-action {
+  margin-top: 0.35rem;
+}
+.hotel .offer-action button.primary {
+  min-height: 44px;
+  padding-block: 0.45rem;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.18),
+    0 3px 8px -5px rgb(150 58 33 / 0.7);
+}
+/* Narrow: the stub keeps the price and its captions on the left and Seç on the right, one row instead of four. */
+@media (max-width: 559px) {
+  .hotel .offer .price {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 0.75rem;
+    text-align: left;
+  }
+  .hotel .offer .price > :not(.offer-action) {
+    grid-column: 1;
+  }
+  .hotel .offer .price > .offer-action {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    width: auto;
+    margin: 0;
+  }
+  .hotel .offer-action button.primary {
+    width: auto;
+    padding-inline: 1.25rem;
+  }
+}
+@media (min-width: 560px) {
+  /* Wide enough for "€1.234,00 gecelik ortalama" on one line. */
+  .hotel .offer {
+    grid-template-columns: minmax(0, 1fr) 205px;
+  }
+}
+@media (min-width: 760px) {
+  .hotel {
+    grid-template-columns: minmax(200px, 30%) minmax(0, 1fr);
+    align-items: start;
+  }
+  .hotel .hotel-media {
+    aspect-ratio: auto;
+    min-height: 0;
+    height: 200px;
+    max-height: none;
+  }
+  .hotel .hotel-body {
+    padding: 0.875rem 1.125rem 1rem;
+  }
+}
+
 /* Flights: the same ticket, read as a boarding pass. */
 .flight-offer {
   display: grid;
@@ -1847,21 +2418,6 @@ legend {
   gap: 0.75rem;
   align-items: center;
 }
-.trip-type {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 1.25rem;
-  border: 0;
-  padding: 0;
-  margin: 0 0 0.75rem;
-}
-.trip-type label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  min-height: 44px;
-}
-
 /* ---------- Checkout, payment, order ---------- */
 .two-col {
   display: grid;
@@ -2292,23 +2848,6 @@ legend {
   box-shadow: none;
   margin: 0;
 }
-.book-box .search-main {
-  grid-template-columns: 1fr !important;
-}
-.book-box .search-foot {
-  grid-template-columns: 1fr;
-}
-.book-box .seg-dest {
-  border-radius: var(--r) var(--r) 0 0 !important;
-}
-.book-box .seg-dates .seg:first-child {
-  border-top: 1px solid var(--line) !important;
-  border-left: 0 !important;
-  border-radius: 0 0 0 var(--r) !important;
-}
-.book-box .seg-dates .seg:last-child {
-  border-radius: 0 0 var(--r) 0 !important;
-}
 .hotel-text {
   max-width: 70ch;
 }
@@ -2724,33 +3263,3 @@ legend {
   margin-top: 0.25rem;
 }
 
-/* Flight search: from | to | dates in one segmented bar. */
-.seg-dates:has(> :only-child) {
-  grid-template-columns: 1fr;
-}
-.flight-main > .seg + .seg {
-  border-top: 1px solid var(--line);
-}
-@media (min-width: 900px) {
-  .flight-main {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr);
-  }
-  .flight-main > .seg + .seg {
-    border-top: 0;
-    border-left: 1px solid var(--line);
-  }
-  .flight-main > .seg:first-child {
-    border-radius: var(--r) 0 0 var(--r);
-  }
-}
-.pax-title {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-family: var(--font-display);
-  font-weight: 680;
-  margin: 0 0 0.5rem;
-}
-.pax-title svg.lucide {
-  color: var(--sea-700);
-}

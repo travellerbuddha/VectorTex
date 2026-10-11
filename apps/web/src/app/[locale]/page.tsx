@@ -5,7 +5,6 @@ import { featuredLists, hubPath, listPath } from '../../components/hotels/HotelL
 import { SearchForm } from '../../components/SearchForm';
 import { CoastScene } from '../../components/ui/Art';
 import { Postcard } from '../../components/ui/HotelBits';
-import { countryOptions } from '../../i18n/countries';
 import { dict, isLocale } from '../../i18n/dictionaries';
 import { booking } from '../../server/booking';
 import { listPosts } from '../../server/cms-content';
@@ -45,7 +44,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
         </div>
       </section>
       <div className="hero-search">
-        <SearchForm locale={locale} currencies={currencies} countries={countryOptions(locale)} today={new Date().toISOString().slice(0, 10)} />
+        <SearchForm locale={locale} currencies={currencies} today={new Date().toISOString().slice(0, 10)} />
       </div>
 
       <div className="wrap">

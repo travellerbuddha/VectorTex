@@ -6,7 +6,6 @@ import { CancellationLine } from '../../../../../components/QuoteSummary';
 import { OpenOnWide } from '../../../../../components/results/OpenOnWide';
 import { SearchForm } from '../../../../../components/SearchForm';
 import { HotelMedia, RatingBadge, Stars } from '../../../../../components/ui/HotelBits';
-import { countryOptions } from '../../../../../i18n/countries';
 import { dict, type Locale } from '../../../../../i18n/dictionaries';
 import { boardLabel, formatDate, formatMoney } from '../../../../../i18n/format';
 import { booking } from '../../../../../server/booking';
@@ -40,7 +39,7 @@ export default async function Results({ params, searchParams }: { params: Promis
     <SearchForm
       locale={locale}
       currencies={currencies}
-      countries={countryOptions(locale)}
+     
       today={new Date().toISOString().slice(0, 10)}
       initial={{ place, checkin: criteria.checkin, checkout: criteria.checkout, rooms: criteria.rooms, nationality: criteria.nationality, currency: criteria.currency, boardType: criteria.boardType ?? null }}
     />

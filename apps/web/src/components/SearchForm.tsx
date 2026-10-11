@@ -2,10 +2,11 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CalendarDays, MapPin, Plus, Search, Users } from 'lucide-react';
+import { CalendarDays, ChevronDown, MapPin, Plus, Search, Users } from 'lucide-react';
 import { dict, errorMessage, type Locale } from '../i18n/dictionaries';
 import { boardLabel } from '../i18n/format';
 import { api, ApiError } from './api';
+import { savedCurrency } from './currency-pref';
 
 interface Place {
   placeId: string;
@@ -22,25 +23,24 @@ interface RoomInput {
 const addDays = (isoDate: string, n: number) => new Date(Date.parse(`${isoDate}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 
 /**
- * `today` and `countries` come from the server: the browser's Intl data differs from Node's (country names and their
- * order), and anything rendered differently on the two sides breaks hydration.
+ * One segmented bar: where, check-in, check-out, guests (rooms in a panel), Ara. The currency comes from the header's
+ * language and currency choice; the guests' nationality is not asked and defaults to the site language's market.
+ * `today` comes from the server so both sides render the same dates.
  */
 export function SearchForm({
   locale,
   currencies,
-  countries,
   today,
   initial,
 }: {
   locale: Locale;
   currencies: string[];
-  countries: ReadonlyArray<{ code: string; name: string }>;
   today: string;
   initial?: { place?: Place; checkin?: string; checkout?: string; rooms?: RoomInput[]; nationality?: string; currency?: string; boardType?: string | null };
 }) {
   const t = dict(locale);
   const router = useRouter();
-  const ids = { dest: useId(), list: useId(), hint: useId(), nat: useId() };
+  const ids = { dest: useId(), list: useId(), hint: useId(), guests: useId(), panel: useId() };
   const [query, setQuery] = useState(initial?.place?.name ?? '');
   const [place, setPlace] = useState<Place | null>(initial?.place ?? null);
   const [suggestions, setSuggestions] = useState<Place[]>([]);
@@ -48,8 +48,11 @@ export function SearchForm({
   const [checkin, setCheckin] = useState(initial?.checkin ?? addDays(today, 14));
   const [checkout, setCheckout] = useState(initial?.checkout ?? addDays(today, 17));
   const [rooms, setRooms] = useState<RoomInput[]>(initial?.rooms ?? [{ adults: 2, childAges: [] }]);
-  const [nationality, setNationality] = useState(initial?.nationality ?? (locale === 'tr' ? 'TR' : 'GB'));
-  const [currency, setCurrency] = useState(initial?.currency && currencies.includes(initial.currency) ? initial.currency : (currencies[0] ?? 'EUR'));
+  // shortcut: TR→TR, EN→GB market default until the business sets the nationality rule (G06), then read it from config.
+  const nationality = initial?.nationality ?? (locale === 'tr' ? 'TR' : 'GB');
+  const [guestsOpen, setGuestsOpen] = useState(false);
+  const guestsRef = useRef<HTMLDivElement>(null);
+  const guestsButton = useRef<HTMLButtonElement>(null);
   // A list's board filter (e.g. all inclusive) travels with its "see prices" link so the list price can be found.
   const [boardType, setBoardType] = useState<string | null>(initial?.boardType ?? null);
   const [busy, setBusy] = useState(false);
@@ -80,6 +83,24 @@ export function SearchForm({
     setSuggestions([]);
   };
 
+  // The guests panel closes on Escape, on a click outside it and on "Tamam"; focus goes back to its button.
+  useEffect(() => {
+    if (!guestsOpen) return;
+    const outside = (e: PointerEvent) => {
+      if (!guestsRef.current?.contains(e.target as Node)) setGuestsOpen(false);
+    };
+    document.addEventListener('pointerdown', outside);
+    return () => document.removeEventListener('pointerdown', outside);
+  }, [guestsOpen]);
+  const closeGuests = () => {
+    setGuestsOpen(false);
+    guestsButton.current?.focus();
+  };
+  const openGuests = () => {
+    setGuestsOpen(true);
+    requestAnimationFrame(() => guestsRef.current?.querySelector<HTMLSelectElement>('.guests-panel select')?.focus());
+  };
+
   const updateRoom = (i: number, next: Partial<RoomInput>) => setRooms(rooms.map((r, j) => (i === j ? { ...r, ...next } : r)));
 
   async function submit(e: React.FormEvent) {
@@ -92,6 +113,7 @@ export function SearchForm({
     setBusy(true);
     try {
       const target = place.hotelId ? { hotelIds: [place.hotelId] } : { placeId: place.placeId };
+      const currency = savedCurrency(currencies) ?? (initial?.currency && currencies.includes(initial.currency) ? initial.currency : (currencies[0] ?? 'EUR'));
       const r = await api<{ sessionId: string }>('/api/v1/search/hotel', {
         method: 'POST',
         body: { target, checkin, checkout, rooms, nationality, currency, locale, ...(boardType ? { boardType } : {}) },
@@ -107,9 +129,13 @@ export function SearchForm({
 
   if (currencies.length === 0) return <p className="notice">{t.search.noCurrency}</p>;
 
+  const adults = rooms.reduce((n, r) => n + r.adults, 0);
+  const children = rooms.reduce((n, r) => n + r.childAges.length, 0);
+  const summary = t.search.guestsSummary(adults, children, rooms.length);
+
   return (
-    <form className="card search search-card" onSubmit={submit} noValidate aria-describedby={error ? 'search-error' : undefined}>
-      <div className="search-main">
+    <form className="card search search-card hotel-search" onSubmit={submit} noValidate aria-describedby={error ? 'search-error' : undefined}>
+      <div className="search-bar">
         <div className="field combo seg seg-dest">
           <label htmlFor={ids.dest}>
             <MapPin />
@@ -144,7 +170,9 @@ export function SearchForm({
             }}
             required
           />
-          <small id={ids.hint}>{t.search.destinationHint}</small>
+          <small id={ids.hint} className="visually-hidden">
+            {t.search.destinationHint}
+          </small>
           {suggestions.length > 0 && (
             <ul id={ids.list} role="listbox" className="suggestions">
               {suggestions.map((s, i) => (
@@ -156,121 +184,136 @@ export function SearchForm({
             </ul>
           )}
         </div>
-        <div className="seg-dates">
-          <div className="field seg">
-            <label htmlFor="checkin">
-              <CalendarDays />
-              {t.search.checkin}
-            </label>
-            <input id="checkin" type="date" value={checkin} min={today} onChange={(e) => setCheckin(e.target.value)} required />
-          </div>
-          <div className="field seg">
-            <label htmlFor="checkout">
-              <CalendarDays />
-              {t.search.checkout}
-            </label>
-            <input id="checkout" type="date" value={checkout} min={checkin} onChange={(e) => setCheckout(e.target.value)} required />
-          </div>
+        <div className="field seg seg-in">
+          <label htmlFor="checkin">
+            <CalendarDays />
+            {t.search.checkin}
+          </label>
+          <input id="checkin" type="date" value={checkin} min={today} onChange={(e) => setCheckin(e.target.value)} required />
         </div>
-      </div>
-
-      <fieldset className="rooms">
-        <legend>
-          <Users />
-          {t.search.rooms}
-        </legend>
-        {rooms.map((room, i) => (
-          <div className="room" key={i}>
-            <span className="room-title">
-              {t.search.room} {i + 1}
+        <div className="field seg seg-out">
+          <label htmlFor="checkout">
+            <CalendarDays />
+            {t.search.checkout}
+          </label>
+          <input id="checkout" type="date" value={checkout} min={checkin} onChange={(e) => setCheckout(e.target.value)} required />
+        </div>
+        <div className="seg seg-guests" ref={guestsRef}>
+          <button
+            ref={guestsButton}
+            type="button"
+            className="guests-toggle"
+            aria-expanded={guestsOpen}
+            aria-controls={ids.panel}
+            onClick={() => (guestsOpen ? setGuestsOpen(false) : openGuests())}
+          >
+            <span className="seg-label">
+              <Users />
+              {t.search.guests}
             </span>
-            <div className="field">
-              <label htmlFor={`adults-${i}`}>{t.search.adults}</label>
-              <select id={`adults-${i}`} value={room.adults} onChange={(e) => updateRoom(i, { adults: Number(e.target.value) })}>
-                {[1, 2, 3, 4, 5, 6].map((n) => (
-                  <option key={n}>{n}</option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor={`children-${i}`}>{t.search.children}</label>
-              <select
-                id={`children-${i}`}
-                value={room.childAges.length}
-                onChange={(e) => {
-                  const n = Number(e.target.value);
-                  updateRoom(i, { childAges: Array.from({ length: n }, (_, k) => room.childAges[k] ?? 8) });
-                }}
-              >
-                {[0, 1, 2, 3, 4].map((n) => (
-                  <option key={n}>{n}</option>
-                ))}
-              </select>
-            </div>
-            {room.childAges.map((age, k) => (
-              <div className="field small" key={k}>
-                <label htmlFor={`age-${i}-${k}`}>
-                  {t.search.childAge} {k + 1}
-                </label>
-                <select id={`age-${i}-${k}`} value={age} onChange={(e) => updateRoom(i, { childAges: room.childAges.map((a, m) => (m === k ? Number(e.target.value) : a)) })}>
-                  {Array.from({ length: 18 }, (_, n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
+            <span className="seg-value" title={summary}>
+              {summary}
+            </span>
+            <ChevronDown className="seg-chevron" />
+          </button>
+          <div
+            id={ids.panel}
+            className="guests-panel"
+            role="dialog"
+            aria-label={t.search.guests}
+            hidden={!guestsOpen}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.stopPropagation();
+                closeGuests();
+              }
+            }}
+          >
+            {rooms.map((room, i) => (
+              <div className="guest-room" key={i}>
+                <span className="guest-room-title">
+                  {t.search.room} {i + 1}
+                </span>
+                <div className="field">
+                  <label htmlFor={`adults-${i}`}>{t.search.adults}</label>
+                  <select id={`adults-${i}`} value={room.adults} onChange={(e) => updateRoom(i, { adults: Number(e.target.value) })}>
+                    {[1, 2, 3, 4, 5, 6].map((n) => (
+                      <option key={n}>{n}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor={`children-${i}`}>{t.search.children}</label>
+                  <select
+                    id={`children-${i}`}
+                    value={room.childAges.length}
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      updateRoom(i, { childAges: Array.from({ length: n }, (_, k) => room.childAges[k] ?? 8) });
+                    }}
+                  >
+                    {[0, 1, 2, 3, 4].map((n) => (
+                      <option key={n}>{n}</option>
+                    ))}
+                  </select>
+                </div>
+                {room.childAges.length > 0 && (
+                  <div className="guest-ages">
+                    {room.childAges.map((age, k) => (
+                      <div className="field" key={k}>
+                        <label htmlFor={`age-${i}-${k}`}>
+                          {t.search.childAge} {k + 1}
+                        </label>
+                        <select id={`age-${i}-${k}`} value={age} onChange={(e) => updateRoom(i, { childAges: room.childAges.map((a, m) => (m === k ? Number(e.target.value) : a)) })}>
+                          {Array.from({ length: 18 }, (_, n) => (
+                            <option key={n} value={n}>
+                              {n}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {rooms.length > 1 && (
+                  <button type="button" className="link guest-remove" onClick={() => setRooms(rooms.filter((_, j) => j !== i))}>
+                    {t.search.removeRoom}
+                  </button>
+                )}
               </div>
             ))}
-            {rooms.length > 1 && (
-              <button type="button" className="link" onClick={() => setRooms(rooms.filter((_, j) => j !== i))}>
-                {t.search.removeRoom}
+            <div className="guests-foot">
+              {rooms.length < 5 ? (
+                <button type="button" className="secondary small" onClick={() => setRooms([...rooms, { adults: 2, childAges: [] }])}>
+                  <Plus />
+                  {t.search.addRoom}
+                </button>
+              ) : (
+                <span />
+              )}
+              <button type="button" className="secondary small" onClick={closeGuests}>
+                {t.search.done}
               </button>
-            )}
+            </div>
           </div>
-        ))}
-        {rooms.length < 5 && (
-          <button type="button" className="secondary small add-room" onClick={() => setRooms([...rooms, { adults: 2, childAges: [] }])}>
-            <Plus />
-            {t.search.addRoom}
+        </div>
+        <div className="seg-go">
+          <button type="submit" className="primary search-submit" disabled={busy}>
+            <Search />
+            {busy ? t.search.searching : t.search.submit}
           </button>
-        )}
-      </fieldset>
+        </div>
+      </div>
       {initial?.boardType && (
         <label className="check">
           <input type="checkbox" checked={boardType !== null} onChange={(e) => setBoardType(e.target.checked ? (initial.boardType ?? null) : null)} /> {t.search.onlyBoard(boardLabel(initial.boardType, null, locale) ?? initial.boardType)}
         </label>
       )}
-
-      <div className="search-foot">
-        <div className="field">
-          <label htmlFor={ids.nat}>{t.search.nationality}</label>
-          <select id={ids.nat} value={nationality} onChange={(e) => setNationality(e.target.value)} aria-describedby="nat-hint">
-            {countries.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <small id="nat-hint">{t.search.nationalityHint}</small>
-        </div>
-        <div className="field">
-          <label htmlFor="currency">{t.search.currency}</label>
-          <select id="currency" value={currency} onChange={(e) => setCurrency(e.target.value)}>
-            {currencies.map((c) => (
-              <option key={c}>{c}</option>
-            ))}
-          </select>
-        </div>
-        <button type="submit" className="primary search-submit" disabled={busy}>
-          <Search />
-          {busy ? t.search.searching : t.search.submit}
-        </button>
-        {error && (
-          <p id="search-error" className="error" role="alert">
-            {error}
-          </p>
-        )}
-      </div>
+      {error && (
+        <p id="search-error" className="error" role="alert">
+          {error}
+        </p>
+      )}
     </form>
   );
 }

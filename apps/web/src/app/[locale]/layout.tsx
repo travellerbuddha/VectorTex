@@ -10,7 +10,8 @@ import { ConsentManager, ConsentReopen } from '../../components/tracking/Consent
 import { COOKIE_POLICY_DIR } from '../../components/tracking/cookie-registry';
 import { BrandMark } from '../../components/ui/Art';
 import { ProductNav } from '../../components/ui/ProductNav';
-import { Globe, UserRound } from 'lucide-react';
+import { LocaleCurrency } from '../../components/ui/LocaleCurrency';
+import { UserRound } from 'lucide-react';
 import '@fontsource-variable/inter';
 import '@fontsource-variable/bricolage-grotesque';
 import './globals.css';
@@ -44,10 +45,11 @@ export default async function LocaleLayout({ children, params }: { children: Rea
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
   const t = dict(locale);
-  const other = locale === 'tr' ? 'en' : 'tr';
   // Menu and footer entered in the CMS (P06); the booking pages work the same without them.
   const chrome = await siteChrome(locale);
   const flightsOpen = await flightSalesOpen();
+  const currencyNames = new Intl.DisplayNames([locale], { type: 'currency' });
+  const currencies = (await saleCurrencies()).map((code) => ({ code, name: currencyNames.of(code) ?? code }));
   const tracking = await trackingSettings(locale);
   const tags = tracking && (tracking.gtm || tracking.ga4) ? tracking : null;
   return (
@@ -82,10 +84,17 @@ export default async function LocaleLayout({ children, params }: { children: Rea
                 <UserRound />
                 <span className="account-label">{t.account.nav}</span>
               </a>
-              <a className="lang" href={`/${other}`} hrefLang={other} lang={other}>
-                <Globe />
-                {other.toUpperCase()}
-              </a>
+              <LocaleCurrency
+                locale={locale}
+                label={t.nav.localeCurrency}
+                languageLabel={t.nav.language}
+                currencyLabel={t.search.currency}
+                languages={[
+                  { code: 'tr', name: 'Türkçe', href: '/tr' },
+                  { code: 'en', name: 'English', href: '/en' },
+                ]}
+                currencies={currencies}
+              />
             </div>
           </div>
         </header>
@@ -134,6 +143,14 @@ export default async function LocaleLayout({ children, params }: { children: Rea
 }
 
 /** Flights appear in the menu once sales are open (approved FLIGHT rule, open route); never breaks other pages. */
+async function saleCurrencies(): Promise<string[]> {
+  try {
+    return await (await booking()).app.availableCurrencies();
+  } catch {
+    return [];
+  }
+}
+
 async function flightSalesOpen(): Promise<boolean> {
   try {
     return (await (await booking()).app.availableFlightCurrencies()).length > 0;

@@ -5,7 +5,7 @@ export const isLocale = (v: string): v is Locale => (LOCALES as readonly string[
 const tr = {
   brand: 'TexHoliday',
   notFound: { title: 'Sayfa bulunamadı', text: 'Aradığınız sayfa taşınmış ya da kaldırılmış olabilir.', home: 'Ana sayfaya dön' },
-  nav: { hotels: 'Otel', flights: 'Uçak', tours: 'Tur/Aktivite', transfers: 'Transfer', packages: 'Paket Oluştur', soon: 'Yakında' },
+  nav: { hotels: 'Otel', flights: 'Uçak', tours: 'Tur/Aktivite', transfers: 'Transfer', packages: 'Paket Oluştur', soon: 'Yakında', localeCurrency: 'Dil ve döviz', language: 'Dil' },
   search: {
     title: 'Otel arayın',
     destination: 'Nereye?',
@@ -22,8 +22,9 @@ const tr = {
     childAge: 'Çocuk yaşı',
     addRoom: 'Oda ekle',
     removeRoom: 'Odayı kaldır',
-    nationality: 'Misafir uyruğu',
-    nationalityHint: 'Fiyatlar uyruğa göre değişebilir; konaklayacak misafirin uyruğunu seçin.',
+    guests: 'Misafirler',
+    guestsSummary: (adults: number, children: number, rooms: number) => `${adults} yetişkin${children ? `, ${children} çocuk` : ''} · ${rooms} oda`,
+    done: 'Tamam',
     currency: 'Para birimi',
     submit: 'Ara',
     searching: 'Aranıyor…',
@@ -207,6 +208,9 @@ const tr = {
     seatsLeft: (n: number) => `Son ${n} koltuk`,
     priceChanged: (from: string) => `Havayolu fiyatı arama sonrasında değişti (önceki fiyat: ${from}). Lütfen yeni fiyatı kontrol edin.`,
     passengers: 'Yolcular',
+    tripType: 'Yolculuk türü',
+    paxSummary: (adults: number, children: number, infants: number, cabin: string | null) =>
+      `${adults} yetişkin${children ? `, ${children} çocuk` : ''}${infants ? `, ${infants} bebek` : ''}${cabin ? ` · ${cabin}` : ''}`,
     pax: (a: number, c: number, i: number) => [`${a} yetişkin`, c ? `${c} çocuk` : '', i ? `${i} bebek` : ''].filter(Boolean).join(', '),
     checkoutTitle: 'Yolcu bilgileri',
     contact: 'İletişim bilgileri',
@@ -343,7 +347,7 @@ type Dict = typeof tr;
 const en: Dict = {
   brand: 'TexHoliday',
   notFound: { title: 'Page not found', text: 'The page you are looking for may have moved or been removed.', home: 'Back to the home page' },
-  nav: { hotels: 'Hotels', flights: 'Flights', tours: 'Tours & Activities', transfers: 'Transfers', packages: 'Build a Package', soon: 'Coming soon' },
+  nav: { hotels: 'Hotels', flights: 'Flights', tours: 'Tours & Activities', transfers: 'Transfers', packages: 'Build a Package', soon: 'Coming soon', localeCurrency: 'Language and currency', language: 'Language' },
   search: {
     title: 'Find a hotel',
     destination: 'Where to?',
@@ -360,8 +364,10 @@ const en: Dict = {
     childAge: 'Child age',
     addRoom: 'Add room',
     removeRoom: 'Remove room',
-    nationality: 'Guest nationality',
-    nationalityHint: 'Prices can depend on nationality; choose the nationality of the staying guest.',
+    guests: 'Guests',
+    guestsSummary: (adults: number, children: number, rooms: number) =>
+      `${adults} ${adults === 1 ? 'adult' : 'adults'}${children ? `, ${children} ${children === 1 ? 'child' : 'children'}` : ''} · ${rooms} ${rooms === 1 ? 'room' : 'rooms'}`,
+    done: 'Done',
     currency: 'Currency',
     submit: 'Search',
     searching: 'Searching…',
@@ -546,6 +552,9 @@ const en: Dict = {
     seatsLeft: (n: number) => `${n} seat${n === 1 ? '' : 's'} left`,
     priceChanged: (from: string) => `The airline price changed after your search (was ${from}). Please check the new price.`,
     passengers: 'Passengers',
+    tripType: 'Trip type',
+    paxSummary: (adults: number, children: number, infants: number, cabin: string | null) =>
+      `${adults} ${adults === 1 ? 'adult' : 'adults'}${children ? `, ${children} ${children === 1 ? 'child' : 'children'}` : ''}${infants ? `, ${infants} ${infants === 1 ? 'infant' : 'infants'}` : ''}${cabin ? ` · ${cabin}` : ''}`,
     pax: (a: number, c: number, i: number) => [`${a} adult${a === 1 ? '' : 's'}`, c ? `${c} child${c === 1 ? '' : 'ren'}` : '', i ? `${i} infant${i === 1 ? '' : 's'}` : ''].filter(Boolean).join(', '),
     checkoutTitle: 'Passenger details',
     contact: 'Contact details',

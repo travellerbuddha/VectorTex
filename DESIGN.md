@@ -40,7 +40,10 @@ Bütün metin/zemin çiftleri WCAG AA (4,5:1) geçer; koyu zeminde odak halkası
 
 - Köşe: 8 / 14 / 20 px. Kart gölgesi hafif (`--shadow-1`), yüzen öğeler (arama kartı, öneri listesi, çerez bandı) `--shadow-2`.
 - Delik ve çentik: `2px dashed` çizgi + zemin renginde 18 px yarım daireler (`.offer .price`, `.summary .total`, `.promise li`).
-- Arama kartı **bölmeli** bir çubuktur (`.search-main` + `.seg`): etiket küçük ve üstte, alan çerçevesiz; odakta bölme 3 px odak halkası alır.
+- Arama kartı **bölmeli** bir çubuktur (`.seg`): etiket küçük ve üstte, alan çerçevesiz; odakta bölme 3 px odak halkası alır. Otel aramasında (`.hotel-search` + `.search-bar`) geniş alanda tek satırdır: Nereye | Giriş | Çıkış | Misafirler | Ara; Ara çubuğun sağ ucunda bilet koçanı gibi durur. Düzen ekrana değil formun genişliğine bağlıdır (container query): otel sayfasının yan sütununda kendiliğinden dikey dizilir.
+- Odalar ve çocuk yaşları "Misafirler" bölmesinin açtığı panelde durur; panel kâğıt, 14 px köşe, `--shadow-2`, Escape/dışarı tıklama/Tamam ile kapanır. Misafir uyruğu sorulmaz (site dilinin pazarı gönderilir), para birimi formda değil üst bilgidedir.
+- Uçuş araması aynı çubuktur (`.hotel-search.flight-search`): üstte küçük "Gidiş-dönüş | Tek yön" seçimi (deniz rengi hap, kiremit değil), şeritte Nereden | Nereye | Gidiş | Dönüş | Yolcular | Ara; yolcu sayıları, yaşlar ve kabin "Yolcular" panelindedir. Para birimi yine üst bilgiden gelir; uçuşta satılmıyorsa ilk uçuş para birimi kullanılır.
+- Üst bilgideki dil düğmesi "TR · EUR" gösterir ve dil ile para birimini birlikte seçtiren paneli açar; seçilen para birimi çerezde (`th_currency`) durur ve her otel aramasında kullanılır.
 - Dokunma hedefi en az 44 px; birincil düğme 48–52 px.
 - Liste ve rehber kartları her yerde aynı **kartpostaldır** (`Postcard`, `components/ui/HotelBits.tsx`): CMS görseli ya da `HotelArt`, başlık ve kısa metin; kartın tamamı bağlantıdır. Ana sayfada yana kayar, dizin sayfalarında (`.postcards-grid`) satır satır dizilir.
 - Kart içindeki form grupları (`fieldset`) ikinci bir çerçeve almaz: başlık ve aralarında ince çizgi.

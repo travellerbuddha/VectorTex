@@ -47,6 +47,13 @@ export const COOKIES: readonly CookieEntry[] = [
     duration: d('15 dakika', '15 minutes'),
   },
   {
+    name: 'th_currency',
+    provider: 'TexHoliday',
+    category: 'necessary',
+    purpose: d('Üst bilgide seçtiğiniz para birimini hatırlar; otel aramaları bu para birimiyle yapılır.', 'Remembers the currency you chose in the header; hotel searches use it.'),
+    duration: d('1 yıl', '1 year'),
+  },
+  {
     name: '__stripe_mid, __stripe_sid',
     provider: 'Stripe (Nuitee ödeme formu)',
     category: 'necessary',

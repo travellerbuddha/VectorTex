@@ -31,9 +31,13 @@ test('flight booking with the provider-managed payment (MOCK): search → fare c
   await page.getByRole('option', { name: /IST · Istanbul/ }).click();
   await page.getByRole('combobox', { name: 'Nereye' }).fill('Antalya');
   await page.getByRole('option', { name: /AYT · Antalya/ }).click();
+  // Passengers and cabin sit behind the "Yolcular" segment; the currency comes from the header.
+  await page.getByRole('button', { name: /Yolcular/ }).click();
   await page.getByLabel('Çocuk (2–11)').selectOption('1');
   await page.getByLabel('Çocuk yaşı 1').selectOption('6');
-  await page.getByRole('button', { name: 'Ara' }).click();
+  await page.getByRole('button', { name: 'Tamam' }).click();
+  await expect(page.getByRole('button', { name: /Yolcular/ })).toContainText('1 yetişkin, 1 çocuk');
+  await page.getByRole('button', { name: 'Ara', exact: true }).click();
 
   await expect(page.getByRole('heading', { level: 1, name: 'Uçuşlar' })).toBeVisible();
   await expect(page.locator('.flight-offer')).toHaveCount(3);
