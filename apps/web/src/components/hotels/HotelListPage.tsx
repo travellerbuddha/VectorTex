@@ -41,9 +41,9 @@ export function PriceBlock({ price, locale }: { price: ListedPrice; locale: Loca
   return (
     <div className="list-price">
       <span className="muted">{t.lowest}</span> <strong data-testid="list-price">{formatMoney(price.amount, locale)}</strong>
-      <span className="muted small">
-        {' '}
-        · {t.conditions(formatDate(price.checkin, locale))}
+      {/* Its own line under the price: the terms the list price was found with. */}
+      <span className="muted small list-price-terms">
+        {t.conditions(formatDate(price.checkin, locale))}
         {board ? ` · ${board}` : ''} · {extras.length > 0 ? extras.join(' · ') : t.taxesIncluded}
       </span>
     </div>
@@ -146,6 +146,8 @@ export async function HotelListPage({ locale, slug }: { locale: Locale; slug: st
                     ))}
                   </ul>
                 )}
+              </div>
+              <div className="hotel-card-action">
                 {h.price && <PriceBlock price={h.price} locale={locale} />}
                 <a className="button primary" href={priceLink(locale, h, h.price, board)}>
                   {h.price ? t.lists.seePrices : t.lists.choose}

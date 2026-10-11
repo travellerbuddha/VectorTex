@@ -126,60 +126,64 @@ export default async function Results({ params, searchParams }: { params: Promis
             )}
             <ul className="hotels">
               {hotels.map((h, i) => (
-                <li key={h.hotelId} className="card hotel">
+                <li key={h.hotelId} className="hotel">
                   {/* Provider images are https-only; no next/image so hosts need no allow-list. */}
                   <HotelMedia hotelId={h.hotelId} photo={h.photo} eager={i === 0} />
                   <div className="hotel-body">
                     <div className="hotel-head">
-                      <div>
+                      <div className="hotel-id">
                         <h2>{h.name}</h2>
-                        <Stars stars={h.stars} locale={locale} />
-                        {h.address && (
-                          <p className="hotel-where">
-                            <MapPin />
-                            {h.address}
-                          </p>
-                        )}
+                        <p className="hotel-meta">
+                          <Stars stars={h.stars} locale={locale} />
+                          {h.address && (
+                            <span className="hotel-where">
+                              <MapPin />
+                              {h.address}
+                            </span>
+                          )}
+                        </p>
                       </div>
                       <RatingBadge rating={h.rating} locale={locale} />
                     </div>
                     <p className="from">
                       {t.results.forNights(view.nights)} {t.results.from} <strong>{formatMoney(h.from, locale)}</strong> <span className="muted">({t.results.total.toLowerCase()})</span>
                     </p>
-                    <h3 className="visually-hidden">{t.results.rooms}</h3>
-                    <ul className="offers">
-                      {h.offers.map((o) => {
-                        const board = boardLabel(o.boardType, o.boardName, locale);
-                        return (
-                          <li key={o.key} className="offer">
-                            <div className="offer-info">
-                              <p className="room-name">{o.roomName}</p>
+                  </div>
+                  <h3 className="visually-hidden">{t.results.rooms}</h3>
+                  <ul className="offers">
+                    {h.offers.map((o) => {
+                      const board = boardLabel(o.boardType, o.boardName, locale);
+                      return (
+                        <li key={o.key} className="offer">
+                          <div className="offer-info">
+                            <p className="room-name">{o.roomName}</p>
+                            <p className="offer-tags">
                               {board && (
-                                <p className="offer-board">
+                                <span className="tag tag-feature offer-board">
                                   <Coffee />
                                   {board}
-                                </p>
+                                </span>
                               )}
                               <CancellationLine c={o.cancellation} locale={locale} />
-                              {o.payAtProperty.length > 0 && (
-                                <p className="muted small">
-                                  {t.results.payAtProperty}: {o.payAtProperty.map((m) => formatMoney(m, locale)).join(' + ')}
-                                </p>
-                              )}
-                            </div>
-                            <div className="price">
-                              <strong>{formatMoney(o.total, locale)}</strong>
-                              <span className="muted">{t.results.total}</span>
-                              <span className="muted">
-                                {formatMoney(o.perNightAverage, locale)} {t.results.perNight}
-                              </span>
-                              <OfferButton locale={locale} sessionId={view.sessionId} offerKey={o.key} label={`${t.results.choose}: ${h.name} – ${o.roomName ?? ''}`} />
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
+                            </p>
+                            {o.payAtProperty.length > 0 && (
+                              <p className="muted small">
+                                {t.results.payAtProperty}: {o.payAtProperty.map((m) => formatMoney(m, locale)).join(' + ')}
+                              </p>
+                            )}
+                          </div>
+                          <div className="price">
+                            <strong>{formatMoney(o.total, locale)}</strong>
+                            <span className="muted">{t.results.total}</span>
+                            <span className="muted">
+                              {formatMoney(o.perNightAverage, locale)} {t.results.perNight}
+                            </span>
+                            <OfferButton locale={locale} sessionId={view.sessionId} offerKey={o.key} label={`${t.results.choose}: ${h.name} – ${o.roomName ?? ''}`} />
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
                 </li>
               ))}
             </ul>

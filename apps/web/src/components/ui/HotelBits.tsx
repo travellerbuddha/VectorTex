@@ -51,6 +51,25 @@ export function HotelMedia({ hotelId, photo, className, eager = false }: { hotel
   );
 }
 
+/** A list or guide picture: the CMS image when an editor uploaded one, else the postcard drawn from the seed, in the same box. */
+export function MediaSlot({
+  image,
+  seed,
+  className,
+  ...rest
+}: { image: { url: string } | null; seed: string; className?: string } & React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div className={`media-slot${className ? ` ${className}` : ''}`} {...rest}>
+      {image ? (
+        // eslint-disable-next-line @next/next/no-img-element -- CMS image
+        <img src={image.url} alt="" loading="lazy" decoding="async" />
+      ) : (
+        <HotelArt seed={seed} />
+      )}
+    </div>
+  );
+}
+
 /** A list or guide teaser: CMS image or a postcard from the seed; the whole card is the link. */
 export function Postcard({
   href,
@@ -71,14 +90,7 @@ export function Postcard({
 }) {
   return (
     <article className="postcard">
-      <div className="postcard-media">
-        {image ? (
-          // eslint-disable-next-line @next/next/no-img-element -- CMS image
-          <img src={image.url} alt="" loading="lazy" />
-        ) : (
-          <HotelArt seed={seed} />
-        )}
-      </div>
+      <MediaSlot image={image} seed={seed} className="postcard-media" />
       <div className="postcard-body">
         <H>
           <a href={href}>{title}</a>

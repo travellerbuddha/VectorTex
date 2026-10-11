@@ -51,7 +51,7 @@ export function ProductNav({
         );
       })}
       {extra.map((n) => (
-        <a key={`${n.href}-${n.text}`} href={n.href} aria-current={path === n.href ? 'page' : undefined}>
+        <a key={`${n.href}-${n.text}`} className="nav-page" href={n.href} aria-current={path === n.href ? 'page' : undefined}>
           {n.text}
         </a>
       ))}

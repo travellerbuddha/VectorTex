@@ -114,22 +114,24 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
           ))}
         </ol>
       </nav>
-      <header>
-        <h1>{c.name}</h1>
-        <p className="hotel-meta">
-          <Stars stars={c.stars} locale={locale} />
-          {c.address && (
-            <span className="hotel-where">
-              <MapPin />
-              {c.address}
-            </span>
-          )}
-        </p>
+      <header className="hotel-title">
+        <div>
+          <h1>{c.name}</h1>
+          <p className="hotel-meta">
+            <Stars stars={c.stars} locale={locale} />
+            {c.address && (
+              <span className="hotel-where">
+                <MapPin />
+                {c.address}
+              </span>
+            )}
+          </p>
+        </div>
         {c.rating !== null && c.reviewCount !== null && c.reviewCount > 0 && (
-          <>
+          <div className="hotel-rating">
             <RatingBadge rating={c.rating} reviews={c.reviewCount} locale={locale} />
             <p className="muted small">{t.lists.rating(nf(c.rating), nf(c.reviewCount))}</p>
-          </>
+          </div>
         )}
       </header>
       {c.images.length > 0 ? (
