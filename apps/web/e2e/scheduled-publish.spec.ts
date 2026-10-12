@@ -48,9 +48,9 @@ test('scheduled publishing: a publisher plans a page, it goes live when due; edi
   const drawer = page.getByRole('dialog');
   await drawer.getByRole('radio', { name: 'Publish', exact: true }).check({ force: true });
   const tomorrow = new Date(Date.now() + 86_400_000);
-  const dd = String(tomorrow.getDate()).padStart(2, '0');
-  const mm = String(tomorrow.getMonth() + 1).padStart(2, '0');
-  await drawer.getByRole('textbox').first().fill(`${dd}.${mm}.${tomorrow.getFullYear()} 10:00`);
+  // The drawer's picker reads its own format ("MMM d, yyyy h:mm a"); "dd.mm.yyyy" only parsed by luck when the day was <= 12.
+  const month = tomorrow.toLocaleString('en-US', { month: 'short' });
+  await drawer.getByRole('textbox').first().fill(`${month} ${tomorrow.getDate()}, ${tomorrow.getFullYear()} 10:00 AM`);
   await drawer.getByRole('textbox').first().press('Enter');
   await drawer.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText(/Scheduled successfully|Başarıyla planlandı/)).toBeVisible();
