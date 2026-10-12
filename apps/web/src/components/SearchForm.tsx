@@ -2,11 +2,13 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CalendarDays, ChevronDown, MapPin, Plus, Search, Users } from 'lucide-react';
+import { ChevronDown, MapPin, Plus, Search, Users } from 'lucide-react';
 import { dict, errorMessage, type Locale } from '../i18n/dictionaries';
 import { boardLabel } from '../i18n/format';
 import { api, ApiError } from './api';
 import { savedCurrency } from './currency-pref';
+import { DateRangeField } from './DateRangeField';
+import { Stepper } from './Stepper';
 
 interface Place {
   placeId: string;
@@ -98,7 +100,7 @@ export function SearchForm({
   };
   const openGuests = () => {
     setGuestsOpen(true);
-    requestAnimationFrame(() => guestsRef.current?.querySelector<HTMLSelectElement>('.guests-panel select')?.focus());
+    requestAnimationFrame(() => guestsRef.current?.querySelector<HTMLElement>('.guests-panel button:not([aria-disabled]), .guests-panel select')?.focus());
   };
 
   const updateRoom = (i: number, next: Partial<RoomInput>) => setRooms(rooms.map((r, j) => (i === j ? { ...r, ...next } : r)));
@@ -184,20 +186,17 @@ export function SearchForm({
             </ul>
           )}
         </div>
-        <div className="field seg seg-in">
-          <label htmlFor="checkin">
-            <CalendarDays />
-            {t.search.checkin}
-          </label>
-          <input id="checkin" type="date" value={checkin} min={today} onChange={(e) => setCheckin(e.target.value)} required />
-        </div>
-        <div className="field seg seg-out">
-          <label htmlFor="checkout">
-            <CalendarDays />
-            {t.search.checkout}
-          </label>
-          <input id="checkout" type="date" value={checkout} min={checkin} onChange={(e) => setCheckout(e.target.value)} required />
-        </div>
+        <DateRangeField
+          locale={locale}
+          today={today}
+          start={checkin}
+          end={checkout}
+          labels={{ start: t.search.checkin, end: t.search.checkout }}
+          onChange={(a, b) => {
+            setCheckin(a);
+            setCheckout(b);
+          }}
+        />
         <div className="seg seg-guests" ref={guestsRef}>
           <button
             ref={guestsButton}
@@ -234,29 +233,15 @@ export function SearchForm({
                 <span className="guest-room-title">
                   {t.search.room} {i + 1}
                 </span>
-                <div className="field">
-                  <label htmlFor={`adults-${i}`}>{t.search.adults}</label>
-                  <select id={`adults-${i}`} value={room.adults} onChange={(e) => updateRoom(i, { adults: Number(e.target.value) })}>
-                    {[1, 2, 3, 4, 5, 6].map((n) => (
-                      <option key={n}>{n}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field">
-                  <label htmlFor={`children-${i}`}>{t.search.children}</label>
-                  <select
-                    id={`children-${i}`}
-                    value={room.childAges.length}
-                    onChange={(e) => {
-                      const n = Number(e.target.value);
-                      updateRoom(i, { childAges: Array.from({ length: n }, (_, k) => room.childAges[k] ?? 8) });
-                    }}
-                  >
-                    {[0, 1, 2, 3, 4].map((n) => (
-                      <option key={n}>{n}</option>
-                    ))}
-                  </select>
-                </div>
+                <Stepper label={t.search.adults} value={room.adults} min={1} max={6} words={t.search} onChange={(n) => updateRoom(i, { adults: n })} />
+                <Stepper
+                  label={t.search.children}
+                  value={room.childAges.length}
+                  min={0}
+                  max={4}
+                  words={t.search}
+                  onChange={(n) => updateRoom(i, { childAges: Array.from({ length: n }, (_, k) => room.childAges[k] ?? 8) })}
+                />
                 {room.childAges.length > 0 && (
                   <div className="guest-ages">
                     {room.childAges.map((age, k) => (

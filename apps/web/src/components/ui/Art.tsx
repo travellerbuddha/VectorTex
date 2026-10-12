@@ -41,10 +41,13 @@ export function CoastScene({ className }: { className?: string }) {
         </linearGradient>
       </defs>
       <rect width="1600" height="560" fill="url(#coast-sky)" />
-      <rect width="1600" height="560" fill="url(#coast-glow)" />
-      <g className="coast-sun">
-        <circle cx="1000" cy="402" r="74" fill="#f4bb4a" />
-        <circle cx="1000" cy="402" r="74" fill="none" stroke="#fbd98c" strokeOpacity=".5" strokeWidth="10" />
+      <rect className="coast-glow" width="1600" height="560" fill="url(#coast-glow)" />
+      {/* The outer group carries the scroll-linked sunset, the inner one the load entrance (two animations, two elements). */}
+      <g className="coast-sunset">
+        <g className="coast-sun">
+          <circle cx="1000" cy="402" r="74" fill="#f4bb4a" />
+          <circle cx="1000" cy="402" r="74" fill="none" stroke="#fbd98c" strokeOpacity=".5" strokeWidth="10" />
+        </g>
       </g>
       {/* Far ridge: the Taurus behind the bay, paler with distance. */}
       <path

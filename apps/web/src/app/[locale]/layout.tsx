@@ -8,7 +8,7 @@ import { ACCOUNT_DIR } from '../../server/seo';
 import { CONSENT_BOOTSTRAP, trackingSettings } from '../../server/tracking';
 import { ConsentManager, ConsentReopen } from '../../components/tracking/ConsentManager';
 import { COOKIE_POLICY_DIR } from '../../components/tracking/cookie-registry';
-import { BrandMark } from '../../components/ui/Art';
+import { SiteMotion } from '../../components/ui/SiteMotion';
 import { ProductNav } from '../../components/ui/ProductNav';
 import { LocaleCurrency } from '../../components/ui/LocaleCurrency';
 import { UserRound } from 'lucide-react';
@@ -63,8 +63,8 @@ export default async function LocaleLayout({ children, params }: { children: Rea
         <header className="site-header">
           <div className="header-bar">
             <a className="brand" href={`/${locale}`}>
-              <BrandMark />
-              <span className="brand-word">{t.brand}</span>
+              {/* eslint-disable-next-line @next/next/no-img-element -- the official wordmark (SVG), sized by CSS */}
+              <img className="brand-wordmark" src="/brand/texholiday-wordmark.svg" alt={t.brand} width={134} height={26} />
             </a>
             <ProductNav
               label={locale === 'tr' ? 'Ürünler' : 'Products'}
@@ -100,16 +100,13 @@ export default async function LocaleLayout({ children, params }: { children: Rea
         </header>
         <main id="main">{children}</main>
         <footer className="site-footer">
-          <svg className="footer-wave" viewBox="0 0 1440 40" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-            <path d="M0 40V22c120-14 240-14 360 0s240 14 360 0 240-14 360 0 240 14 360 0V40Z" />
-          </svg>
           <div className="footer-inner">
-            <div className="footer-brand">
-              <a className="brand" href={`/${locale}`}>
-                <BrandMark />
-                <span className="brand-word">{t.brand}</span>
+            <div className="footer-top">
+              <a className="footer-brand" href={`/${locale}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- the official wordmark (SVG) */}
+                <img src="/brand/texholiday-wordmark.svg" alt={t.brand} width={144} height={28} />
               </a>
-              <p>{t.footerTagline}</p>
+              <p className="footer-tagline">{t.footerTagline}</p>
             </div>
             {chrome.footer && chrome.footer.columns.length > 0 && (
               <div className="footer-columns">
@@ -127,15 +124,20 @@ export default async function LocaleLayout({ children, params }: { children: Rea
                 ))}
               </div>
             )}
-          </div>
-          <div className="footer-bottom">
-            <p>{chrome.footer?.legal ?? t.footer}</p>
-            <p className="footer-legal-links">
-              <a href={`/${locale}/${COOKIE_POLICY_DIR[locale]}`}>{locale === 'tr' ? 'Çerez politikası' : 'Cookie policy'}</a>
-              {tags && <ConsentReopen label={locale === 'tr' ? 'Çerez tercihleri' : 'Cookie preferences'} />}
-            </p>
+            <div className="footer-mark" aria-hidden="true">
+              {/* eslint-disable-next-line @next/next/no-img-element -- the wordmark again, as the closing graphic */}
+              <img src="/brand/texholiday-wordmark.svg" alt="" width={1436} height={279} loading="lazy" data-reveal="stub" data-reveal-duration="900" />
+            </div>
+            <div className="footer-bottom">
+              <p>{chrome.footer?.legal ?? t.footer}</p>
+              <p className="footer-legal-links">
+                <a href={`/${locale}/${COOKIE_POLICY_DIR[locale]}`}>{locale === 'tr' ? 'Çerez politikası' : 'Cookie policy'}</a>
+                {tags && <ConsentReopen label={locale === 'tr' ? 'Çerez tercihleri' : 'Cookie preferences'} />}
+              </p>
+            </div>
           </div>
         </footer>
+        <SiteMotion />
         {tags && <ConsentManager locale={locale} gtm={tags.gtm} ga4={tags.ga4} mode={tags.mode} bannerText={tags.bannerText} privacyUrl={`/${locale}/${COOKIE_POLICY_DIR[locale]}`} />}
       </body>
     </html>

@@ -10,7 +10,7 @@ import { booking } from '../../server/booking';
 import { breadcrumbList, hotelPage as hotelMarkup, jsonLd } from '../../server/structured-data';
 import { SearchForm } from '../SearchForm';
 import { HotelArt } from '../ui/Art';
-import { RatingBadge, Stars } from '../ui/HotelBits';
+import { hotelTransition, RatingBadge, Stars } from '../ui/HotelBits';
 import { Clock, MapPin } from 'lucide-react';
 import { hotelPath, hubPath, listPath, PriceBlock } from './HotelListPage';
 
@@ -114,35 +114,37 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
           ))}
         </ol>
       </nav>
-      <header>
-        <h1>{c.name}</h1>
-        <p className="hotel-meta">
-          <Stars stars={c.stars} locale={locale} />
-          {c.address && (
-            <span className="hotel-where">
-              <MapPin />
-              {c.address}
-            </span>
-          )}
-        </p>
+      <header className="hotel-title">
+        <div>
+          <h1>{c.name}</h1>
+          <p className="hotel-meta">
+            <Stars stars={c.stars} locale={locale} />
+            {c.address && (
+              <span className="hotel-where">
+                <MapPin />
+                {c.address}
+              </span>
+            )}
+          </p>
+        </div>
         {c.rating !== null && c.reviewCount !== null && c.reviewCount > 0 && (
-          <>
+          <div className="hotel-rating">
             <RatingBadge rating={c.rating} reviews={c.reviewCount} locale={locale} />
             <p className="muted small">{t.lists.rating(nf(c.rating), nf(c.reviewCount))}</p>
-          </>
+          </div>
         )}
       </header>
       {c.images.length > 0 ? (
         <ul className={`gallery gallery-${galleryCount(c.images.length)}`} aria-label={c.name}>
           {c.images.slice(0, galleryCount(c.images.length)).map((img, i) => (
-            <li key={img.url}>
+            <li key={img.url} style={i === 0 ? hotelTransition(view.slug) : undefined}>
               {/* eslint-disable-next-line @next/next/no-img-element -- provider images are https-only; no host allow-list */}
               <img src={img.url} alt={img.caption ?? c.name} loading={i === 0 ? 'eager' : 'lazy'} />
             </li>
           ))}
         </ul>
       ) : (
-        <div className="hotel-art-hero">
+        <div className="hotel-art-hero" style={hotelTransition(view.slug)}>
           <HotelArt seed={view.hotelId} />
         </div>
       )}

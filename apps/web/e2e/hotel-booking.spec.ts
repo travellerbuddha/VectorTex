@@ -25,7 +25,7 @@ test('hotel booking with the provider-managed payment (MOCK): search → select 
   await page.getByRole('option', { name: /Antalya \(MOCK\)/ }).click();
   // Rooms and guests sit behind the "Misafirler" segment; no nationality or currency in the form.
   await page.getByRole('button', { name: /Misafirler/ }).click();
-  await page.getByLabel('Çocuk', { exact: true }).selectOption('1');
+  await page.getByRole('button', { name: 'Çocuk: artır' }).click();
   await page.getByLabel('Çocuk yaşı 1').selectOption('7');
   await page.getByRole('button', { name: 'Tamam' }).click();
   await expect(page.getByRole('button', { name: /Misafirler/ })).toContainText('2 yetişkin, 1 çocuk · 1 oda');

@@ -37,15 +37,37 @@ export function RatingBadge({ rating, locale, reviews }: { rating: number | null
   );
 }
 
+/** Shared-element name of a hotel's picture: the list card's photo becomes the hotel page's first gallery photo. */
+export const hotelTransition = (slug: string) => ({ viewTransitionName: `hotel-${slug.toLowerCase().replace(/[^a-z0-9-]/g, '-')}` }) as React.CSSProperties;
+
 /** The hotel's photo, or its postcard when the provider has none. */
-export function HotelMedia({ hotelId, photo, className, eager = false }: { hotelId: string; photo: string | null; className?: string; eager?: boolean }) {
+export function HotelMedia({ hotelId, photo, className, eager = false, style }: { hotelId: string; photo: string | null; className?: string; eager?: boolean; style?: React.CSSProperties }) {
   return (
-    <div className={`hotel-media${className ? ` ${className}` : ''}`}>
+    <div className={`hotel-media${className ? ` ${className}` : ''}`} style={style}>
       {photo ? (
         // eslint-disable-next-line @next/next/no-img-element -- provider images are https-only; no host allow-list
         <img src={photo} alt="" loading={eager ? 'eager' : 'lazy'} className="hotel-photo" />
       ) : (
         <HotelArt seed={hotelId} className="hotel-art" />
+      )}
+    </div>
+  );
+}
+
+/** A list or guide picture: the CMS image when an editor uploaded one, else the postcard drawn from the seed, in the same box. */
+export function MediaSlot({
+  image,
+  seed,
+  className,
+  ...rest
+}: { image: { url: string } | null; seed: string; className?: string } & React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div className={`media-slot${className ? ` ${className}` : ''}`} {...rest}>
+      {image ? (
+        // eslint-disable-next-line @next/next/no-img-element -- CMS image
+        <img src={image.url} alt="" loading="lazy" decoding="async" />
+      ) : (
+        <HotelArt seed={seed} />
       )}
     </div>
   );
@@ -71,14 +93,7 @@ export function Postcard({
 }) {
   return (
     <article className="postcard">
-      <div className="postcard-media">
-        {image ? (
-          // eslint-disable-next-line @next/next/no-img-element -- CMS image
-          <img src={image.url} alt="" loading="lazy" />
-        ) : (
-          <HotelArt seed={seed} />
-        )}
-      </div>
+      <MediaSlot image={image} seed={seed} className="postcard-media" />
       <div className="postcard-body">
         <H>
           <a href={href}>{title}</a>
