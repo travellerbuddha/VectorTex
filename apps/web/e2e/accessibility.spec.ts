@@ -10,6 +10,9 @@ import { signIn } from './admin-support';
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22a', 'wcag22aa'];
 
 async function audit(page: Page, name: string): Promise<string[]> {
+  // Audit the finished page: Next streams the metadata (the <title> among it) at the end of the response, so a slow
+  // server can still be sending it when the page's heading is already on screen.
+  await expect(page, `${name}: page title`).toHaveTitle(/\S/);
   // The Payload editor and the provider's payment component are third-party and audited by their makers.
   const result = await new AxeBuilder({ page }).withTags(TAGS).exclude('#nuitee-payment').analyze();
   // Rules really ran on this page (an empty result would hide a broken audit).
@@ -30,6 +33,8 @@ test('customer pages of the hotel flow have no automatically detectable WCAG A/A
   await page.getByRole('option', { name: /Antalya \(MOCK\)/ }).click();
   await page.getByRole('button', { name: 'Ara' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Sonuçlar' })).toBeVisible();
+  // The loading frame has the same heading: wait for the hotels themselves.
+  await expect(page.locator('ul.hotels').getByRole('link').first()).toBeVisible();
   found.push(...(await audit(page, 'search results')));
 
   await page.locator('ul.hotels').getByRole('link', { name: 'MOCK Kaleiçi Boutique' }).click();
