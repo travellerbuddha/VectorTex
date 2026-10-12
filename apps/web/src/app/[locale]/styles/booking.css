@@ -1,0 +1,509 @@
+/* ---------- Booking steps ---------- */
+/* Done steps are ticked in ink, the current one is coral; the line between steps fills as the booking moves on. */
+.steps {
+  list-style: none;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  display: flex;
+  gap: 0.25rem;
+}
+.steps li {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  position: relative;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  color: var(--ink-3);
+  text-align: center;
+}
+.steps li + li::before {
+  content: '';
+  position: absolute;
+  top: 13px;
+  right: calc(50% + 18px);
+  width: calc(100% - 36px);
+  height: 2px;
+  border-radius: 2px;
+  background: var(--line-2);
+}
+.steps li.done + li::before {
+  background: var(--ink);
+}
+.step-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--paper);
+  border: 1.5px solid var(--field);
+  color: var(--ink-2);
+  font-weight: 750;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+.step-dot svg.lucide {
+  width: 15px;
+  height: 15px;
+}
+.steps .done {
+  color: var(--ink-2);
+}
+.steps .done .step-dot {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+.steps .current .step-dot {
+  background: var(--coral-600);
+  border-color: var(--coral-600);
+  color: #fff;
+  box-shadow: 0 0 0 4px var(--coral-100);
+}
+.steps .current {
+  color: var(--ink);
+  font-weight: 750;
+}
+@media (min-width: 640px) {
+  .steps {
+    gap: 0;
+    max-width: 760px;
+  }
+  .steps li {
+    flex-direction: row;
+    justify-content: center;
+    gap: 0.55rem;
+    font-size: 0.9rem;
+  }
+  .steps li + li::before {
+    top: 13px;
+    right: auto;
+    left: -18%;
+    width: 36%;
+  }
+}
+
+/* ---------- Checkout, payment, order: the form or status on the left, the voucher on the right ---------- */
+.checkout > h1,
+.payment > h1,
+.order > h1,
+.extras > h1,
+.account > h1 {
+  font-size: clamp(1.75rem, 1.4rem + 1.2vw, 2.375rem);
+}
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+@media (min-width: 960px) {
+  .two-col {
+    grid-template-columns: minmax(0, 1.45fr) minmax(340px, 1fr);
+    gap: 1.75rem;
+  }
+  .two-col > .summary,
+  .two-col > .voucher-col {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    top: calc(var(--header-h) + 12px);
+  }
+  .two-col > :not(.summary):not(.voucher-col) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+}
+/* The voucher: what is being bought, exactly as stored on the server; the stay, a perforation, the total. */
+.summary {
+  padding: 0;
+  overflow: clip;
+  box-shadow: var(--shadow-1);
+}
+.summary > h2 {
+  margin: 0;
+  padding: 0.85rem 1.35rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.summary > h2 svg.lucide {
+  color: var(--coral-600);
+}
+.voucher-hotel {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 0.95rem;
+  padding: 1.1rem 1.35rem 0.5rem;
+  align-items: center;
+}
+.voucher-hotel .hotel-media {
+  aspect-ratio: 1;
+  border-radius: var(--r-md);
+}
+.summary .hotel-name {
+  font-weight: 750;
+  font-size: 1.1875rem;
+  letter-spacing: -0.02em;
+  line-height: 1.22;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.summary .hotel-name + .muted {
+  margin: 0.2rem 0 0;
+  font-size: 0.9rem;
+}
+.voucher-body {
+  padding: 0.25rem 1.35rem 1rem;
+}
+.voucher-body p {
+  margin: 0.55rem 0;
+}
+.voucher-dates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+  padding: 0.85rem 0;
+  border-block: 1px solid var(--line);
+}
+.voucher-dates div {
+  min-width: 0;
+}
+.voucher-dates dt {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+.voucher-dates dd {
+  margin: 0.1rem 0 0;
+  font-weight: 700;
+}
+.voucher-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+.voucher-line svg.lucide {
+  color: var(--ink-3);
+  margin-top: 0.15rem;
+}
+.total {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin: 0;
+  padding: 1.1rem 1.35rem 1.2rem;
+  background: var(--canvas);
+  border-top: 2px dashed var(--line-2);
+  font-weight: 650;
+}
+.summary .total::before,
+.summary .total::after {
+  content: '';
+  position: absolute;
+  top: -10px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--canvas);
+  border: 1px solid var(--line);
+}
+.summary .total::before {
+  left: -10px;
+  clip-path: inset(0 0 0 50%);
+}
+.summary .total::after {
+  right: -10px;
+  clip-path: inset(0 50% 0 0);
+}
+.total strong {
+  font-size: 1.625rem;
+  font-weight: 780;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+}
+.summary .total + .muted {
+  margin: 0;
+  padding: 0 1.35rem 1rem;
+  background: var(--canvas);
+  font-size: 0.9rem;
+}
+.summary > p:not(.total):not(.hotel-name),
+.summary > dl {
+  padding-inline: 1.35rem;
+}
+.checkout form > fieldset {
+  margin-bottom: 1.25rem;
+}
+.checkout .terms {
+  padding: 0.95rem 1.1rem;
+  background: var(--canvas);
+  border-radius: var(--r-lg);
+}
+.checkout .terms a {
+  white-space: nowrap;
+}
+.secure-note {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
+.secure-note svg.lucide {
+  color: var(--ok);
+  margin-top: 0.1rem;
+}
+.hold-note {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+  font-weight: 550;
+  margin: 0 0 0.85rem;
+}
+.hold-note svg.lucide {
+  color: var(--warn);
+}
+.checkout form button[type='submit'].primary,
+.extras form button[type='submit'].primary {
+  min-height: 52px;
+  padding-inline: 2rem;
+  font-size: 1.0625rem;
+}
+.payment-target {
+  min-height: 120px;
+}
+.mock {
+  border: 2px dashed var(--warn);
+  background: repeating-linear-gradient(-45deg, #fffaf0 0 12px, #fff 12px 24px);
+  box-shadow: none;
+}
+.mock h2 {
+  font-size: 1.0625rem;
+  color: var(--warn);
+}
+
+/* ---------- Order status ---------- */
+.status {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 1.35rem;
+}
+.status-head {
+  display: flex;
+  gap: 0.95rem;
+  align-items: flex-start;
+}
+.status-icon {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--canvas);
+  color: var(--ink-2);
+}
+.status-icon svg.lucide {
+  width: 26px;
+  height: 26px;
+}
+.status-confirmed .status-icon {
+  background: var(--ok-50);
+  color: var(--ok);
+}
+.status-cancelled .status-icon,
+.status-failed .status-icon,
+.status-expired .status-icon,
+.status-price_changed .status-icon {
+  background: var(--warn-50);
+  color: var(--warn);
+}
+.status-message {
+  font-size: 1.375rem;
+  font-weight: 760;
+  letter-spacing: -0.024em;
+  line-height: 1.25;
+  margin: 0.4rem 0 0.25rem;
+}
+.status-confirmed .status-message {
+  color: var(--ok);
+}
+.reference {
+  margin: 1rem 0 0;
+  padding: 0.95rem 1.1rem;
+  border: 2px dashed var(--coral-200);
+  border-radius: var(--r-lg);
+  background: var(--coral-50);
+}
+.reference strong {
+  display: block;
+  font-size: clamp(1.25rem, 0.95rem + 2.2vw, 1.625rem);
+  font-weight: 780;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  word-break: break-all;
+  font-variant-numeric: tabular-nums;
+}
+.status-checking {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--line-2);
+  border-top-color: var(--coral-600);
+}
+.cancel-booking {
+  margin-top: 1rem;
+}
+.cancel-booking h2 {
+  font-size: 1.1875rem;
+  margin-top: 0;
+}
+
+/* ---------- Account (ADR-0017) ---------- */
+.account-orders {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+.account-orders > li {
+  margin: 0;
+}
+.account-orders h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.125rem;
+  font-weight: 750;
+  letter-spacing: -0.015em;
+}
+.account-who {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+.account-who svg.lucide {
+  color: var(--coral-600);
+}
+.account .form {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 460px;
+  margin-top: 1rem;
+}
+.account .form button.primary {
+  width: 100%;
+}
+/* Account bookings as vouchers: details on the left, a perforated stub with the link on the right. */
+.offer.account-order {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  margin: 0;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+.account-order .offer-info {
+  padding: 1.1rem 1.25rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.account-order .offer-info p {
+  margin: 0;
+}
+.account-order .offer-info .tag {
+  align-self: flex-start;
+}
+.account-order .price {
+  position: relative;
+  padding: 1rem 1.25rem 1.15rem;
+  border-top: 2px dashed var(--line-2);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+  text-align: right;
+}
+.account-order .price::before,
+.account-order .price::after {
+  content: '';
+  position: absolute;
+  top: -10px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--canvas);
+  border: 1px solid var(--line);
+}
+.account-order .price::before {
+  left: -10px;
+  clip-path: inset(0 0 0 50%);
+}
+.account-order .price::after {
+  right: -10px;
+  clip-path: inset(0 50% 0 0);
+}
+.account-order .price a.button {
+  margin-top: 0.5rem;
+  width: 100%;
+}
+@media (min-width: 640px) {
+  .offer.account-order {
+    grid-template-columns: minmax(0, 1fr) 220px;
+  }
+  .account-order .price {
+    border-top: 0;
+    border-left: 2px dashed var(--line-2);
+    justify-content: center;
+  }
+  .account-order .price::before {
+    top: -10px;
+    left: -10px;
+    clip-path: inset(50% 0 0 0);
+  }
+  .account-order .price::after {
+    top: auto;
+    bottom: -10px;
+    left: -10px;
+    right: auto;
+    clip-path: inset(0 0 50% 0);
+  }
+}
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0.75rem 0;
+}
+.facts dt {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+.facts dd {
+  margin: 0;
+  font-weight: 650;
+}

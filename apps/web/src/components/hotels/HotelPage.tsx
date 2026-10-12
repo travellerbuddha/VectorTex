@@ -11,7 +11,7 @@ import { breadcrumbList, hotelPage as hotelMarkup, jsonLd } from '../../server/s
 import { SearchForm } from '../SearchForm';
 import { HotelArt } from '../ui/Art';
 import { hotelTransition, RatingBadge, Stars } from '../ui/HotelBits';
-import { Clock, MapPin } from 'lucide-react';
+import { Check, Clock, ListChecks, MapPin } from 'lucide-react';
 import { hotelPath, hubPath, listPath, PriceBlock } from './HotelListPage';
 
 /**
@@ -192,9 +192,12 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
           {c.facilities.length > 0 && (
             <section className="hotel-section">
               <h2>{t.lists.facilities}</h2>
-              <ul className="chips">
+              <ul className="amenities">
                 {c.facilities.map((f) => (
-                  <li key={f}>{f}</li>
+                  <li key={f}>
+                    <Check aria-hidden="true" />
+                    {f}
+                  </li>
                 ))}
               </ul>
             </section>
@@ -221,7 +224,7 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
           {c.nearby.length > 0 && (
             <section className="hotel-section">
               <h2>{t.lists.nearby}</h2>
-              <ul>
+              <ul className="nearby">
                 {c.nearby.map((n) => (
                   <li key={n.name}>
                     {n.name}
@@ -234,10 +237,13 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
           {view.lists.length > 0 && (
             <section className="hotel-section">
               <h2>{t.lists.inLists}</h2>
-              <ul>
+              <ul className="list-tags">
                 {view.lists.map((l) => (
                   <li key={l.cmsId}>
-                    <a href={listPath(locale, l.slug)}>{l.title}</a>
+                    <a className="tag-campaign" href={listPath(locale, l.slug)}>
+                      <ListChecks aria-hidden="true" />
+                      {l.title}
+                    </a>
                   </li>
                 ))}
               </ul>

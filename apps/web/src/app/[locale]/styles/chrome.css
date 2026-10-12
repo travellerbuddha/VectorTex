@@ -1,0 +1,600 @@
+/* ---------- Header ---------- */
+/* White, translucent, sticky at the top; a hairline appears once the page has scrolled ([data-scrolled]). Nothing in
+   it changes size or position on scroll, so the content under it never moves. */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgb(255 255 255 / 0.97);
+  color: var(--ink);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--t-med) var(--ease-out);
+}
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .site-header {
+    background: rgb(255 255 255 / 0.82);
+    -webkit-backdrop-filter: saturate(1.8) blur(18px);
+    backdrop-filter: saturate(1.8) blur(18px);
+  }
+}
+:root[data-scrolled] .site-header {
+  border-bottom-color: var(--line);
+}
+.header-bar {
+  max-width: var(--page);
+  margin: 0 auto;
+  padding: 6px var(--gutter) 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'brand actions' 'nav nav';
+  align-items: center;
+  column-gap: 0.75rem;
+}
+.brand {
+  grid-area: brand;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  text-decoration: none;
+}
+.brand-wordmark {
+  display: block;
+  width: auto;
+  height: 21px;
+  aspect-ratio: 134 / 26;
+}
+.products {
+  grid-area: nav;
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  white-space: nowrap;
+  margin: 0 calc(var(--gutter) * -1);
+  padding: 0 var(--gutter) 2px;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: var(--gutter);
+}
+.products::-webkit-scrollbar {
+  display: none;
+}
+.products::after {
+  content: '';
+  flex: 0 0 1px;
+}
+/* Each item keeps a 44px hit box; the current product is underlined in coral. */
+.products a,
+.products .nav-soon {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 0.7rem;
+  color: var(--ink-2);
+  font-weight: 600;
+  font-size: 0.9rem;
+  letter-spacing: -0.005em;
+  text-decoration: none;
+  scroll-snap-align: start;
+}
+.products a::after {
+  content: '';
+  position: absolute;
+  left: 0.7rem;
+  right: 0.7rem;
+  bottom: 4px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--coral-600);
+  transform: scaleX(0);
+  transition: transform var(--t-med) var(--ease-out);
+}
+.products a svg.lucide {
+  color: var(--ink-3);
+}
+.products a[aria-current] {
+  color: var(--ink);
+  font-weight: 700;
+}
+.products a[aria-current] svg.lucide {
+  color: var(--coral-600);
+}
+.products a[aria-current]::after {
+  transform: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .products a:hover {
+    color: var(--ink);
+  }
+  .products a:not([aria-current]):hover::after {
+    transform: none;
+    background: var(--line-2);
+  }
+}
+/* The editors' pages (lists, guides, FAQ) follow the products after a hairline. */
+.products .nav-page:not(.nav-page ~ .nav-page) {
+  margin-left: 0.6rem;
+}
+.products .nav-page:not(.nav-page ~ .nav-page)::before {
+  content: '';
+  position: absolute;
+  left: -0.35rem;
+  top: 50%;
+  width: 1px;
+  height: 18px;
+  margin-top: -9px;
+  background: var(--line-2);
+}
+.nav-soon {
+  color: var(--ink-3) !important;
+  cursor: default;
+}
+.nav-soon svg.lucide {
+  color: var(--ink-3);
+}
+/* The coming-soon products read as one muted group with a single badge; every item keeps its own badge for screen
+   readers. */
+.nav-soon:has(+ .nav-soon) .soon {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.soon {
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--ink-2);
+  background: var(--canvas);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+.header-actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.account-link,
+.lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  min-width: 44px;
+  justify-content: center;
+  padding: 0.25rem 0.8rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 650;
+  font-size: 0.9rem;
+  transition:
+    background-color var(--t-fast) var(--ease-out),
+    border-color var(--t-fast) var(--ease-out);
+}
+.lang {
+  border-color: var(--line-2);
+}
+.site-header button.lang {
+  font: inherit;
+  font-weight: 650;
+  font-size: 0.9rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.site-header button.lang:active {
+  transform: none;
+}
+.lang-chevron {
+  width: 0.95em !important;
+  height: 0.95em !important;
+  transition: transform var(--t-fast) var(--ease-out);
+}
+.lang[aria-expanded='true'] .lang-chevron {
+  transform: rotate(180deg);
+}
+.account-link:hover,
+.lang:hover,
+.lang[aria-expanded='true'] {
+  background: var(--canvas);
+  color: var(--ink);
+}
+.locale-currency {
+  position: relative;
+}
+@media (max-width: 399px) {
+  .lang > svg.lucide:first-child,
+  .lang-chevron {
+    display: none;
+  }
+}
+@media (max-width: 559px) {
+  .account-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .account-link {
+    padding: 0.25rem;
+  }
+}
+/* Wide: one 64px row, wordmark | products and pages | account and TR · EUR. */
+@media (min-width: 900px) {
+  .header-bar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'brand nav actions';
+    column-gap: 1.25rem;
+    padding-top: 0;
+    min-height: 64px;
+  }
+  .brand-wordmark {
+    height: 24px;
+  }
+  .products {
+    margin: 0;
+    padding: 0;
+    min-height: 64px;
+  }
+  .products a,
+  .products .nav-soon {
+    min-height: 64px;
+    padding: 0 0.6rem;
+  }
+  .products a::after {
+    left: 0.6rem;
+    right: 0.6rem;
+    bottom: 0;
+  }
+  .products svg.lucide {
+    display: none;
+  }
+}
+@media (min-width: 900px) and (max-width: 1199px) {
+  .account-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .account-link {
+    padding: 0.25rem;
+  }
+  .header-bar {
+    column-gap: 0.75rem;
+  }
+  .products a,
+  .products .nav-soon {
+    padding: 0 0.45rem;
+    font-size: 0.86rem;
+  }
+  .products a::after {
+    left: 0.45rem;
+    right: 0.45rem;
+  }
+}
+@media (min-width: 1200px) {
+  .products {
+    justify-content: safe center;
+  }
+}
+
+/* ---------- Floating panels (guests, passengers, calendar, language and currency) ---------- */
+/* White, 16px corners, the float shadow. They grow from the control they belong to (6px and 0.98); closing keeps them
+   on screen for the 140ms fade where display transitions exist, elsewhere they open and close at once. */
+.guests-panel,
+.lang-panel,
+.cal-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 30;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-3);
+  opacity: 1;
+  transform: none;
+  transform-origin: top right;
+  transition:
+    opacity 200ms var(--ease-out),
+    transform 200ms var(--ease-out),
+    display 200ms allow-discrete;
+}
+.guests-panel[hidden],
+.lang-panel[hidden],
+.cal-panel[hidden] {
+  display: none;
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+  transition-duration: 140ms;
+  transition-timing-function: ease-in;
+}
+@starting-style {
+  .guests-panel:not([hidden]),
+  .lang-panel:not([hidden]),
+  .cal-panel:not([hidden]) {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+
+/* Language and currency */
+.lang-panel {
+  width: min(300px, calc(100vw - 2 * var(--gutter)));
+  padding: 0.5rem;
+}
+.lang-group-label {
+  margin: 0;
+  padding: 0.4rem 0.65rem 0.3rem;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+.lang-options {
+  list-style: none;
+  margin: 0 0 0.35rem;
+  padding: 0 0 0.35rem;
+  border-bottom: 1px solid var(--line);
+}
+.lang-options a,
+.lang-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 44px;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--r-md);
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background-color var(--t-fast) ease-out;
+}
+.lang-options a:hover,
+.lang-option:hover {
+  background: var(--canvas);
+  color: var(--ink);
+}
+.lang-options a[aria-current],
+.lang-option:has(input:checked) {
+  background: var(--coral-50);
+  color: var(--ink);
+  font-weight: 650;
+}
+.lang-options svg.lucide,
+.lang-option svg.lucide {
+  margin-left: auto;
+  color: var(--coral-600);
+}
+.lang-currencies {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.lang-currencies legend {
+  padding: 0.4rem 0.65rem 0.3rem;
+}
+/* The radio stays in the a11y tree and keyboard order; the whole row is its label. */
+.lang-option {
+  position: relative;
+}
+.lang-option input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.lang-option:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.lang-option strong {
+  min-width: 2.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.lang-option span {
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
+
+/* ---------- Footer ---------- */
+/* A calm close on the grey canvas: wordmark and promise, the CMS link columns, then the legal line. */
+.site-footer {
+  margin-top: 4.5rem;
+  background: var(--canvas);
+  border-top: 1px solid var(--line);
+  color: var(--ink-2);
+}
+body:has(main > .results, main > .checkout, main > .payment, main > .order, main > .extras, main > .account) .site-footer {
+  background: var(--paper);
+}
+.footer-inner {
+  max-width: var(--page);
+  margin: 0 auto;
+  padding: 2.75rem var(--gutter) 1.5rem;
+}
+.footer-top {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem 2rem;
+}
+.footer-brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.footer-brand img {
+  display: block;
+  width: auto;
+  height: 24px;
+}
+.footer-tagline {
+  margin: 0;
+  max-width: 34ch;
+  color: var(--ink);
+  font-weight: 700;
+  font-size: clamp(1.0625rem, 0.95rem + 0.5vw, 1.375rem);
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.footer-columns {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 1.5rem 2rem;
+}
+.footer-columns strong {
+  color: var(--ink);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+.footer-columns ul {
+  list-style: none;
+  padding: 0;
+  margin: 0.35rem 0 0;
+  display: grid;
+}
+.footer-columns a,
+.footer-bottom a,
+.site-footer button.link {
+  color: var(--ink-2);
+  font-weight: 550;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.footer-columns a:hover,
+.footer-bottom a:hover,
+.site-footer button.link:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+.footer-bottom {
+  margin-top: 1.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 1.5rem;
+  align-items: center;
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+}
+.footer-bottom p {
+  margin: 0.25rem 0;
+}
+.footer-bottom a,
+.site-footer button.link {
+  font-size: 0.8125rem;
+}
+.footer-legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.25rem;
+  align-items: center;
+}
+@media (min-width: 760px) {
+  .footer-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1100px) {
+  .site-footer {
+    margin-top: 6rem;
+  }
+  .footer-inner {
+    padding: 3.5rem var(--gutter) 1.75rem;
+  }
+  .footer-columns {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 3rem;
+  }
+}
+
+/* ---------- Cookie consent (ADR-0018): accept and reject equally prominent ---------- */
+.consent {
+  position: fixed;
+  left: 1rem;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 50;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1.25rem 1.35rem;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-3);
+}
+.consent h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.125rem;
+  font-weight: 720;
+  letter-spacing: -0.015em;
+}
+.consent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+/* Accept and reject look the same: both dark pills (neither is the site's coral action). */
+.consent-btn {
+  min-height: 44px;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: #fff;
+  font-weight: 650;
+  cursor: pointer;
+}
+.consent-btn:hover {
+  background: #2a2d33;
+}
+.consent-btn.secondary {
+  background: var(--paper);
+  color: var(--ink);
+}
+.consent-btn.secondary:hover {
+  background: var(--canvas);
+}
+.consent-options {
+  border: 0;
+  padding: 0;
+  margin: 0 0 0.75rem;
+  display: grid;
+  gap: 0.35rem;
+}
+.consent-reopen {
+  font-size: 0.875rem;
+}

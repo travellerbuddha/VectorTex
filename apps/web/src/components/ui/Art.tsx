@@ -1,7 +1,7 @@
 /**
- * Authored artwork of the site (no stock images, no other brands' assets): the brand mark, the coast scene behind the
- * home search and the postcard drawn for a hotel without photos. All decorative (aria-hidden); server-rendered, so the
- * same input always draws the same picture on the server and in the browser.
+ * Authored artwork of the site (no stock images, no other brands' assets): the panel's brand mark, the coast scene
+ * next to the home search and the postcard drawn for a hotel without photos. All decorative (aria-hidden);
+ * server-rendered, so the same input always draws the same picture on the server and in the browser.
  */
 
 /** A holiday voucher: terracotta ticket with side notches, the sun setting into the sea. */
@@ -17,69 +17,68 @@ export function BrandMark({ size = 32 }: { size?: number }) {
 }
 
 /**
- * Evening on the Lycian coast: Taurus ridges, a sailing boat, the sun going down into the bay. Anchored to the bottom so
- * the horizon stays in view on short and narrow screens; the sea at the bottom matches the hero's own colour.
+ * Dusk on the Lycian coast: Taurus ridges, a gulet in the bay and the sun going down in the brand's coral. Drawn for a
+ * 6:5 frame and anchored to the bottom, so a wider frame (phones) keeps the horizon and the sun in view. Static on
+ * purpose: the frame has a fixed aspect ratio, so the picture keeps its proportions from the first paint on.
  */
 export function CoastScene({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 1600 560" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false">
+    <svg className={className} viewBox="0 0 1200 1000" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false">
       <defs>
-        <linearGradient id="coast-sky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#062a3a" />
-          <stop offset=".55" stopColor="#0b4f6c" />
-          <stop offset="1" stopColor="#2f7d8c" />
+        <linearGradient id="coast-sky" x1="0" y1="0" x2="0" y2="640" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#0e1b28" />
+          <stop offset=".42" stopColor="#1d3447" />
+          <stop offset=".7" stopColor="#4a4e62" />
+          <stop offset=".88" stopColor="#c6727a" />
+          <stop offset="1" stopColor="#f4ab92" />
         </linearGradient>
-        <radialGradient id="coast-glow" cx="1000" cy="400" r="420" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#f4bb4a" stopOpacity=".55" />
-          <stop offset=".35" stopColor="#e9895a" stopOpacity=".22" />
-          <stop offset="1" stopColor="#e9895a" stopOpacity="0" />
+        <radialGradient id="coast-glow" cx="780" cy="640" r="430" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#ff8a7a" stopOpacity=".6" />
+          <stop offset=".4" stopColor="#ff5757" stopOpacity=".18" />
+          <stop offset="1" stopColor="#ff5757" stopOpacity="0" />
         </radialGradient>
-        <linearGradient id="coast-sea" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#0d5a78" />
-          <stop offset=".45" stopColor="#083a50" />
-          <stop offset="1" stopColor="#062a3a" />
+        <linearGradient id="coast-sea" x1="0" y1="640" x2="0" y2="1000" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#2a3a4e" />
+          <stop offset=".35" stopColor="#152131" />
+          <stop offset="1" stopColor="#0b131c" />
         </linearGradient>
       </defs>
-      <rect width="1600" height="560" fill="url(#coast-sky)" />
-      <rect className="coast-glow" width="1600" height="560" fill="url(#coast-glow)" />
-      {/* The outer group carries the scroll-linked sunset, the inner one the load entrance (two animations, two elements). */}
-      <g className="coast-sunset">
-        <g className="coast-sun">
-          <circle cx="1000" cy="402" r="74" fill="#f4bb4a" />
-          <circle cx="1000" cy="402" r="74" fill="none" stroke="#fbd98c" strokeOpacity=".5" strokeWidth="10" />
-        </g>
-      </g>
-      {/* Far ridge: the Taurus behind the bay, paler with distance. */}
+      <rect width="1200" height="642" fill="url(#coast-sky)" />
+      <rect width="1200" height="642" fill="url(#coast-glow)" />
+      <circle cx="780" cy="640" r="92" fill="#ff5757" />
+      <circle cx="780" cy="640" r="92" fill="none" stroke="#ffb3a7" strokeOpacity=".45" strokeWidth="8" />
+      {/* Far ridge: the Taurus behind the bay, opening where the sun goes down. */}
       <path
-        d="M0 352 L70 318 L128 334 L196 286 L262 312 L330 262 L402 300 L468 276 L540 318 L610 298 L668 330 L742 304 L812 338 L880 352 L1130 360 L1190 334 L1250 346 L1318 300 L1384 318 L1446 282 L1520 312 L1600 296 V404 H0 Z"
-        fill="#11607f"
-        fillOpacity=".85"
+        d="M0 520 L60 500 L120 512 L190 470 L260 498 L330 452 L410 492 L480 476 L540 520 L600 566 L650 612 L700 630 L900 632 L950 604 L1010 560 L1070 522 L1130 536 L1200 502 V642 H0 Z"
+        fill="#2b3950"
       />
       {/* Near headlands, left and right of the bay. */}
-      <path d="M0 330 L54 312 L118 340 L170 322 L236 356 L300 346 L372 372 L452 380 L540 396 L612 404 H0 Z" fill="#0a3a50" />
-      <path d="M1600 338 L1540 350 L1488 334 L1430 362 L1372 372 L1300 388 L1220 404 H1600 Z" fill="#0a3a50" />
-      <rect y="402" width="1600" height="158" fill="url(#coast-sea)" />
+      <path d="M0 560 L70 548 L150 572 L230 566 L310 594 L400 612 L480 626 L560 636 L600 642 H0 Z" fill="#172233" />
+      <path d="M1200 566 L1130 580 L1060 602 L1000 622 L960 634 L930 642 H1200 Z" fill="#172233" />
+      <rect y="640" width="1200" height="360" fill="url(#coast-sea)" />
+      <rect y="638" width="1200" height="3" fill="#ffb39a" fillOpacity=".35" />
       {/* Light on the water under the sun, narrowing towards the shore. */}
-      <g className="coast-glitter" stroke="#f4bb4a" strokeLinecap="round">
-        <path d="M930 414 H1070" strokeWidth="5" strokeOpacity=".75" />
-        <path d="M948 428 H1046" strokeWidth="4" strokeOpacity=".6" />
-        <path d="M904 442 H968 M992 442 H1094" strokeWidth="3.5" strokeOpacity=".45" />
-        <path d="M962 458 H1036" strokeWidth="3" strokeOpacity=".4" />
-        <path d="M928 476 H974 M1010 476 H1068" strokeWidth="2.5" strokeOpacity=".3" />
-        <path d="M976 496 H1024" strokeWidth="2" strokeOpacity=".25" />
+      <g stroke="#ff8f84" strokeLinecap="round">
+        <path d="M676 656 H884" strokeWidth="6" strokeOpacity=".75" />
+        <path d="M700 676 H860" strokeWidth="5" strokeOpacity=".6" />
+        <path d="M660 698 H750 M786 698 H900" strokeWidth="4.5" strokeOpacity=".45" />
+        <path d="M722 722 H838" strokeWidth="4" strokeOpacity=".38" />
+        <path d="M690 750 H760 M800 750 H872" strokeWidth="3.5" strokeOpacity=".3" />
+        <path d="M744 782 H816" strokeWidth="3" strokeOpacity=".24" />
+        <path d="M762 818 H798" strokeWidth="2.5" strokeOpacity=".18" />
       </g>
-      <g stroke="#3d8fa6" strokeOpacity=".35" strokeWidth="2" fill="none" strokeLinecap="round">
-        <path d="M120 446 c30-8 60-8 90 0 s60 8 90 0" />
-        <path d="M420 486 c30-8 60-8 90 0 s60 8 90 0" />
-        <path d="M1280 456 c30-8 60-8 90 0 s60 8 90 0" />
-        <path d="M1380 512 c30-8 60-8 90 0" />
+      <g stroke="#3d5169" strokeOpacity=".45" strokeWidth="2.5" fill="none" strokeLinecap="round">
+        <path d="M80 720 c36 -10 72 -10 108 0 s72 10 108 0" />
+        <path d="M150 840 c36 -10 72 -10 108 0 s72 10 108 0" />
+        <path d="M940 760 c36 -10 72 -10 108 0 s72 10 108 0" />
+        <path d="M1010 900 c36 -10 72 -10 108 0" />
       </g>
       {/* A gulet crossing the bay. */}
-      <g fill="#062a3a">
-        <path d="M770 398 h86 l-12 12 h-64 Z" />
-        <path d="M806 396 V330 l32 64 Z" />
-        <path d="M802 396 V342 l-22 52 Z" />
-        <rect x="804" y="326" width="3" height="72" />
+      <g fill="#0b131c">
+        <path d="M286 668 h118 l-15 15 h-88 Z" />
+        <path d="M344 664 V588 l44 76 Z" />
+        <path d="M338 664 V604 l-32 60 Z" />
+        <rect x="340" y="582" width="4" height="86" />
       </g>
     </svg>
   );
@@ -106,7 +105,7 @@ const PALETTES = [
   // Noon: pale sky, deep bay.
   { sky: '#cfe8ee', sky2: '#e8f4f7', sun: '#f4bb4a', far: '#8dbccb', near: '#3a87a2', sea: '#0b4f6c', sea2: '#0a3a50', ground: '#efe4cf', build: '#ffffff', shade: '#d9e6ea', win: '#0b4f6c', palm: '#245f52' },
   // Late afternoon: warm sky, terracotta sun.
-  { sky: '#f6d6b8', sky2: '#fbeadb', sun: '#d9653d', far: '#d0a090', near: '#93646a', sea: '#2c6079', sea2: '#1b4258', ground: '#f1dcc0', build: '#fff8f0', shade: '#ecd9c6', win: '#93646a', palm: '#4f4a3a' },
+  { sky: '#f6d6b8', sky2: '#fbeadb', sun: '#ff5757', far: '#d0a090', near: '#93646a', sea: '#2c6079', sea2: '#1b4258', ground: '#f1dcc0', build: '#fff8f0', shade: '#ecd9c6', win: '#93646a', palm: '#4f4a3a' },
   // Evening: deep teal sky, lit windows.
   { sky: '#0b4f6c', sky2: '#2f7d8c', sun: '#f4bb4a', far: '#15607e', near: '#083a50', sea: '#062a3a', sea2: '#041f2b', ground: '#0a3a50', build: '#e5eff2', shade: '#b8cdd4', win: '#f4bb4a', palm: '#041f2b' },
   // Lagoon: turquoise shallows.

@@ -1,0 +1,496 @@
+/* ---------- Postcards: list and guide teasers (picture, title, one line); the whole card is the link ---------- */
+.postcards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1.75rem 1.5rem;
+}
+.postcards > li {
+  min-width: 0;
+}
+.postcards-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+}
+.postcard {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.media-slot {
+  overflow: hidden;
+  background: var(--canvas-2);
+}
+.media-slot > img,
+.media-slot > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.postcard-media {
+  aspect-ratio: 16 / 10;
+  border-radius: var(--r-xl);
+  transition: box-shadow var(--t-med) var(--ease-out);
+}
+.postcard-body {
+  padding: 0.9rem 0.1rem 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 0;
+}
+.mosaic .postcard-body,
+.articles .postcard-body {
+  padding: 0;
+}
+.postcard :is(h2, h3) {
+  margin: 0;
+  font-size: 1.1875rem;
+  font-weight: 730;
+  letter-spacing: -0.018em;
+  line-height: 1.25;
+}
+.postcard :is(h2, h3) a,
+.tile-title a {
+  color: var(--ink);
+  text-decoration: none;
+  /* The title link's own box reaches 44px; the negative margin keeps the text where it was. */
+  display: inline-block;
+  min-height: 44px;
+  padding-block: 0.7rem;
+  margin-block: -0.7rem;
+}
+.postcard :is(h2, h3) a::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: calc(var(--r-xl) + 4px);
+}
+.postcard :is(h2, h3) a:focus-visible {
+  outline: none;
+}
+.postcard :is(h2, h3) a:focus-visible::after {
+  outline: 2px solid var(--focus);
+}
+.postcard p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 0.975rem;
+}
+.postcard .postcard-meta {
+  font-size: 0.8125rem;
+  color: var(--ink-3);
+}
+@media (hover: hover) and (pointer: fine) {
+  .postcard:hover .postcard-media {
+    box-shadow: var(--shadow-2);
+  }
+  .postcard:hover :is(h2, h3) a {
+    text-decoration: underline;
+    text-decoration-color: var(--line-2);
+  }
+}
+
+/* ---------- Breadcrumbs ---------- */
+.breadcrumbs ol {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0;
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+}
+.breadcrumbs li + li::before {
+  content: '›';
+  margin-right: 0.3rem;
+  color: var(--ink-3);
+}
+.breadcrumbs a {
+  color: var(--ink-2);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+}
+.breadcrumbs a:hover {
+  color: var(--coral-700);
+  text-decoration: underline;
+}
+.breadcrumbs [aria-current] {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+/* ---------- Hotel list hub and list page ---------- */
+.hotel-list-hub > .lead,
+.guide-hub > .lead {
+  margin-bottom: 2rem;
+}
+.list-hero {
+  margin-bottom: 1.75rem;
+}
+.list-hero h1 {
+  margin-bottom: 0.5rem;
+}
+.list-hero .lead {
+  margin-bottom: 0.5rem;
+}
+.list-hero .cms-hero-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 380px;
+  object-fit: cover;
+  border-radius: var(--r-xl);
+  margin-bottom: 1.5rem;
+}
+.list-price {
+  margin: 0.75rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.4rem;
+}
+.list-price > .muted:first-child {
+  font-size: 0.875rem;
+}
+.list-price strong {
+  font-size: 1.375rem;
+  font-weight: 780;
+  letter-spacing: -0.025em;
+}
+.list-price-terms {
+  flex-basis: 100%;
+  line-height: 1.4;
+  margin-top: 0.15rem;
+  font-size: 0.8125rem !important;
+}
+.hotel-cards {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+  display: grid;
+  gap: 1rem;
+}
+/* List card: the comparison card's reading order; the list price and "Fiyatları gör" in their own column. */
+.hotel-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+  margin: 0;
+  overflow: clip;
+  transition:
+    border-color var(--t-med) ease-out,
+    box-shadow var(--t-med) ease-out;
+}
+@media (hover: hover) and (pointer: fine) {
+  .hotel-card:hover {
+    border-color: var(--line-2);
+    box-shadow: var(--shadow-2);
+  }
+}
+.hotel-card .hotel-media {
+  aspect-ratio: 16 / 9;
+}
+.hotel-card .hotel-body {
+  padding: 1rem 1.1rem 0.25rem;
+}
+.hotel-card .hotel-body h2 {
+  margin: 0 0 0.3rem;
+  font-size: 1.25rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+.hotel-card .hotel-body h2 a {
+  color: var(--ink);
+  text-decoration: none;
+}
+.hotel-card .hotel-body h2 a:hover {
+  color: var(--coral-700);
+  text-decoration: underline;
+}
+.hotel-card .hotel-body > .muted.small {
+  margin: 0.5rem 0;
+}
+.chips {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+.hotel-card-action {
+  padding: 0.25rem 1.1rem 1.1rem;
+}
+.hotel-card-action .list-price {
+  margin: 0 0 0.75rem;
+}
+@media (min-width: 720px) {
+  .hotel-card {
+    grid-template-columns: 260px minmax(0, 1fr) 240px;
+  }
+  .hotel-card .hotel-media {
+    aspect-ratio: auto;
+    min-height: 100%;
+  }
+  .hotel-card .hotel-body {
+    padding: 1.25rem 1.5rem;
+  }
+  .hotel-card-action {
+    padding: 1.25rem 1.5rem 1.25rem 1.25rem;
+    border-left: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: flex-end;
+    text-align: right;
+  }
+  .hotel-card-action .list-price {
+    justify-content: flex-end;
+  }
+}
+@media (min-width: 720px) and (max-width: 979px) {
+  .hotel-card {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+  .hotel-card .hotel-media {
+    grid-row: span 2;
+  }
+  .hotel-card-action {
+    grid-column: 2;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    align-items: flex-start;
+    text-align: left;
+  }
+  .hotel-card-action .list-price {
+    justify-content: flex-start;
+  }
+}
+
+/* ---------- Hotel page ---------- */
+.hotel-title {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem 2rem;
+  margin-bottom: 1.25rem;
+}
+.hotel-title h1 {
+  margin: 0 0 0.5rem;
+  font-size: clamp(2rem, 1.4rem + 2.2vw, 3.25rem);
+  letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
+}
+.hotel-title .hotel-meta {
+  margin: 0;
+}
+.hotel-rating {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: start;
+}
+.hotel-rating p {
+  margin: 0;
+}
+@media (min-width: 760px) {
+  .hotel-rating {
+    justify-items: end;
+    text-align: right;
+  }
+}
+.hotel-art-hero {
+  aspect-ratio: 21 / 9;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  margin-bottom: 1.75rem;
+}
+.hotel-art-hero svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* Gallery: one frame with soft outer corners and hairline gaps between photos; fixed proportions per layout. */
+.gallery {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 2rem;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, 1fr);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+}
+.gallery li {
+  overflow: hidden;
+  background: var(--canvas-2);
+}
+.gallery img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+.gallery li:first-child {
+  grid-column: 1 / -1;
+}
+.gallery li:first-child img {
+  aspect-ratio: 16 / 9;
+}
+.gallery-2 li:first-child {
+  grid-column: auto;
+}
+.gallery-2 li:first-child img {
+  aspect-ratio: 4 / 3;
+}
+/* Desktop mosaic without holes: 1 wide photo, 2 side by side, 3 = one large and two stacked, 5 = one large and four. */
+@media (min-width: 800px) {
+  .gallery {
+    height: clamp(360px, 36vw, 500px);
+  }
+  .gallery img,
+  .gallery li:first-child img {
+    aspect-ratio: auto;
+  }
+  .gallery-1 {
+    grid-template-columns: 1fr;
+  }
+  .gallery-2 {
+    grid-template-columns: 3fr 2fr;
+  }
+  .gallery-3 {
+    grid-template-columns: 2fr 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+  .gallery-5 {
+    grid-template-columns: 2fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+  .gallery-3 li:first-child,
+  .gallery-5 li:first-child {
+    grid-column: auto;
+    grid-row: span 2;
+  }
+  .gallery li {
+    min-height: 0;
+  }
+}
+.hotel-page-layout {
+  display: grid;
+  gap: 2rem;
+  align-items: start;
+}
+@media (min-width: 980px) {
+  .hotel-page-layout {
+    grid-template-columns: minmax(0, 1fr) 400px;
+    gap: 3.5rem;
+  }
+  .hotel-page-layout .book-box {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    top: calc(var(--header-h) + 12px);
+  }
+  .hotel-page-layout .hotel-main {
+    grid-column: 1;
+    grid-row: 1;
+  }
+}
+.book-box {
+  margin: 0;
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-3);
+}
+.book-box h2 {
+  font-size: 1.1875rem;
+  font-weight: 750;
+  letter-spacing: -0.018em;
+}
+.book-box .search-card {
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  margin: 0.75rem 0 0;
+}
+.book-box > .muted.small {
+  margin: 0.5rem 0;
+}
+.hotel-main > .hotel-section:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.hotel-text {
+  max-width: 68ch;
+  font-size: 1.0625rem;
+  line-height: 1.65;
+}
+.hotel-section {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--line);
+}
+.hotel-section h2 {
+  font-size: clamp(1.375rem, 1.2rem + 0.5vw, 1.625rem);
+}
+.hotel-section .voucher-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.hotel-section .voucher-line svg.lucide {
+  color: var(--coral-600);
+}
+/* Facilities: a readable checklist in columns. */
+.amenities {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 0.7rem 1.5rem;
+}
+.amenities li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 550;
+}
+.amenities svg.lucide {
+  width: 22px;
+  height: 22px;
+  padding: 3px;
+  border-radius: 50%;
+  background: var(--coral-50);
+  color: var(--coral-700);
+  stroke-width: 2.25;
+}
+.nearby {
+  padding-left: 1.2rem;
+}
+.nearby li {
+  margin: 0.3rem 0;
+}
+.list-tags {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.list-tags .tag-campaign {
+  min-height: 36px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.875rem;
+}

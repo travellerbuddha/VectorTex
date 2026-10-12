@@ -1,17 +1,16 @@
 import { isDomainError } from '@texholiday/contracts';
-import { CalendarDays, ChevronDown, Coffee, MapPin, SlidersHorizontal, Users } from 'lucide-react';
+import { CalendarDays, ChevronDown, Coffee, MapPin, SlidersHorizontal, Users, X } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import type { CSSProperties } from 'react';
 import { OfferButton } from '../../../../../components/OfferButton';
 import { CancellationLine } from '../../../../../components/QuoteSummary';
 import { OpenOnWide } from '../../../../../components/results/OpenOnWide';
-import { SortForm } from '../../../../../components/results/SortForm';
 import { SearchForm } from '../../../../../components/SearchForm';
 import { HotelMedia, RatingBadge, Stars } from '../../../../../components/ui/HotelBits';
 import { dict, type Locale } from '../../../../../i18n/dictionaries';
 import { boardLabel, formatDate, formatMoney } from '../../../../../i18n/format';
 import { booking } from '../../../../../server/booking';
-import { activeFilters, applyFilters, boardCounts, readFilters, type ResultFilters } from '../../../../../server/result-filters';
+import { activeFilters, applyFilters, boardCounts, filtersQuery, readFilters, type ResultFilters } from '../../../../../server/result-filters';
 import { TrackEvent } from '../../../../../components/tracking/TrackEvent';
 import { searchEcommerce } from '../../../../../server/analytics';
 
@@ -69,8 +68,19 @@ export default async function Results({ params, searchParams }: { params: Promis
   const filters = readFilters(sp);
   const hotels = applyFilters(view.hotels, filters, new Date());
   const kept = Object.fromEntries(SEARCH_KEYS.flatMap((k) => (one(k) ? [[k, one(k)!]] : [])));
-  const clearHref = `/${locale}/search/hotels/${sessionId}${Object.keys(kept).length ? `?${new URLSearchParams(kept).toString()}` : ''}`;
+  const base = `/${locale}/search/hotels/${sessionId}`;
+  const href = (f: ResultFilters) => {
+    const q = filtersQuery(kept, f);
+    return q ? `${base}?${q}` : base;
+  };
+  const clearHref = href({ free: false, boards: [], stars: null, sort: 'recommended' });
   const active = activeFilters(filters);
+  // Each active filter as a chip that removes only itself (the sort and the other filters stay).
+  const chips = [
+    ...(filters.free ? [{ key: 'free', text: t.results.freeCancel, href: href({ ...filters, free: false }) }] : []),
+    ...filters.boards.map((b) => ({ key: `board-${b}`, text: boardLabel(b, null, locale) ?? b, href: href({ ...filters, boards: filters.boards.filter((x) => x !== b) }) })),
+    ...(filters.stars ? [{ key: 'stars', text: filters.stars === 5 ? t.lists.stars(5) : t.results.minStars(filters.stars), href: href({ ...filters, stars: null }) }] : []),
+  ];
 
   return (
     <div className="page results">
@@ -79,7 +89,7 @@ export default async function Results({ params, searchParams }: { params: Promis
       <details className="refine">
         <summary>
           {place && (
-            <span className="refine-fact">
+            <span className="refine-fact refine-place">
               <MapPin />
               <strong>{place.name}</strong>
             </span>
@@ -100,21 +110,13 @@ export default async function Results({ params, searchParams }: { params: Promis
         {form}
       </details>
 
-      <div className="results-head">
-        <h1>{t.results.title}</h1>
-        {view.hotels.length > 0 && <p className="muted">{t.results.count(hotels.length)}</p>}
-        {view.hotels.length > 0 && (
-          <SortForm
-            label={t.results.sort}
-            value={filters.sort}
-            options={(['recommended', 'price', 'rating'] as const).map((v) => ({ value: v, text: t.results.sortBy[v]! }))}
-            hidden={[...Object.entries(kept), ...(filters.free ? [['free', '1'] as [string, string]] : []), ...filters.boards.map((b) => ['boards', b] as [string, string]), ...(filters.stars ? [['stars', String(filters.stars)] as [string, string]] : [])]}
-            submit={t.results.apply}
-          />
-        )}
-      </div>
       {view.hotels.length === 0 ? (
-        <p className="notice">{t.results.none}</p>
+        <>
+          <div className="results-head">
+            <h1>{t.results.title}</h1>
+          </div>
+          <p className="notice">{t.results.none}</p>
+        </>
       ) : (
         <div className="results-layout">
           <OpenOnWide
@@ -129,7 +131,38 @@ export default async function Results({ params, searchParams }: { params: Promis
           >
             <FilterForm locale={locale} filters={filters} kept={kept} boards={boardCounts(view.hotels)} clearHref={active > 0 || filters.sort !== 'recommended' ? clearHref : null} />
           </OpenOnWide>
-          <div>
+          <div className="results-main">
+            <div className="results-head">
+              <h1>{t.results.title}</h1>
+              <p className="results-count">{t.results.count(hotels.length)}</p>
+              <nav className="sort" aria-label={t.results.sort}>
+                <span className="sort-label" aria-hidden="true">
+                  {t.results.sort}
+                </span>
+                {(['recommended', 'price', 'rating'] as const).map((v) => (
+                  <a key={v} href={href({ ...filters, sort: v })} aria-current={filters.sort === v ? 'true' : undefined}>
+                    {t.results.sortBy[v]}
+                  </a>
+                ))}
+              </nav>
+            </div>
+            {chips.length > 0 && (
+              <ul className="filter-chips" aria-label={t.results.activeFilters}>
+                {chips.map((c) => (
+                  <li key={c.key}>
+                    <a href={c.href} aria-label={t.results.removeFilter(c.text)}>
+                      {c.text}
+                      <X />
+                    </a>
+                  </li>
+                ))}
+                <li>
+                  <a className="text-link" href={clearHref}>
+                    {t.results.clear}
+                  </a>
+                </li>
+              </ul>
+            )}
             {hotels.length === 0 && (
               <p className="notice" role="status">
                 {t.results.noneFiltered} <a href={clearHref}>{t.results.clear}</a>

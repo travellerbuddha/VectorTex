@@ -216,7 +216,8 @@ export function DateRangeField({
       {!single && toggle('end', endButton, labels.end, short(end))}
       <div id={panelId} className="cal-panel" role="dialog" aria-label={t.calendar} hidden={!open}>
         <p className="cal-hint" aria-live="polite">
-          {single ? labels.start : phase === 'start' ? t.pickCheckin : t.pickCheckout}
+          {/* Hotels ask for the check-in and check-out; flights name their own segments (departure, return). */}
+          {single ? labels.start : minNights === 0 ? (phase === 'start' ? labels.start : labels.end) : phase === 'start' ? t.pickCheckin : t.pickCheckout}
         </p>
         <div className="cal-nav">
           <button type="button" className="cal-step" aria-label={t.prevMonth} disabled={view <= monthStart(today)} onClick={() => setView(addMonths(view, -1))}>
@@ -231,7 +232,7 @@ export function DateRangeField({
           {month(addMonths(view, 1))}
         </div>
         <div className="cal-foot">
-          <span className="cal-summary">{single ? short(start) : `${short(start)} – ${short(end)} · ${dict(locale).results.nights(nights)}`}</span>
+          <span className="cal-summary">{single ? short(start) : minNights === 0 ? `${short(start)} – ${short(end)}` : `${short(start)} – ${short(end)} · ${dict(locale).results.nights(nights)}`}</span>
           <button type="button" className="secondary small" onClick={() => close()}>
             {t.done}
           </button>

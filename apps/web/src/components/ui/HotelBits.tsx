@@ -37,8 +37,63 @@ export function RatingBadge({ rating, locale, reviews }: { rating: number | null
   );
 }
 
-/** Shared-element name of a hotel's picture: the list card's photo becomes the hotel page's first gallery photo. */
-export const hotelTransition = (slug: string) => ({ viewTransitionName: `hotel-${slug.toLowerCase().replace(/[^a-z0-9-]/g, '-')}` }) as React.CSSProperties;
+/** The rating on one line for discovery cards: score, its word and the review count (provider data). */
+export function RatingInline({ rating, reviews, locale }: { rating: number | null; reviews: number | null; locale: Locale }) {
+  if (rating === null || rating <= 0) return null;
+  const t = dict(locale).results;
+  const word = t.ratingWord(rating);
+  return (
+    <p className="rating-inline">
+      <span className="score-chip">
+        <span className="visually-hidden">{t.rating}: </span>
+        {nf(locale).format(rating)}
+        <span className="visually-hidden">/10</span>
+      </span>
+      {word && <strong>{word}</strong>}
+      {reviews ? <span>{t.reviews(reviews.toLocaleString(locale === 'tr' ? 'tr-TR' : 'en-GB'))}</span> : null}
+    </p>
+  );
+}
+
+/**
+ * Shared-element name of a hotel's picture: the list card's photo becomes the hotel page's first gallery photo. The
+ * class lets one rule crop every such picture to its frame while it moves (no stretched or overflowing snapshot).
+ */
+export const hotelTransition = (slug: string) =>
+  ({ viewTransitionName: `hotel-${slug.toLowerCase().replace(/[^a-z0-9-]/g, '-')}`, viewTransitionClass: 'hotel-photo' }) as React.CSSProperties;
+
+/**
+ * Discovery card (home shelf): photo first, then name, stars and town, the rating and the price block passed in.
+ * The whole card is one link (the name's link stretches over it), so it is one stop for keyboard and screen readers.
+ */
+export function HotelTile({
+  href,
+  hotel,
+  locale,
+  children,
+}: {
+  href: string;
+  hotel: { hotelId: string; slug: string; name: string; stars: number | null; city: string | null; image: string | null; rating: number | null; reviewCount: number | null };
+  locale: Locale;
+  children?: React.ReactNode;
+}) {
+  return (
+    <article className="tile">
+      <HotelMedia hotelId={hotel.hotelId} photo={hotel.image} className="tile-media" style={hotelTransition(hotel.slug)} />
+      <div className="tile-body">
+        <h3 className="tile-title">
+          <a href={href}>{hotel.name}</a>
+        </h3>
+        <p className="tile-meta">
+          <Stars stars={hotel.stars} locale={locale} />
+          {hotel.city && <span>{hotel.city}</span>}
+        </p>
+        <RatingInline rating={hotel.rating} reviews={hotel.reviewCount} locale={locale} />
+        {children}
+      </div>
+    </article>
+  );
+}
 
 /** The hotel's photo, or its postcard when the provider has none. */
 export function HotelMedia({ hotelId, photo, className, eager = false, style }: { hotelId: string; photo: string | null; className?: string; eager?: boolean; style?: React.CSSProperties }) {

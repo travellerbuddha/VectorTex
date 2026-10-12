@@ -55,3 +55,16 @@ export function boardCounts(hotels: readonly HotelResultView[]): Array<{ board: 
   const order = ['RO', 'BB', 'BI', 'HB', 'FB', 'AI'];
   return [...counts.entries()].sort((a, b) => (order.indexOf(a[0]) + 1 || 99) - (order.indexOf(b[0]) + 1 || 99) || a[0].localeCompare(b[0])).map(([board, n]) => ({ board, hotels: n }));
 }
+
+/**
+ * Query string of the results page for these filters: the search's own parameters first, then only what differs from
+ * the defaults (so the sort links, the filter chips and the form all produce the same addresses).
+ */
+export function filtersQuery(kept: Record<string, string>, f: ResultFilters): string {
+  const q = new URLSearchParams(kept);
+  if (f.free) q.set('free', '1');
+  for (const b of f.boards) q.append('boards', b);
+  if (f.stars) q.set('stars', String(f.stars));
+  if (f.sort !== 'recommended') q.set('sort', f.sort);
+  return q.toString();
+}

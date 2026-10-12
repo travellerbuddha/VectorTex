@@ -1,0 +1,158 @@
+/* ---------- Motion ----------
+   Two speeds. Discovery pages: a short load entrance of the title and one-time reveals of later sections (reveal.ts).
+   Search, results, booking and payment: quick feedback only. Rules that keep it steady:
+   - only transform and opacity move, and text never fades (titles rise inside their own clipped line box);
+   - the search, prices and buttons never wait for an animation, and nothing is scaled as a whole (no hero zoom);
+   - pictures keep their frame and proportions: no animation touches an image's size or an SVG's inner parts;
+   - nothing is tied to the scroll position, so the page never stretches or shrinks while scrolling;
+   - `prefers-reduced-motion: reduce` turns every animation, transition and page transition off. */
+
+/* Until the page has painted once with its styles (SiteMotion sets data-motion), nothing transitions: a style that
+   arrives late then lands at once instead of animating from the browser's defaults (no colour or size sweep on load). */
+:root:not([data-motion]) *,
+:root:not([data-motion]) *::before,
+:root:not([data-motion]) *::after {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Home and product landings: the title's words rise in turn; transform only, so the compositor runs it even while
+     the page is still hydrating. */
+  .hero-title .w > span {
+    animation: word-up 560ms var(--ease-out) both;
+    animation-delay: calc(40ms + var(--i, 0) * 70ms);
+  }
+
+  /* Results: the first cards settle in order on load (8px, transform only); prices and Seç are usable at once. */
+  .hotels > .hotel:not(.skeleton-hotel) {
+    animation: card-in 360ms var(--ease-out) both;
+    animation-delay: calc(var(--i, 6) * 35ms);
+  }
+
+  /* The cookie banner slides up from the bottom edge. */
+  .consent {
+    animation: consent-in 320ms var(--ease-out) both;
+  }
+
+  /* A confirmed booking: the tick pops once. */
+  .status-confirmed .status-icon {
+    animation: pop-in 420ms var(--ease-out) both;
+  }
+
+  /* Loading: the spinner turns; the skeleton breathes slowly. */
+  .spinner {
+    animation: spin 0.9s linear infinite;
+  }
+  .sk,
+  .skeleton-hotel .hotel-media,
+  .skeleton-bar,
+  .skeleton-filters {
+    animation: breathe 1.6s ease-in-out infinite;
+  }
+}
+@keyframes word-up {
+  from {
+    transform: translateY(105%);
+  }
+}
+@keyframes card-in {
+  from {
+    transform: translateY(8px);
+  }
+}
+@keyframes consent-in {
+  from {
+    transform: translateY(16px);
+  }
+}
+@keyframes pop-in {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes breathe {
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Disclosures open to their natural height where the browser can animate it; elsewhere they open at once. */
+.refine::details-content,
+.faq details::details-content,
+.cms-faq details::details-content {
+  block-size: 0;
+  overflow-y: clip;
+  transition:
+    block-size var(--t-slow) var(--ease-out),
+    content-visibility var(--t-slow) allow-discrete;
+}
+.refine[open]::details-content,
+.faq details[open]::details-content,
+.cms-faq details[open]::details-content {
+  block-size: auto;
+}
+@media (max-width: 979px) {
+  .filters::details-content {
+    block-size: 0;
+    overflow-y: clip;
+    transition:
+      block-size var(--t-slow) var(--ease-out),
+      content-visibility var(--t-slow) allow-discrete;
+  }
+  .filters[open]::details-content {
+    block-size: auto;
+  }
+}
+
+/* ---------- Page transitions: the header stays, the page cross-fades, a hotel's picture carries over ---------- */
+@view-transition {
+  navigation: auto;
+}
+.site-header {
+  view-transition-name: site-header;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+  animation-timing-function: var(--ease-in-out);
+}
+/* A hotel's picture moves from its card to the hotel page. Both snapshots are cropped to the moving frame (cover),
+   so the picture never stretches or spills past its corners while the frame changes shape. */
+::view-transition-group(*.hotel-photo) {
+  animation-duration: 360ms;
+  animation-timing-function: var(--ease-out);
+}
+::view-transition-image-pair(*.hotel-photo) {
+  overflow: clip;
+  border-radius: var(--r-lg);
+}
+::view-transition-old(*.hotel-photo),
+::view-transition-new(*.hotel-photo) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ---------- Reduced motion: every transition and animation off; content and panels work the same ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  /* Its own rule: a browser without ::details-content drops only this one. */
+  ::details-content {
+    transition: none !important;
+  }
+  @view-transition {
+    navigation: none;
+  }
+}

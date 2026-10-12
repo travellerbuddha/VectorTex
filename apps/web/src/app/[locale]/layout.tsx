@@ -12,9 +12,16 @@ import { SiteMotion } from '../../components/ui/SiteMotion';
 import { ProductNav } from '../../components/ui/ProductNav';
 import { LocaleCurrency } from '../../components/ui/LocaleCurrency';
 import { UserRound } from 'lucide-react';
-import '@fontsource-variable/inter';
-import '@fontsource-variable/bricolage-grotesque';
-import './globals.css';
+import '@fontsource-variable/plus-jakarta-sans';
+import './styles/foundation.css';
+import './styles/chrome.css';
+import './styles/search.css';
+import './styles/home.css';
+import './styles/results.css';
+import './styles/hotels.css';
+import './styles/booking.css';
+import './styles/content.css';
+import './styles/motion.css';
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -57,6 +64,7 @@ export default async function LocaleLayout({ children, params }: { children: Rea
       <body>
         {/* Consent Mode v2 defaults before any tag (ADR-0018). */}
         {tags && <script dangerouslySetInnerHTML={{ __html: CONSENT_BOOTSTRAP }} />}
+        <div className="scroll-sentinel" aria-hidden="true" />
         <a className="skip" href="#main">
           {locale === 'tr' ? 'İçeriğe geç' : 'Skip to content'}
         </a>
@@ -104,7 +112,7 @@ export default async function LocaleLayout({ children, params }: { children: Rea
             <div className="footer-top">
               <a className="footer-brand" href={`/${locale}`}>
                 {/* eslint-disable-next-line @next/next/no-img-element -- the official wordmark (SVG) */}
-                <img src="/brand/texholiday-wordmark.svg" alt={t.brand} width={144} height={28} />
+                <img src="/brand/texholiday-wordmark.svg" alt={t.brand} width={134} height={26} />
               </a>
               <p className="footer-tagline">{t.footerTagline}</p>
             </div>
@@ -124,10 +132,6 @@ export default async function LocaleLayout({ children, params }: { children: Rea
                 ))}
               </div>
             )}
-            <div className="footer-mark" aria-hidden="true">
-              {/* eslint-disable-next-line @next/next/no-img-element -- the wordmark again, as the closing graphic */}
-              <img src="/brand/texholiday-wordmark.svg" alt="" width={1436} height={279} loading="lazy" data-reveal="stub" data-reveal-duration="900" />
-            </div>
             <div className="footer-bottom">
               <p>{chrome.footer?.legal ?? t.footer}</p>
               <p className="footer-legal-links">

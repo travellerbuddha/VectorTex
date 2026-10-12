@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { HotelResultView } from '@texholiday/booking';
-import { activeFilters, applyFilters, boardCounts, readFilters } from '../src/server/result-filters';
+import { activeFilters, applyFilters, boardCounts, filtersQuery, readFilters } from '../src/server/result-filters';
 
 const eur = (minor: string) => ({ currency: 'EUR', minor });
 const offer = (key: string, total: string, boardType: string | null, freeUntil: string | null, refundable = true) => ({
@@ -70,5 +70,24 @@ describe('results filters (GET parameters, stored results only)', () => {
       { board: 'BB', hotels: 1 },
       { board: 'AI', hotels: 1 },
     ]);
+  });
+});
+
+describe('filtersQuery', () => {
+  const kept = { place: 'p-1', placeName: 'Antalya' };
+  it('keeps the search parameters and leaves the defaults out', () => {
+    expect(filtersQuery(kept, readFilters({}))).toBe('place=p-1&placeName=Antalya');
+  });
+  it('writes what the form writes, so a chip or sort link reads back as the same filters', () => {
+    const f = readFilters({ free: '1', boards: ['AI', 'BB'], stars: '4', sort: 'price' });
+    const q = filtersQuery(kept, f);
+    expect(q).toBe('place=p-1&placeName=Antalya&free=1&boards=AI&boards=BB&stars=4&sort=price');
+    const back = new URLSearchParams(q);
+    expect(readFilters({ free: back.get('free') ?? undefined, boards: back.getAll('boards'), stars: back.get('stars') ?? undefined, sort: back.get('sort') ?? undefined })).toEqual(f);
+  });
+  it('drops one filter without touching the others', () => {
+    const f = readFilters({ free: '1', boards: ['AI', 'BB'], sort: 'rating' });
+    expect(filtersQuery(kept, { ...f, boards: f.boards.filter((b) => b !== 'AI') })).toBe('place=p-1&placeName=Antalya&free=1&boards=BB&sort=rating');
+    expect(filtersQuery(kept, { ...f, free: false })).toBe('place=p-1&placeName=Antalya&boards=AI&boards=BB&sort=rating');
   });
 });
