@@ -221,6 +221,12 @@ Kısa, okunur ve sayfa dilinde adresler kullanılır. Her sayfa tipinin kendi di
 - Liste düzenleme ekranında "Otel adıyla bul": ülke kodu (varsayılan TR) ve adın bir kısmı; sonuçta ad, yıldız, adres ve kod. "Ekle", "Başa sabitle", "Çıkar" kodu ilgili alana yazar; bir kod tek alanda durur.
 - Arama `GET /data/hotels?hotelName&countryCode` ile yapılır (sandbox ülkesiz aramayı 4000 ile reddetti, R0 §11). Uç nokta `/api/v1/staff/hotel-names` yalnız içerik personeline açıktır (her istek sağlayıcı çağrısıdır), kişi başına dakikada 60 arama.
 
+**Otelin arama içindeki sayfası (Ekim 2026).**
+- Sonuç kartı doğrudan rezervasyona değil `/{dil}/search/hotels/{oturum}/{otel}` adresine gider: aramanın o otel için bulduğu bütün teklifler, sonuçla **aynı saklı fiyatlarla** (yeniden fiyatlama yok), her birinde Seç. Sonuçların oda filtreleri (ücretsiz iptal, pansiyon) taşınır; kartın fiyatı sayfadaki en düşük fiyattır. Tek otel araması sonuç listesini atlayıp buraya gelir.
+- Otel oturumun sonuçlarında ya da tek otel aramasının hedefinde değilse sayfa 404'tür: bir oturumla herhangi bir otelin içeriği okunamaz.
+- İçerik önce çekirdek kopyadan (liste otelleri) okunur; yoksa sağlayıcının içerik çağrısı (`GET /data/hotel`, yalnız okuma, listelerin taramasıyla aynı kaynak) yapılır ve süreç belleğinde 6 saat tutulur (hata 5 dakika). Sayfa sağlayıcıyı en çok 2,5 sn bekler; geç gelen yanıt bir sonraki görüntülemeye kalır, hata sayfayı bozmaz (içeriksiz açılır). Bu sayfa yalnız geçerli bir arama oturumuyla açılır ve dizine girmez; tarayıcılar sağlayıcı çağrısı tetikleyemez (§4'teki "istekte sağlayıcıya gidilmez" kuralı herkese açık otel sayfaları için geçerlidir).
+- İçerik çekirdek tabloya yazılmaz: liste dışı oteller için herkese açık otel sayfası açılmaz.
+
 ## Sonuçlar
 
 - MOCK ortamında web süreci bir geliştirme uç noktasıyla taramayı çalıştırır. Bunu yalnız `content.publish` izni olan personel çalıştırabilir; testler bunu kullanır.

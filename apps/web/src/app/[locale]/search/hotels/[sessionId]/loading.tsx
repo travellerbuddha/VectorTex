@@ -25,16 +25,19 @@ export default function Loading() {
           </div>
           <ul className="hotels" aria-hidden="true">
             {[0, 1, 2].map((i) => (
-              <li key={i} className="hotel skeleton-hotel">
-                <div className="hotel-media" />
-                <div className="hotel-body">
-                  <span className="sk sk-title" />
-                  <span className="sk sk-line" />
-                  <span className="sk sk-line short" />
-                </div>
-                <div className="offers">
-                  <span className="sk sk-row" />
-                  <span className="sk sk-row" />
+              <li key={i} className="skeleton-hotel">
+                <div className="hotel-card">
+                  <div className="hc">
+                    <div className="hotel-media hc-media" />
+                    <div className="hc-body">
+                      <span className="sk sk-title" />
+                      <span className="sk sk-line" />
+                      <span className="sk sk-line short" />
+                    </div>
+                    <div className="hc-deal">
+                      <span className="sk sk-price" />
+                    </div>
+                  </div>
                 </div>
               </li>
             ))}

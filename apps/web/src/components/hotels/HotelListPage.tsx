@@ -12,8 +12,7 @@ import { cmsMetadata, PreviewBanner } from '../cms/CmsPage';
 import { TrackEvent } from '../tracking/TrackEvent';
 import { listEcommerce } from '../../server/analytics';
 import { RichText } from '../cms/RichText';
-import { HotelMedia, hotelTransition, Postcard, Stars } from '../ui/HotelBits';
-import { MapPin } from 'lucide-react';
+import { HotelCard, hotelTransition, Postcard, PriceLine } from '../ui/HotelBits';
 
 /**
  * Hotel list page (ADR-0014): editor text from the CMS, hotels and prices from the core copy of the published list.
@@ -38,15 +37,25 @@ export function PriceBlock({ price, locale }: { price: ListedPrice; locale: Loca
   const t = dict(locale).lists;
   const board = boardLabel(price.boardType, null, locale);
   const extras = [price.payAtProperty ? t.payAtHotel(formatMoney(price.payAtProperty, locale)) : null, price.payAtPropertyOtherCurrency ? t.payAtHotelOther : null].filter(Boolean);
+  const terms = `${t.conditions(formatDate(price.checkin, locale))}${board ? ` · ${board}` : ''} · ${extras.length > 0 ? extras.join(' · ') : t.taxesIncluded}`;
+  return <PriceLine label={t.lowest} amount={formatMoney(price.amount, locale)} terms={terms} testId="list-price" />;
+}
+
+/** A list hotel as the shared card: the list price with its terms, its facilities, the hotel page as the link. */
+export function ListHotelCard({ hotel: h, locale, board, heading }: { hotel: ListedHotel; locale: Locale; board: string | null; heading: 'h2' | 'h3' }) {
+  const t = dict(locale).lists;
   return (
-    <div className="list-price">
-      <span className="muted">{t.lowest}</span> <strong data-testid="list-price">{formatMoney(price.amount, locale)}</strong>
-      {/* Its own line under the price: the terms the list price was found with. */}
-      <span className="muted small list-price-terms">
-        {t.conditions(formatDate(price.checkin, locale))}
-        {board ? ` · ${board}` : ''} · {extras.length > 0 ? extras.join(' · ') : t.taxesIncluded}
-      </span>
-    </div>
+    <HotelCard
+      href={priceLink(locale, h, h.price, board)}
+      hotel={{ hotelId: h.hotelId, name: h.name, stars: h.stars, place: h.city, image: h.image, rating: h.rating, reviewCount: h.reviewCount }}
+      locale={locale}
+      heading={heading}
+      tags={h.facilities.map((f) => ({ key: f, text: f, kind: 'feature' as const }))}
+      tagsLabel={t.facilities}
+      price={h.price ? <PriceBlock price={h.price} locale={locale} /> : null}
+      action={h.price ? t.seePrices : t.choose}
+      transition={hotelTransition(h.slug)}
+    />
   );
 }
 
@@ -123,41 +132,14 @@ export async function HotelListPage({ locale, slug }: { locale: Locale; slug: st
       ) : (
         <ol className="hotel-cards" data-testid="hotel-cards">
           {hotels.map((h) => (
-            <li key={h.hotelId} className="card hotel-card">
-              <HotelMedia hotelId={h.hotelId} photo={h.image} style={hotelTransition(h.slug)} />
-              <div className="hotel-body">
-                <h2>
-                  <a href={hotelPath(locale, h.slug)}>{h.name}</a>
-                </h2>
-                <p className="hotel-meta">
-                  <Stars stars={h.stars} locale={locale} />
-                  {h.city && (
-                    <span className="hotel-where">
-                      <MapPin />
-                      {h.city}
-                    </span>
-                  )}
-                </p>
-                {h.rating !== null && h.reviewCount !== null && h.reviewCount > 0 && <p className="muted small">{t.lists.rating(h.rating.toLocaleString(locale === 'tr' ? 'tr-TR' : 'en-GB'), h.reviewCount.toLocaleString(locale === 'tr' ? 'tr-TR' : 'en-GB'))}</p>}
-                {h.facilities.length > 0 && (
-                  <ul className="chips" aria-label={t.lists.facilities}>
-                    {h.facilities.map((f) => (
-                      <li key={f}>{f}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <div className="hotel-card-action">
-                {h.price && <PriceBlock price={h.price} locale={locale} />}
-                <a className="button primary" href={priceLink(locale, h, h.price, board)}>
-                  {h.price ? t.lists.seePrices : t.lists.choose}
-                </a>
-              </div>
+            <li key={h.hotelId}>
+              <ListHotelCard hotel={h} locale={locale} board={board} heading="h2" />
             </li>
           ))}
         </ol>
       )}
       {view?.pricesAsOf ? <p className="muted small">{t.lists.asOf(formatInstant(view.pricesAsOf, locale))}</p> : hotels.length > 0 && <p className="muted small">{t.lists.noPrices}</p>}
+      {hotels.some((h) => h.rating !== null) && <p className="muted small">{t.lists.ratingSource}</p>}
       <section className="cms-text">
         <RichText data={d.body} />
       </section>

@@ -3,10 +3,10 @@ import { notFound } from 'next/navigation';
 import { Fragment, type CSSProperties } from 'react';
 import { RichText } from '../../components/cms/RichText';
 import { faqPath, guidePath, guideHubPath } from '../../components/content/GuidePages';
-import { featuredLists, hubPath, listPath, listShelf, PriceBlock, priceLink } from '../../components/hotels/HotelListPage';
+import { featuredLists, hubPath, listPath, listShelf, ListHotelCard } from '../../components/hotels/HotelListPage';
 import { SearchForm } from '../../components/SearchForm';
 import { CoastScene } from '../../components/ui/Art';
-import { HotelTile, Postcard } from '../../components/ui/HotelBits';
+import { Postcard } from '../../components/ui/HotelBits';
 import { Shelf } from '../../components/ui/Shelf';
 import { dict, isLocale } from '../../i18n/dictionaries';
 import { formatInstant } from '../../i18n/format';
@@ -85,9 +85,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
             <ul>
               {shelf.hotels.hotels.map((h) => (
                 <li key={h.hotelId}>
-                  <HotelTile href={priceLink(locale, h, h.price, shelf.list.board)} hotel={h} locale={locale}>
-                    {h.price && <PriceBlock price={h.price} locale={locale} />}
-                  </HotelTile>
+                  <ListHotelCard hotel={h} locale={locale} board={shelf.list.board} heading="h3" />
                 </li>
               ))}
             </ul>

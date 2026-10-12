@@ -1,4 +1,4 @@
-import { Check, Star } from 'lucide-react';
+import { ArrowRight, Check, MapPin, Star, type LucideIcon } from 'lucide-react';
 import { dict, type Locale } from '../../i18n/dictionaries';
 import { HotelArt } from './Art';
 
@@ -62,34 +62,92 @@ export function RatingInline({ rating, reviews, locale }: { rating: number | nul
 export const hotelTransition = (slug: string) =>
   ({ viewTransitionName: `hotel-${slug.toLowerCase().replace(/[^a-z0-9-]/g, '-')}`, viewTransitionClass: 'hotel-photo' }) as React.CSSProperties;
 
+/** A price, what it is and its terms on their own line: the same block on every card. */
+export function PriceLine({ label, amount, terms, testId }: { label: string; amount: string; terms: string; testId?: string }) {
+  return (
+    <div className="list-price">
+      <span className="muted">{label}</span> <strong data-testid={testId}>{amount}</strong>
+      {/* Its own line under the price: the terms the price was found with. */}
+      <span className="muted small list-price-terms">{terms}</span>
+    </div>
+  );
+}
+
+export interface CardTag {
+  key: string;
+  text: string;
+  /** feature: what the hotel has (facilities, room choice); ok: a condition in the guest's favour, from the offer data. */
+  kind: 'feature' | 'ok';
+  icon?: LucideIcon;
+}
+
 /**
- * Discovery card (home shelf): photo first, then name, stars and town, the rating and the price block passed in.
- * The whole card is one link (the name's link stretches over it), so it is one stop for keyboard and screen readers.
+ * The hotel card, one design on every page (home shelf, list pages, search results): photo, name, stars and place,
+ * the guest rating, up to three tags (facts from the data only), then the price with its terms and the action. The
+ * name's link covers the card, so the card is one stop for keyboard and screen readers; the action reads as a button
+ * and leads to the same hotel page. The card follows the room it gets (container query): stacked when narrow, a row
+ * when wide, so the same card fits a shelf, a phone and the results column.
  */
-export function HotelTile({
+export function HotelCard({
   href,
   hotel,
   locale,
-  children,
+  heading: H = 'h3',
+  tags = [],
+  tagsLabel,
+  price,
+  action,
+  transition,
+  eager = false,
 }: {
   href: string;
-  hotel: { hotelId: string; slug: string; name: string; stars: number | null; city: string | null; image: string | null; rating: number | null; reviewCount: number | null };
+  hotel: { hotelId: string; name: string; stars: number | null; place: string | null; image: string | null; rating: number | null; reviewCount: number | null };
   locale: Locale;
-  children?: React.ReactNode;
+  heading?: 'h2' | 'h3';
+  tags?: readonly CardTag[];
+  tagsLabel?: string;
+  price?: React.ReactNode;
+  action: string;
+  transition?: React.CSSProperties;
+  eager?: boolean;
 }) {
   return (
-    <article className="tile">
-      <HotelMedia hotelId={hotel.hotelId} photo={hotel.image} className="tile-media" style={hotelTransition(hotel.slug)} />
-      <div className="tile-body">
-        <h3 className="tile-title">
-          <a href={href}>{hotel.name}</a>
-        </h3>
-        <p className="tile-meta">
-          <Stars stars={hotel.stars} locale={locale} />
-          {hotel.city && <span>{hotel.city}</span>}
-        </p>
-        <RatingInline rating={hotel.rating} reviews={hotel.reviewCount} locale={locale} />
-        {children}
+    <article className="hotel-card">
+      <div className="hc">
+        <HotelMedia hotelId={hotel.hotelId} photo={hotel.image} className="hc-media" style={transition} eager={eager} />
+        <div className="hc-body">
+          <H className="hc-title">
+            <a href={href}>{hotel.name}</a>
+          </H>
+          <p className="hc-meta">
+            <Stars stars={hotel.stars} locale={locale} />
+            {hotel.place && (
+              <span className="hotel-where">
+                <MapPin />
+                {hotel.place}
+              </span>
+            )}
+          </p>
+          <RatingInline rating={hotel.rating} reviews={hotel.reviewCount} locale={locale} />
+          {tags.length > 0 && (
+            <ul className="hc-tags" aria-label={tagsLabel}>
+              {tags.slice(0, 3).map(({ key, text, kind, icon: Icon }) => (
+                <li key={key} className={kind === 'ok' ? 'tag ok' : 'tag tag-feature'}>
+                  {Icon && <Icon />}
+                  {text}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="hc-deal">
+          {price}
+          {/* The name's link already leads here; this only shows the action. */}
+          <span className="hc-action" aria-hidden="true">
+            {action}
+            <ArrowRight />
+          </span>
+        </div>
       </div>
     </article>
   );

@@ -1,3 +1,4 @@
+import type { HotelContent } from '@texholiday/contracts';
 import type { MoneyJson } from '@texholiday/pricing';
 
 /** Customer-facing shapes (§14): no provider ids, no internal codes, no personal data of other people. */
@@ -42,6 +43,21 @@ export interface HotelSearchView {
   hotels: readonly HotelResultView[];
   /** Offers left out: below the hotel's suggested public price, not priced exactly, or not payable online. */
   hidden: { belowSuggestedPrice: number; notPriced: number; notPayableOnline: number };
+}
+
+/**
+ * One hotel of a stored search: the hotel page opened from the results (or from a search for this one hotel). Its
+ * offers are the search's, priced exactly as on the results page; nothing is priced again.
+ */
+export interface SearchHotelView {
+  sessionId: string;
+  expiresAt: string;
+  currency: string;
+  nights: number;
+  /** Null when a search for this one hotel found no offer it can sell. */
+  hotel: HotelResultView | null;
+  /** Description, photos and facilities (the stored copy, else the provider's); null when neither is available. */
+  content: HotelContent | null;
 }
 
 export interface QuoteView {

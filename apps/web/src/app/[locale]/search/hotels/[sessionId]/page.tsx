@@ -1,23 +1,19 @@
 import { isDomainError } from '@texholiday/contracts';
-import { CalendarDays, ChevronDown, Coffee, MapPin, SlidersHorizontal, Users, X } from 'lucide-react';
+import { BedDouble, CalendarCheck, CalendarDays, ChevronDown, MapPin, SlidersHorizontal, Users, X } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import type { CSSProperties } from 'react';
-import { OfferButton } from '../../../../../components/OfferButton';
-import { CancellationLine } from '../../../../../components/QuoteSummary';
 import { OpenOnWide } from '../../../../../components/results/OpenOnWide';
 import { SearchForm } from '../../../../../components/SearchForm';
-import { HotelMedia, RatingBadge, Stars } from '../../../../../components/ui/HotelBits';
+import { HotelCard, hotelTransition, PriceLine, type CardTag } from '../../../../../components/ui/HotelBits';
 import { dict, type Locale } from '../../../../../i18n/dictionaries';
 import { boardLabel, formatDate, formatMoney } from '../../../../../i18n/format';
 import { booking } from '../../../../../server/booking';
-import { activeFilters, applyFilters, boardCounts, filtersQuery, readFilters, type ResultFilters } from '../../../../../server/result-filters';
+import { activeFilters, applyFilters, boardCounts, filtersQuery, freeCancelNow, keptSearch, readFilters, type ResultFilters } from '../../../../../server/result-filters';
 import { TrackEvent } from '../../../../../components/tracking/TrackEvent';
 import { searchEcommerce } from '../../../../../server/analytics';
 
 export const dynamic = 'force-dynamic';
 
-/** Query parameters that describe the search itself (kept by the filter form and its "clear" link). */
-const SEARCH_KEYS = ['place', 'placeName', 'hotel', 'hotelName', 'board'] as const;
 
 export default async function Results({ params, searchParams }: { params: Promise<{ locale: string; sessionId: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { locale: l, sessionId } = await params;
@@ -67,13 +63,18 @@ export default async function Results({ params, searchParams }: { params: Promis
 
   const filters = readFilters(sp);
   const hotels = applyFilters(view.hotels, filters, new Date());
-  const kept = Object.fromEntries(SEARCH_KEYS.flatMap((k) => (one(k) ? [[k, one(k)!]] : [])));
+  const kept = keptSearch(sp);
   const base = `/${locale}/search/hotels/${sessionId}`;
   const href = (f: ResultFilters) => {
     const q = filtersQuery(kept, f);
     return q ? `${base}?${q}` : base;
   };
   const clearHref = href({ free: false, boards: [], stars: null, sort: 'recommended' });
+  // A hotel opens its page in this search with the same filters, so its rooms and lowest price match the card.
+  const shown = filtersQuery(kept, filters);
+  const hotelHref = (id: string) => `${base}/${encodeURIComponent(id)}${shown ? `?${shown}` : ''}`;
+  const now = new Date();
+  const lower = (text: string) => text.toLocaleLowerCase(locale === 'tr' ? 'tr' : 'en');
   const active = activeFilters(filters);
   // Each active filter as a chip that removes only itself (the sort and the other filters stay).
   const chips = [
@@ -169,67 +170,38 @@ export default async function Results({ params, searchParams }: { params: Promis
               </p>
             )}
             <ul className="hotels">
-              {hotels.map((h, i) => (
-                <li key={h.hotelId} className="hotel" style={i < 6 ? ({ '--i': i } as CSSProperties) : undefined}>
-                  {/* Provider images are https-only; no next/image so hosts need no allow-list. */}
-                  <HotelMedia hotelId={h.hotelId} photo={h.photo} eager={i === 0} />
-                  <div className="hotel-body">
-                    <div className="hotel-head">
-                      <div className="hotel-id">
-                        <h2>{h.name}</h2>
-                        <p className="hotel-meta">
-                          <Stars stars={h.stars} locale={locale} />
-                          {h.address && (
-                            <span className="hotel-where">
-                              <MapPin />
-                              {h.address}
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                      <RatingBadge rating={h.rating} locale={locale} />
-                    </div>
-                    <p className="from">
-                      {t.results.forNights(view.nights)} {t.results.from} <strong>{formatMoney(h.from, locale)}</strong> <span className="muted">({t.results.total.toLowerCase()})</span>
-                    </p>
-                  </div>
-                  <h3 className="visually-hidden">{t.results.rooms}</h3>
-                  <ul className="offers">
-                    {h.offers.map((o) => {
-                      const board = boardLabel(o.boardType, o.boardName, locale);
-                      return (
-                        <li key={o.key} className="offer">
-                          <div className="offer-info">
-                            <p className="room-name">{o.roomName}</p>
-                            <p className="offer-tags">
-                              {board && (
-                                <span className="tag tag-feature offer-board">
-                                  <Coffee />
-                                  {board}
-                                </span>
-                              )}
-                              <CancellationLine c={o.cancellation} locale={locale} />
-                            </p>
-                            {o.payAtProperty.length > 0 && (
-                              <p className="muted small">
-                                {t.results.payAtProperty}: {o.payAtProperty.map((m) => formatMoney(m, locale)).join(' + ')}
-                              </p>
-                            )}
-                          </div>
-                          <div className="price">
-                            <strong>{formatMoney(o.total, locale)}</strong>
-                            <span className="muted">{t.results.total}</span>
-                            <span className="muted">
-                              {formatMoney(o.perNightAverage, locale)} {t.results.perNight}
-                            </span>
-                            <OfferButton locale={locale} sessionId={view.sessionId} offerKey={o.key} label={`${t.results.choose}: ${h.name} – ${o.roomName ?? ''}`} />
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </li>
-              ))}
+              {hotels.map((h, i) => {
+                // The price shown is the lowest offer still shown; its board and what is payable at the hotel are its terms.
+                const low = h.offers.find((o) => o.total.minor === h.from.minor) ?? h.offers[0]!;
+                const board = boardLabel(low.boardType, low.boardName, locale);
+                const terms = [
+                  t.results.nights(view.nights),
+                  board,
+                  lower(t.results.total),
+                  low.payAtProperty.length > 0 ? `${lower(t.results.payAtProperty)}: ${low.payAtProperty.map((m) => formatMoney(m, locale)).join(' + ')}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ');
+                const tags: CardTag[] = [
+                  { key: 'rooms', text: t.results.roomOptions(h.offers.length), kind: 'feature', icon: BedDouble },
+                  ...(freeCancelNow(h, now) ? [{ key: 'free', text: t.results.freeCancelOption, kind: 'ok' as const, icon: CalendarCheck }] : []),
+                ];
+                return (
+                  <li key={h.hotelId} style={i < 6 ? ({ '--i': i } as CSSProperties) : undefined}>
+                    <HotelCard
+                      heading="h2"
+                      href={hotelHref(h.hotelId)}
+                      hotel={{ hotelId: h.hotelId, name: h.name, stars: h.stars, place: h.city ?? h.address, image: h.photo, rating: h.rating, reviewCount: null }}
+                      locale={locale}
+                      tags={tags}
+                      price={<PriceLine label={t.results.lowest} amount={formatMoney(h.from, locale)} terms={terms} testId="search-price" />}
+                      action={t.results.seeRooms}
+                      transition={hotelTransition(h.hotelId)}
+                      eager={i === 0}
+                    />
+                  </li>
+                );
+              })}
             </ul>
           </div>
         </div>

@@ -21,7 +21,7 @@ Yönetim paneli ayrıdır (`apps/web/src/app/yonetim/admin.css`). Yeni ekran yap
 - **Ara ve karşılaştır (Hotels.com'dan alınan ders):**
   - Arama ilk ekranda, ilk kareden kullanılabilir.
   - Otel kartı hep aynı sırayla okunur: fotoğraf, ad, yıldız ve konum, puan, koşullar, fiyat, eylem.
-  - Oda teklifleri kartlar arasında hizalı satırlardır.
+  - Oda teklifleri otelin sayfasında hizalı satırlardır.
   - Kararı kolaylaştıran etiketler yalnız verinin söylediğini söyler.
 - **Sakin ürün sayfası (Apple'dan alınan ders):**
   - Nötr zemin, güçlü başlık, temiz hiza, kontrollü boşluk, tek vurgu rengi.
@@ -82,9 +82,10 @@ Bütün metin/zemin çiftleri WCAG AA'yı geçer.
 - Arama kartı, rezervasyon kutusu ve açılır paneller `--shadow-3`.
 
 **Üst bilgi:**
-- Beyaz, yarı saydam ve yapışkan, 64 px. Telefonda iki satırdır, ürünler ikinci satırda yana kayar.
+- 1100 px ve üstü: beyaz, yarı saydam ve yapışkan tek satır (64 px): logo, ürünler ve editör sayfaları, hesap ve TR · EUR.
+- 1100 px altı: üst bilgi sayfayla birlikte kayar (satırları telefon ekranının beşte birini kaplardı). Ürünler eşit sütunlardır (telefonda ikon üstte, tablette yanda); satışta olmayanların altında tek bir "Yakında" çizgisi; editör sayfaları (Oteller, Seyahat rehberi, SSS) ayrı satırda. **Hiçbir öğe yana kaydırılarak bulunmaz**; 320 px'te de hepsi görünür.
 - Kaydırınca yalnız alt çizgi belirir; hiçbir şeyin boyu ya da yeri değişmez. Durumu kaydırma dinleyicisi değil, sayfanın en üstündeki 8 px'lik gözcü işaretler (`IntersectionObserver`).
-- Bulunulan ürün mercan alt çizgiyle işaretlenir. "Yakında" ürünler tek bir rozetle gri durur.
+- Bulunulan ürün mercan alt çizgiyle işaretlenir. "Yakında" ürünler tek bir rozetle (dar ekranda tek bir başlıkla) gri durur; ekran okuyucu her birinde "Yakında" duyar.
 
 **Arama:**
 - Bölmeli tek kart (`.search-bar`, `.seg`). Etiket küçük ve üstte, değer çerçevesiz. Etiket ikonları mercan.
@@ -98,23 +99,20 @@ Bütün metin/zemin çiftleri WCAG AA'yı geçer.
   - Uçuşta ipucu "Gidiş tarihi / Dönüş tarihi" der ve gece sayısı göstermez.
 - Misafirler panelinde −/+ sayaçları vardır (44 px hedef, sınırda `aria-disabled`).
 
-**Keşif kartı** (`HotelTile`, ana sayfa rafı):
-- Okuma sırası: 4:3 fotoğraf, ad, yıldız ve şehir, puan ("8,7 Çok iyi · 100 değerlendirme"), liste fiyatı ve koşulları ("13 Eki giriş · 1 gece · 2 yetişkin").
-- Kartın tamamı tek bağlantıdır.
-- Fiyatın zamanı rafın altında yazar.
+**Otel kartı** (`HotelCard`): ana sayfa rafında, liste sayfalarında ve arama sonuçlarında **aynı kart**.
+- Okuma sırası: fotoğraf, ad, yıldız ve yer, puan ("9,1 Olağanüstü · 200 değerlendirme"), en çok üç etiket, fiyat bloğu ("En düşük fiyat" + tutar + koşul satırı) ve eylem.
+- Etiketler yalnız veriden: listede olanaklar; sonuçta oda seçeneği sayısı ve, bir oda bugün hâlâ ücretsiz iptal edilebiliyorsa, "Ücretsiz iptalli oda var" (filtrenin kendi testi).
+- Kartın tamamı tek bağlantıdır (adın bağlantısı kartı kaplar); eylem düğme gibi görünür ve aynı yere gider: listede "Fiyatları gör" otel sayfasına, sonuçta "Odaları gör" otelin bu aramadaki sayfasına.
+- Düzen ekrana değil kartın aldığı genişliğe bağlıdır (container query): dar (raf, telefon) üst üste; 600 px'ten fotoğraf solda; 860 px'ten fiyat sağda kendi sütununda.
+- Fiyatın zamanı listenin/rafın altında yazar. Puanın sağlayıcı verisi olduğu liste altında söylenir.
 
-**Karşılaştırma kartı** (`li.hotel`, sonuçlar):
-- Geniş ekranda solda kartın tam boyunda fotoğraf. Sağda ad, yıldız, konum ve puan rozeti; altında "başlayan fiyat"; ardından her oda teklifi bir satır: solda oda adı ve etiketler, ince çizginin sağında toplam, "Konaklama toplamı", gecelik ortalama ve **Seç**.
-- Telefonda fotoğraf üstte, Seç fiyatın sağında.
-- Uzun adlar kırılır; puan gerekirse adın altına iner.
-
-**Liste kartı** (`.hotel-card`): aynı okuma sırası, liste fiyatı ve "Fiyatları gör" kendi sütununda.
+**Oda satırları** (otelin arama içindeki sayfası): her teklif bir satır; solda oda adı, pansiyon ve iptal etiketleri, ince çizginin sağında toplam, "Konaklama toplamı", gecelik ortalama ve **Seç**. Telefonda oda üstte, Seç fiyatın sağında.
 
 **Kartpostal** (`Postcard`, listeler ve rehberler): görsel önce, sonra başlık ve tek satır. Ana sayfadaki liste mozaiğinde en yeni liste büyük, diğerleri yanında satır; telefonda hepsi satır.
 
 **Etiketler:** tek boy (26 px), tek yazı (13 px / 650), tek köşe (8 px). Aileler dolgu, ikon ve sözle ayrılır:
 - *Koşul* (iptal, ödeme, rezervasyon durumu): durum renginde açık zemin ve durum ikonu (`.tag`, `.tag.ok`, `.tag.warn`).
-- *Özellik* (pansiyon, olanaklar): beyaz zemin, ince çizgi, özellik ikonu (`.tag-feature`, `.chips li`).
+- *Özellik* (pansiyon, olanaklar, oda seçeneği sayısı): beyaz zemin, ince çizgi, özellik ikonu (`.tag-feature`).
 - *Kampanya / liste üyeliği*: mercan 50 zemin, liste ikonu (`.tag-campaign`). Yalnız gerçek liste üyeliği gösterilir.
 - Yalnız veride olan etiketlenir. "Ücretsiz iptal" yalnız teklifin koşulundan gelir. İndirim, son oda, en iyi fiyat ya da popülerlik iddiası yazılmaz.
 
@@ -152,6 +150,14 @@ Aynı hero; başlık daha küçük.
 - Seçili filtreler kaldırılabilir mercan çiplerdir; her çip yalnız kendini kaldırır.
 - Filtreler GET formudur. Sıralama, filtreler ve arama parametreleri birbirini taşır (`filtersQuery`).
 - Yüklenirken aynı çerçevenin gri iskeleti görünür (`loading.tsx`); sahte otel ya da fiyat yoktur.
+- Kart **otelin bu aramadaki sayfasını** açar (`/search/hotels/{oturum}/{otel}`): doğrudan rezervasyona gitmez. Filtreler sayfaya taşınır; kartın fiyatı sayfadaki en düşük fiyatla aynıdır.
+
+### Otelin arama içindeki sayfası
+
+- "Sonuçlara dön", aynı arama özeti çubuğu ("Değiştir" bu oteli yeniden arar ve aynı sayfaya döner).
+- Başlık (ad, yıldız, adres, puan) ve altında bu aramanın en düşük fiyatı; mozaik galeri; **Oda seçenekleri** (aramadaki tüm teklifler, sonuçla aynı fiyatlar, her birinde Seç); ardından otelin açıklaması, olanaklar, giriş-çıkış, önemli bilgiler, yakındaki yerler.
+- Tek otel araması (otel sayfasından "Ara") sonuç listesini atlayıp doğrudan buraya gelir.
+- Arama dizine girmez (`noindex`).
 
 ### Otel sayfası
 
@@ -187,7 +193,7 @@ Hareketler:
 - **Paneller** (takvim, misafir, dil, öneriler) tetikleyicilerinden 200 ms'de 6 px ve 0,98'den açılır, 140 ms'de kapanır. Açılış `@starting-style`, kapanış `display` geçişiyle yapılır; desteklemeyen tarayıcıda anında açılıp kapanır.
 - **Açılır bölümler** (filtre, arama özeti, SSS) `::details-content` ile doğal yüksekliğine açılır.
 - **Geri bildirim:** düğme 0,97'ye basılır; seçilen gün ve sayaç yerinde değişir; kart hover'da gölge alır ama yer değiştirmez.
-- **Sayfa geçişleri** (`@view-transition`): üst bilgi yerinde kalır, içerik 220 ms'de çapraz geçer. Liste ve raf kartındaki otel fotoğrafı otel sayfasındaki ilk fotoğrafa dönüşür. İki görüntü de hareket eden çerçeveye kırpılır (`view-transition-class: hotel-photo`, `object-fit: cover`); geçişte görsel esnemez ya da köşeden taşmaz.
+- **Sayfa geçişleri** (`@view-transition`): üst bilgi yerinde kalır, içerik 220 ms'de çapraz geçer. Raf, liste ve sonuç kartındaki otel fotoğrafı açılan otel sayfasının ilk fotoğrafına dönüşür. İki görüntü de hareket eden çerçeveye kırpılır (`view-transition-class: hotel-photo`, `object-fit: cover`); geçişte görsel esnemez ya da köşeden taşmaz.
 - **Yükleniyor:** iskelet yavaşça nefes alır, döner simge yalnız sipariş durumunda kullanılır.
 - **Yükte geçiş yok:** renk ve boyut geçişleri sayfa stilleriyle bir kez çizildikten sonra açılır (`SiteMotion`, `data-motion`). Geç gelen bir stil yerine anında oturur, tarayıcının varsayılanından renk süpürmesiyle gelmez.
 - `prefers-reduced-motion: reduce` bütün animasyon, geçiş ve sayfa geçişlerini kapatır. İçerik ve paneller aynen çalışır.

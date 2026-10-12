@@ -4,6 +4,7 @@ import {
   type CapabilityMatrix,
   type FlightConnector,
   type HotelConnector,
+  type HotelContent,
   type ProductType,
   type HotelNameMatch,
   type HotelOffer,
@@ -41,7 +42,7 @@ import { customerCancellation } from './cancellation';
 import { ProviderCommissions } from './commissions';
 import type { BookingSettings } from './settings';
 import { checkoutInput, hotelSearchInput, parse, type HotelSearchInput } from './validation';
-import type { CancellationView, CustomerCancellationView, CustomerCancelResult, HotelOfferView, HotelResultView, HotelSearchView, OrderStage, OrderView, PaymentSessionView, QuoteView } from './views';
+import type { CancellationView, CustomerCancellationView, CustomerCancelResult, HotelOfferView, HotelResultView, HotelSearchView, OrderStage, OrderView, PaymentSessionView, QuoteView, SearchHotelView } from './views';
 
 const HOTEL_PROVIDER = 'nuitee';
 const HOTEL_CONNECTOR_ID = 'nuitee-hotel';
@@ -68,6 +69,11 @@ export interface BookingAppDeps {
 }
 
 const notFound = () => new DomainError('NOT_FOUND', 'Not found', { httpStatus: 404 });
+const HOTEL_ID = /^[\w-]{2,64}$/;
+/** Hotel content read from the provider for a customer page is kept this long in memory (failures: a short while). */
+const CONTENT_TTL_MS = 6 * 3_600_000;
+const CONTENT_RETRY_MS = 5 * 60_000;
+const CONTENT_CACHE_MAX = 500;
 const providerUnavailable = () => new DomainError('PROVIDER_UNAVAILABLE', 'The hotel provider did not answer; please try again', { httpStatus: 503, retryable: true, action: 'RETRY' });
 
 function nightsBetween(checkin: string, checkout: string): number {
@@ -102,6 +108,8 @@ export class BookingApp {
   private readonly idempotency: IdempotencyRepository;
   private readonly store: DrizzleOrderStore;
   private readonly clock: () => Date;
+  private readonly contentCache = new Map<string, { until: number; value: HotelContent | null }>();
+  private readonly contentReads = new Map<string, Promise<HotelContent | null>>();
 
   constructor(private readonly deps: BookingAppDeps) {
     this.clock = deps.clock ?? (() => new Date());
@@ -324,6 +332,77 @@ export class BookingApp {
     if (!session || session.environment !== this.deps.settings.environment || session.productType !== 'HOTEL') throw notFound();
     if (new Date(session.expiresAt).getTime() <= this.clock().getTime()) throw new QuoteError('QUOTE_EXPIRED', 'Search results expired; please search again');
     return this.searchView(session.id, session.expiresAt, session.criteria, session.results, session.results.hidden);
+  }
+
+  /**
+   * One hotel of a stored search with every offer it had: the hotel page opened from the results. Prices come from the
+   * stored snapshot only (the same as the results page). A hotel outside the search answers NOT_FOUND, so a session
+   * cannot be used to read the content of any hotel.
+   */
+  async searchHotel(sessionId: string, hotelId: string, language: 'tr' | 'en', opts: { contentWaitMs?: number } = {}): Promise<SearchHotelView> {
+    if (!HOTEL_ID.test(hotelId)) throw notFound();
+    const session = await this.searches.get<StoredResults, HotelSearchInput>(sessionId);
+    if (!session || session.environment !== this.deps.settings.environment || session.productType !== 'HOTEL') throw notFound();
+    if (new Date(session.expiresAt).getTime() <= this.clock().getTime()) throw new QuoteError('QUOTE_EXPIRED', 'Search results expired; please search again');
+    const view = this.searchView(session.id, session.expiresAt, session.criteria, session.results, session.results.hidden);
+    const hotel = view.hotels.find((h) => h.hotelId === hotelId) ?? null;
+    const target = session.criteria.target;
+    if (!hotel && !('hotelIds' in target && target.hotelIds.includes(hotelId))) throw notFound();
+    const content = await this.hotelContentFor(hotelId, language, opts.contentWaitMs ?? 2500);
+    return { sessionId: view.sessionId, expiresAt: view.expiresAt, currency: view.currency, nights: view.nights, hotel, content };
+  }
+
+  /**
+   * A hotel's content for a customer page: the stored copy (hotels of the lists), else the provider's (read only),
+   * kept in memory. Waits at most `waitMs` for the provider; a later answer still fills the cache for the next view.
+   * Never fails the page: null instead.
+   */
+  private async hotelContentFor(hotelId: string, language: 'tr' | 'en', waitMs: number): Promise<HotelContent | null> {
+    try {
+      const [row] = await this.hotelListRepository.content(this.deps.settings.environment, [hotelId], language);
+      if (row?.status === 'OK') return row.content as HotelContent;
+      if (row?.status === 'NOT_FOUND') return null;
+    } catch (err) {
+      this.deps.log?.warn('stored hotel content not read', { hotelId, error: err instanceof Error ? err.message : String(err) });
+    }
+    const key = `${language}:${hotelId}`;
+    const now = this.clock().getTime();
+    const hit = this.contentCache.get(key);
+    if (hit && hit.until > now) return hit.value;
+    let read = this.contentReads.get(key);
+    if (!read) {
+      const keep = (value: HotelContent | null, ms: number) => {
+        this.contentCache.delete(key);
+        if (this.contentCache.size >= CONTENT_CACHE_MAX) this.contentCache.delete(this.contentCache.keys().next().value!);
+        this.contentCache.set(key, { until: this.clock().getTime() + ms, value });
+        return value;
+      };
+      read = this.deps.hotels
+        .hotelContent({ hotelId, language })
+        .then(
+          (out) => {
+            if (out.kind === 'SUCCEEDED') return keep(out.value, CONTENT_TTL_MS);
+            this.deps.log?.warn('hotel content not fetched', { hotelId, language, outcome: out.kind });
+            return keep(null, CONTENT_RETRY_MS);
+          },
+          (err: unknown) => {
+            this.deps.log?.warn('hotel content not fetched', { hotelId, language, error: err instanceof Error ? err.message : String(err) });
+            return keep(null, CONTENT_RETRY_MS);
+          },
+        )
+        .finally(() => this.contentReads.delete(key));
+      this.contentReads.set(key, read);
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), waitMs);
+      timer.unref?.();
+    });
+    try {
+      return await Promise.race([read, late]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   /** Currencies a customer can pay in right now (an approved policy and an open route are needed). */
