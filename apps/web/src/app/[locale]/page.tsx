@@ -12,6 +12,17 @@ import { listFaqs, listPosts } from '../../server/cms-content';
 
 export const dynamic = 'force-dynamic';
 
+/** Words as spans numbered from `from`, so a heading can fill with ink word by word as it scrolls into view. */
+const inkWords = (text: string, from: number) =>
+  text.split(' ').map((w, k) => (
+    <Fragment key={k}>
+      {k > 0 && ' '}
+      <span className="ink" style={{ '--w': from + k } as CSSProperties}>
+        {w}
+      </span>
+    </Fragment>
+  ));
+
 /** "Öne çıkan otel listeleri" → ["Öne", "çıkan otel listeleri"]: the first word in ink, the rest in the second tone. */
 const twoTone = (s: string) => {
   const at = s.indexOf(' ');
@@ -69,13 +80,14 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
       <section className="promise" aria-labelledby="home-promise">
         <div className="promise-head" data-reveal="rise">
           <p className="eyebrow">{t.home.promiseLabel}</p>
-          <h2 id="home-promise">
+          <h2 id="home-promise" className="ink-fill">
             {comma > 0 ? (
               <>
-                {t.footerTagline.slice(0, comma + 1)} <span className="tone-accent">{t.footerTagline.slice(comma + 1).trim()}</span>
+                {inkWords(t.footerTagline.slice(0, comma + 1), 0)}{' '}
+                <span className="tone-accent">{inkWords(t.footerTagline.slice(comma + 1).trim(), t.footerTagline.slice(0, comma + 1).split(' ').length)}</span>
               </>
             ) : (
-              t.footerTagline
+              inkWords(t.footerTagline, 0)
             )}
           </h2>
         </div>
@@ -135,7 +147,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
             </a>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element -- the site's own coast artwork, decorative */}
-          <img className="flights-art" src="/art/coast-scene.png" alt="" width={4000} height={1400} loading="lazy" decoding="async" data-reveal="media" data-reveal-duration="800" />
+          <img className="flights-art" src="/art/coast-scene.png" alt="" width={4000} height={1400} loading="lazy" decoding="async" />
         </section>
       )}
 
@@ -153,7 +165,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
           </div>
           <ul className="guide-rows">
             {guides.posts.map((p, i) => (
-              <li key={p.slug} data-reveal="slide" data-reveal-duration="520" data-reveal-delay={i * 80}>
+              <li key={p.slug} data-reveal="lift" data-reveal-duration="640" data-reveal-delay={i * 80}>
                 <Postcard href={guidePath(locale, p.slug)} title={p.title} text={p.excerpt} image={p.image} seed={`guide-${p.slug}`} />
               </li>
             ))}

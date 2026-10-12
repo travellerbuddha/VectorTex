@@ -12,7 +12,7 @@ import { cmsMetadata, PreviewBanner } from '../cms/CmsPage';
 import { TrackEvent } from '../tracking/TrackEvent';
 import { listEcommerce } from '../../server/analytics';
 import { RichText } from '../cms/RichText';
-import { HotelMedia, Postcard, Stars } from '../ui/HotelBits';
+import { HotelMedia, hotelTransition, Postcard, Stars } from '../ui/HotelBits';
 import { MapPin } from 'lucide-react';
 
 /**
@@ -124,7 +124,7 @@ export async function HotelListPage({ locale, slug }: { locale: Locale; slug: st
         <ol className="hotel-cards" data-testid="hotel-cards">
           {hotels.map((h) => (
             <li key={h.hotelId} className="card hotel-card">
-              <HotelMedia hotelId={h.hotelId} photo={h.image} />
+              <HotelMedia hotelId={h.hotelId} photo={h.image} style={hotelTransition(h.slug)} />
               <div className="hotel-body">
                 <h2>
                   <a href={hotelPath(locale, h.slug)}>{h.name}</a>

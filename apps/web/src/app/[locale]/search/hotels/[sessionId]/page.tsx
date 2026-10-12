@@ -1,9 +1,11 @@
 import { isDomainError } from '@texholiday/contracts';
 import { CalendarDays, ChevronDown, Coffee, MapPin, SlidersHorizontal, Users } from 'lucide-react';
 import { notFound } from 'next/navigation';
+import type { CSSProperties } from 'react';
 import { OfferButton } from '../../../../../components/OfferButton';
 import { CancellationLine } from '../../../../../components/QuoteSummary';
 import { OpenOnWide } from '../../../../../components/results/OpenOnWide';
+import { SortForm } from '../../../../../components/results/SortForm';
 import { SearchForm } from '../../../../../components/SearchForm';
 import { HotelMedia, RatingBadge, Stars } from '../../../../../components/ui/HotelBits';
 import { dict, type Locale } from '../../../../../i18n/dictionaries';
@@ -101,6 +103,15 @@ export default async function Results({ params, searchParams }: { params: Promis
       <div className="results-head">
         <h1>{t.results.title}</h1>
         {view.hotels.length > 0 && <p className="muted">{t.results.count(hotels.length)}</p>}
+        {view.hotels.length > 0 && (
+          <SortForm
+            label={t.results.sort}
+            value={filters.sort}
+            options={(['recommended', 'price', 'rating'] as const).map((v) => ({ value: v, text: t.results.sortBy[v]! }))}
+            hidden={[...Object.entries(kept), ...(filters.free ? [['free', '1'] as [string, string]] : []), ...filters.boards.map((b) => ['boards', b] as [string, string]), ...(filters.stars ? [['stars', String(filters.stars)] as [string, string]] : [])]}
+            submit={t.results.apply}
+          />
+        )}
       </div>
       {view.hotels.length === 0 ? (
         <p className="notice">{t.results.none}</p>
@@ -126,7 +137,7 @@ export default async function Results({ params, searchParams }: { params: Promis
             )}
             <ul className="hotels">
               {hotels.map((h, i) => (
-                <li key={h.hotelId} className="hotel">
+                <li key={h.hotelId} className="hotel" style={i < 6 ? ({ '--i': i } as CSSProperties) : undefined}>
                   {/* Provider images are https-only; no next/image so hosts need no allow-list. */}
                   <HotelMedia hotelId={h.hotelId} photo={h.photo} eager={i === 0} />
                   <div className="hotel-body">
@@ -202,16 +213,8 @@ function FilterForm({ locale, filters, kept, boards, clearHref }: { locale: Loca
       {Object.entries(kept).map(([k, v]) => (
         <input key={k} type="hidden" name={k} value={v} />
       ))}
-      <div className="field">
-        <label htmlFor="sort">{t.sort}</label>
-        <select id="sort" name="sort" defaultValue={filters.sort}>
-          {(['recommended', 'price', 'rating'] as const).map((s) => (
-            <option key={s} value={s}>
-              {t.sortBy[s]}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* The order is chosen above the results; applying filters keeps it. */}
+      {filters.sort !== 'recommended' && <input type="hidden" name="sort" value={filters.sort} />}
       <fieldset>
         <legend>{t.cancelPolicy}</legend>
         <label className="check">

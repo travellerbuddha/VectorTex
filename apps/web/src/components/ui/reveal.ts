@@ -1,14 +1,18 @@
 /**
  * One-time scroll reveals for discovery sections. CSS keeps every element visible; only elements still below the
  * viewport are prepared (paused at their first frame) and play once just before they enter. Mark leaf groups with
- * data-reveal="rise|lift|slide|media|fade" and optionally data-reveal-delay / data-reveal-duration (ms).
+ * data-reveal="rise|lift|slide|media|fade|stub" and optionally data-reveal-delay / data-reveal-duration (ms).
  */
 const FROM: Record<string, Keyframe> = {
-  rise: { opacity: 0, transform: 'translateY(12px)' },
-  lift: { opacity: 0, transform: 'translateY(24px)' },
-  slide: { opacity: 0, transform: 'translateX(24px)' },
+  // Text groups move only (no opacity), so every frame keeps full contrast.
+  rise: { transform: 'translateY(24px)' },
+  lift: { transform: 'translateY(40px)' },
+  slide: { transform: 'translateX(24px)' },
+  fade: { transform: 'translateY(12px)' },
+  // Pictures may ease in from a lighter state.
   media: { opacity: 0.4, transform: 'scale(1.05)' },
-  fade: { opacity: 0 },
+  // The footer wordmark rises out of its clipped box; the clip hides it, so it stays opaque.
+  stub: { transform: 'translateY(32%)' },
 };
 
 export function installReveals(root: ParentNode = document): () => void {
@@ -54,7 +58,7 @@ export function installReveals(root: ParentNode = document): () => void {
       continue;
     }
     const from = FROM[element.dataset.reveal ?? ''] ?? FROM.rise!;
-    const to: Keyframe = { opacity: 1, transform: 'none' };
+    const to: Keyframe = 'opacity' in from ? { opacity: 1, transform: 'none' } : { transform: 'none' };
     const animation = element.animate([from, to], {
       duration: Number(element.dataset.revealDuration) || 600,
       delay: Math.min(Number(element.dataset.revealDelay) || 0, 240),

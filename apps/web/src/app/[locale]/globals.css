@@ -1226,7 +1226,10 @@ legend {
   padding: 0.5rem;
   border-radius: var(--r-lg);
 }
+/* The form is a container (and so a stacking context); it sits above later content so its panels are never covered. */
 .hotel-search {
+  position: relative;
+  z-index: 5;
   container-type: inline-size;
   text-align: left;
   color: var(--ink);
@@ -1304,10 +1307,12 @@ legend {
   border-top: 0;
   border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
 }
-.search-bar > .seg-in {
+.search-bar > .seg-in,
+.search-bar .seg-date.seg-in {
   grid-area: in;
 }
-.search-bar > .seg-out {
+.search-bar > .seg-out,
+.search-bar .seg-date.seg-out {
   grid-area: out;
 }
 .search-bar > .seg-guests {
@@ -1333,7 +1338,14 @@ legend {
 .seg-to .suggestions {
   min-width: min(22rem, calc(100vw - 2 * var(--gutter)));
 }
-/* The guests segment is one button: label above, summary below, chevron at the end. */
+/* The date and guests segments are buttons: label above, value below (chevron on guests). */
+.date-range {
+  display: contents;
+}
+.search-bar > .date-range > .seg-date {
+  padding: 0;
+}
+.seg-toggle,
 .guests-toggle {
   width: 100%;
   min-height: 64px;
@@ -1353,11 +1365,17 @@ legend {
   justify-content: stretch;
   font-weight: 600;
 }
+.seg-toggle:focus-visible,
 .guests-toggle:focus-visible {
   outline: none;
 }
+.seg-toggle:active:not(:disabled),
 .guests-toggle:active:not(:disabled) {
   transform: none;
+}
+.seg-toggle {
+  grid-template-areas: 'label' 'value';
+  grid-template-columns: minmax(0, 1fr);
 }
 .seg-label {
   grid-area: label;
@@ -1384,7 +1402,8 @@ legend {
 /* Floating panels (guests, passengers, language and currency): paper, 18px corners, the float shadow; they slide 6px
    from the control they belong to. Closing keeps them displayed for the fade where display transitions exist. */
 .guests-panel,
-.lang-panel {
+.lang-panel,
+.cal-panel {
   position: absolute;
   top: calc(100% + 0.5rem);
   right: 0;
@@ -1403,7 +1422,8 @@ legend {
     display 200ms allow-discrete;
 }
 .guests-panel[hidden],
-.lang-panel[hidden] {
+.lang-panel[hidden],
+.cal-panel[hidden] {
   display: none;
   opacity: 0;
   transform: translateY(-6px) scale(0.98);
@@ -1412,7 +1432,8 @@ legend {
 }
 @starting-style {
   .guests-panel:not([hidden]),
-  .lang-panel:not([hidden]) {
+  .lang-panel:not([hidden]),
+  .cal-panel:not([hidden]) {
     opacity: 0;
     transform: translateY(-6px) scale(0.98);
   }
@@ -1423,11 +1444,7 @@ legend {
   cursor: default;
 }
 .guest-room {
-  display: grid;
-  grid-template-columns: 4rem minmax(0, 1fr) minmax(0, 1fr);
-  align-items: end;
-  gap: 0 0.6rem;
-  padding: 0.85rem 0;
+  padding: 0.75rem 0;
   border-top: 1px solid var(--line);
 }
 .guest-room:first-child {
@@ -1435,10 +1452,11 @@ legend {
   padding-top: 0;
 }
 .guest-room-title {
+  display: block;
   font-weight: 650;
-  font-size: 0.9375rem;
-  align-self: center;
-  padding-top: 1.4rem;
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  margin-bottom: 0.15rem;
 }
 .guest-room .field {
   margin: 0;
@@ -1451,15 +1469,13 @@ legend {
   min-height: 44px;
 }
 .guest-ages {
-  grid-column: 2 / -1;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr));
   gap: 0.5rem 0.6rem;
   margin-top: 0.6rem;
 }
 .guest-remove {
-  grid-column: 2 / -1;
-  justify-self: start;
+  margin-top: 0.25rem;
 }
 .guests-foot {
   display: flex;
@@ -1547,9 +1563,6 @@ legend {
 }
 .pax-counts {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0 0.6rem;
-  align-items: end;
 }
 .pax-panel .field {
   margin: 0;
@@ -1678,6 +1691,7 @@ legend {
 .home-hero {
   --overlap: 56px;
   position: relative;
+  z-index: 2;
   isolation: isolate;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -4128,6 +4142,449 @@ legend {
   color: var(--ink-2);
 }
 
+/* ---------- Steppers (guests, passengers) ---------- */
+.stepper-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 52px;
+}
+.stepper-label {
+  font-weight: 550;
+  font-size: 0.975rem;
+}
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+/* A 40px round button inside a 44px target. */
+.stepper-btn {
+  position: relative;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sea-700);
+}
+.stepper-btn::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border: 1px solid var(--line-2);
+  border-radius: 50%;
+  transition:
+    background-color var(--t-fast) ease-out,
+    border-color var(--t-fast) ease-out;
+}
+.stepper-btn svg.lucide {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.25;
+}
+.stepper-btn:hover:not([aria-disabled])::before {
+  background: var(--sea-50);
+  border-color: var(--sea-200);
+}
+.stepper-btn[aria-disabled] {
+  color: var(--line-strong);
+  cursor: not-allowed;
+}
+.stepper-btn[aria-disabled]:active {
+  transform: none;
+}
+.stepper-value {
+  min-width: 2ch;
+  text-align: center;
+  font-weight: 650;
+  font-size: 1.0625rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Calendar panel (date range) ---------- */
+.cal-panel {
+  left: 0;
+  right: auto;
+  width: 100%;
+  padding: 1rem 1rem 0.85rem;
+  transform-origin: top left;
+}
+@container (min-width: 600px) {
+  .cal-panel {
+    width: min(660px, 100%);
+  }
+}
+@container (min-width: 860px) {
+  .cal-panel {
+    left: 24%;
+  }
+  .flight-search .cal-panel {
+    left: 33%;
+  }
+}
+.cal-hint {
+  margin: 0 0 0.25rem;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 3.25rem;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+.cal-nav {
+  position: absolute;
+  top: 1rem;
+  left: 0.75rem;
+  right: 0.75rem;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.cal-step {
+  pointer-events: auto;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink);
+}
+.cal-step:hover:not(:disabled) {
+  background: var(--mist);
+}
+.cal-step:disabled {
+  opacity: 0.3;
+}
+.cal-months {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+.cal-month + .cal-month {
+  display: none;
+}
+@container (min-width: 600px) {
+  .cal-months {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+  .cal-month + .cal-month {
+    display: table;
+  }
+}
+.cal-month {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.cal-month caption {
+  padding: 0 0 0.5rem;
+  font-weight: 650;
+  font-size: 0.975rem;
+  text-transform: capitalize;
+}
+.cal-month th {
+  padding: 0.2rem 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.cal-month td {
+  padding: 1px 0;
+  text-align: center;
+}
+/* The stay as one band from check-in to check-out. */
+.cal-month td.in-range {
+  background: var(--sea-50);
+}
+.cal-month td.range-start {
+  background: linear-gradient(90deg, transparent 50%, var(--sea-50) 50%);
+}
+.cal-month td.range-end {
+  background: linear-gradient(90deg, var(--sea-50) 50%, transparent 50%);
+}
+.cal-month td.range-start.range-end {
+  background: none;
+}
+.cal-day {
+  width: 100%;
+  max-width: 44px;
+  min-height: 0;
+  aspect-ratio: 1;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 550;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color var(--t-fast) ease-out,
+    color var(--t-fast) ease-out,
+    transform var(--t-fast) var(--ease-out);
+}
+.cal-day:hover:not(:disabled) {
+  background: var(--mist-2);
+}
+.cal-day[aria-current='date'] {
+  box-shadow: inset 0 0 0 1.5px var(--line-strong);
+}
+.cal-day[aria-pressed='true'] {
+  background: var(--sea-700);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: none;
+}
+.cal-day[aria-pressed='true']:hover {
+  background: var(--sea-800);
+}
+.cal-day:disabled {
+  color: var(--line-strong);
+  text-decoration: line-through;
+  text-decoration-color: transparent;
+  opacity: 0.55;
+  cursor: default;
+}
+.cal-day:focus-visible {
+  outline-offset: 0;
+  border-radius: 50%;
+}
+.cal-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+.cal-summary {
+  font-weight: 600;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Results: the count and the always-visible sort ---------- */
+.sort-form {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.sort-form label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.sort-form select {
+  width: auto;
+  min-height: 44px;
+  padding-block: 0.4rem;
+  border-color: var(--line-2);
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.925rem;
+  background-color: var(--paper);
+}
+@media (max-width: 559px) {
+  .results-head {
+    align-items: center;
+  }
+  .sort-form {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+  .sort-form select {
+    flex: 1;
+  }
+}
+/* The first cards settle in order on load: transform only, so prices and Seç are readable and usable at once. */
+@media (prefers-reduced-motion: no-preference) {
+  .hotels > .hotel {
+    animation: card-in 420ms var(--ease-out) both;
+    animation-delay: calc(var(--i, 6) * 40ms);
+  }
+}
+@keyframes card-in {
+  from {
+    transform: translateY(8px);
+  }
+}
+
+/* ---------- Footer closing wordmark ---------- */
+.footer-mark {
+  margin-top: 3rem;
+  overflow: hidden;
+}
+.footer-mark img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+@media (min-width: 1100px) {
+  .footer-mark {
+    margin-top: 4rem;
+  }
+}
+
+/* ---------- Scroll-linked identity motion (discovery pages only; static where unsupported) ---------- */
+/* Evening on the coast: as the hero leaves, the sun sinks into the bay, the glow fades, the sky darkens and the
+   framed stage eases back. Text sits above and never fades. Only transforms and an overlay's opacity move. */
+.hero-stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--sea-950);
+  opacity: 0;
+  pointer-events: none;
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .home-hero {
+      view-timeline: --hero block;
+    }
+    .hero-stage {
+      animation: stage-recede linear both;
+      animation-timeline: --hero;
+      animation-range: exit 0% exit 90%;
+    }
+    .hero-stage::after {
+      animation: dusk linear both;
+      animation-timeline: --hero;
+      animation-range: exit 0% exit 80%;
+    }
+    .hero-art .coast-sunset {
+      animation: sun-down linear both;
+      animation-timeline: --hero;
+      animation-range: exit 0% exit 70%;
+    }
+    .hero-art .coast-glow,
+    .hero-art .coast-glitter {
+      animation: glow-out linear both;
+      animation-timeline: --hero;
+      animation-range: exit 0% exit 70%;
+    }
+
+    /* The promise fills with ink word by word as it crosses the screen. Every step is darker than ink-3 (AA). */
+    .ink-fill {
+      view-timeline: --ink block;
+    }
+    .ink-fill .ink {
+      animation: ink-in linear both;
+      animation-timeline: --ink;
+      animation-range: cover calc(24% + var(--w, 0) * 3%) cover calc(38% + var(--w, 0) * 3%);
+    }
+
+    /* Pictures settle into their frames as their card arrives. The frame clips (a scroll container), so the timeline is
+       the frame's own position in the page, named on the frame and read by the picture inside. */
+    .discover .media-slot,
+    .guide-rows .media-slot {
+      view-timeline: --frame block;
+    }
+    .discover .media-slot > *,
+    .guide-rows .media-slot > * {
+      animation: settle linear both;
+      animation-timeline: --frame;
+      animation-range: entry 0% cover 45%;
+    }
+
+    /* The flights tile opens from slightly inside its frame; the coast drifts within it. */
+    .flights-tile {
+      view-timeline: --tile block;
+      animation: tile-open linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 40%;
+    }
+    .flights-art {
+      animation: drift linear both;
+      animation-timeline: --tile;
+      animation-range: cover 0% cover 100%;
+    }
+  }
+}
+@keyframes stage-recede {
+  to {
+    transform: scale(0.965);
+  }
+}
+@keyframes dusk {
+  to {
+    opacity: 0.38;
+  }
+}
+@keyframes sun-down {
+  to {
+    transform: translateY(96px);
+  }
+}
+@keyframes glow-out {
+  to {
+    opacity: 0.15;
+  }
+}
+@keyframes ink-in {
+  from {
+    color: var(--ink-3);
+  }
+}
+@keyframes settle {
+  from {
+    scale: 1.1;
+  }
+  to {
+    scale: 1;
+  }
+}
+@keyframes tile-open {
+  from {
+    scale: 0.92;
+  }
+  to {
+    scale: 1;
+  }
+}
+@keyframes drift {
+  from {
+    transform: scale(1.12) translateY(-4%);
+  }
+  to {
+    transform: scale(1.12) translateY(4%);
+  }
+}
+.ink-fill .ink {
+  color: var(--ink);
+}
+.ink-fill .tone-accent .ink {
+  color: var(--sea-700);
+}
+
+/* ---------- Page transitions: the header stays, the page cross-fades, a hotel's picture carries over ---------- */
+@view-transition {
+  navigation: auto;
+}
+.site-header {
+  view-transition-name: site-header;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 260ms;
+  animation-timing-function: var(--ease-in-out);
+}
+::view-transition-group(*) {
+  animation-duration: 340ms;
+  animation-timing-function: var(--ease-out);
+}
+
 /* ---------- Reduced motion: every transition and animation off; content and panels work the same. ---------- */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -4136,5 +4593,8 @@ legend {
     animation: none !important;
     transition: none !important;
     scroll-behavior: auto !important;
+  }
+  @view-transition {
+    navigation: none;
   }
 }

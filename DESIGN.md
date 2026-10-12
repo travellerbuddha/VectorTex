@@ -53,8 +53,9 @@ Bütün metin/zemin çiftleri WCAG AA geçer. Koyu zeminde odak halkası güneş
   - Odakta bölme 3 px iç odak halkası ve sis zemini alır.
   - Düzen formun genişliğine bağlıdır (container query): 860 px+ tek satır, 600 px+ iki satır, 300 px+ tarihler yan yana, altında yığın.
   - Ana sayfada çubuk sahnenin alt kenarına biner, kendi kenarlığını bırakır ve kart çerçevesini kullanır.
-  - Oda ve çocuk yaşları "Misafirler" panelindedir. Para birimi üst bilgidedir, uyruk sorulmaz.
-- **Uçuş araması:** aynı çubuk. Üstte sis zeminli segment kontrol (Gidiş-dönüş | Tek yön), yolcular panelde.
+  - Giriş ve çıkış bölmeleri tek bir takvim panelini açar (`DateRangeField`): geniş formda iki ay, dar formda bir ay; konaklama uçlar deniz-700 daire, aradaki günler deniz-50 bant; bugün çerçeveli; ok tuşları gün/hafta, PageUp/PageDown ay, Escape kapatır. İlk seçim girişi, ikinci seçim çıkışı belirler ve panel kapanır.
+  - Oda, yetişkin ve çocuk sayıları "Misafirler" panelinde −/+ sayaçlarıdır (`Stepper`, 44 px hedef, sınırda `aria-disabled`); çocuk yaşları seçim kutusudur. Para birimi üst bilgidedir, uyruk sorulmaz.
+- **Uçuş araması:** aynı çubuk. Üstte sis zeminli segment kontrol (Gidiş-dönüş | Tek yön); gidiş-dönüşte aynı tarih aralığı paneli, tek yönde tek tarih; yolcular −/+ sayaçlarıyla panelde.
 - **Karşılaştırma kartı** (`li.hotel`, sonuçlar):
   - Üst satırda solda fotoğraf (248 px), sağda ad, yıldız ve konum, puan rozeti ve "başlayan fiyat".
   - Altta tam genişlikte teklif satırları: solda oda adı ve etiketler, kesik çizginin sağında toplam, "Konaklama toplamı", gecelik ortalama ve **Seç**.
@@ -82,19 +83,26 @@ Bütün metin/zemin çiftleri WCAG AA geçer. Koyu zeminde odak halkası güneş
   5. Rehberler: solda yapışkan başlık sütunu, sağda satırlar.
 - **Ürün girişi (uçak):** Aynı sahne ve aynı yükseklikte, daha küçük başlık. Sahne yüksekliği genişlikle birlikte artar (`min-height: calc(300px + 14.5vw)`), böylece güneş hiçbir ekranda yazının arkasına çıkmaz.
 - **Sonuçlar, rezervasyon, ödeme, hesap (iş görme):** Sis zemin üstünde beyaz kartlar, okunabilirlik önce.
-  - Filtreler GET formudur: JavaScript'siz çalışır, bağlantıyla paylaşılır, geri/ileri ve yenilemede korunur.
+  - Sonuç sayısının yanında sıralama her zaman görünür (`SortForm`, seçince gönderilir; JavaScript yoksa düğmeyle).
+  - Filtreler GET formudur: JavaScript'siz çalışır, bağlantıyla paylaşılır, geri/ileri ve yenilemede korunur; sıralama ve filtreler birbirini taşır.
   - Filtreler masaüstünde yapışkan sütunda, telefonda tam genişlik düğmenin açtığı panelde durur.
 - **Otel sayfası:** Başlık satırında ad, yıldız ve konum, sağda puan. Altında tek çerçeveli mozaik galeri, ardından ince çizgilerle ayrılan bölümler (olanaklar onay işaretli liste). Sağda yapışkan fiyat ve arama kutusu, telefonda açıklamadan önce gelir.
 - **Rehber, SSS, yasal (okuma):** 70–76 karakter satır, büyük başlık, sade.
 
 ## Hareket
 
-- **Ana sayfa girişi** (CSS, yükte): başlık kelimeleri 90 ms arayla 18 px yükselir, ardından vaat ve arama çubuğu gelir. Sahne 1,04'ten yerine oturur, güneş ufka iner. Arama ilk kareden tıklanabilir (yalnız `transform` ve `opacity` oynar).
-- **Kaydırmada bir kez görünme** (`components/ui/reveal.ts`, `SiteMotion`): yalnız henüz ekranın altında olan gruplar hazırlanır (`data-reveal="rise|lift|slide|media|fade"`). Geri kaydırmada tekrar etmez, betik çalışmazsa içerik yine görünür. Sonuç, rezervasyon ve ödeme sayfalarında kullanılmaz.
-- **Paneller** (misafir, yolcu, dil ve döviz) 200 ms'de 6 px kayarak ve 0,98'den büyüyerek açılır, 140 ms'de kapanır. Öneri listesi 160 ms'de belirir.
-- **Açılır bölümler** (Değiştir, telefonda filtreler, SSS) destekleyen tarayıcıda 360 ms yükseklik geçişiyle açılır (`::details-content`, `interpolate-size`), diğerlerinde anında açılır.
-- **Geri bildirim** 160 ms'dir: düğme koyulaşır ve 0,98'e basılır, kart hover'ında kenar ve gölge belirir, keşif görselleri 480 ms'de 1,035'e yaklaşır, bağlantı oku 3 px ilerler. Onaylanan siparişin ikonu bir kez yerine oturur.
-- `prefers-reduced-motion` bütün hareketi kapatır; içerik ve paneller aynen çalışır.
+İki hız vardır: keşif sayfalarında kaydırmayla ilerleyen, kimlik taşıyan bir akşam; arama, sonuç, rezervasyon ve ödemede neredeyse görünmez, hızlı geri bildirim. Metin hiçbir karede yarı saydam olmaz (yalnız `transform` ve renk); fiyat ve düğmeler animasyonu beklemez.
+
+- **Ana sayfa girişi** (yükte): başlık kelimeleri kendi satır kutularından 90 ms arayla yükselir, alt yazı ve arama çubuğu yerine oturur, sahne 1,04'ten oturur, güneş ufka iner. Arama ilk kareden kullanılabilir.
+- **Batan güneş** (imza, kaydırmaya bağlı, `animation-timeline`): ana sayfa ve uçuş girişinde sahne ekrandan çıkarken güneş denize batar (`.coast-sunset`), ışıltı söner, gökyüzü koyulaşır (`.hero-stage::after`), sahne 0,965'e geri çekilir. Geri kaydırınca tersine döner. Güneş her zaman yazının altında kalır.
+- **Mürekkep dolumu**: "Nasıl satıyoruz" cümlesi ekranı geçerken kelime kelime mürekkep-3'ten mürekkebe (vurgu kısmı deniz-700'e) dolar; her ara renk AA geçer.
+- **Çerçeveye oturma**: liste ve rehber görselleri kartları gelirken çerçevelerinin içinde 1,1'den 1'e yerleşir (zaman çizelgesi çerçevede, `--frame`).
+- **Uçak karosu** girerken 0,92'den tam boyuna açılır; içindeki kıyı görseli kaydırmayla hafifçe kayar (`--tile`).
+- **Bir kez görünme** (`reveal.ts`): başlıklar, kartlar ve rehber satırları ekranın altından yalnız `transform` ile yükselir; eşik 0, alt pay 96 px; ekranda ya da 96 px yakınında olan hiç hazırlanmaz; geri kaydırmada tekrar etmez. Alt bilgideki dev logo kendi kutusundan yükselir.
+- **Sonuçlar**: ilk altı kart yükte 8 px'ten 40 ms arayla yerine oturur (yalnız transform).
+- **Paneller** (takvim, misafir, dil) tetikleyicisinden 200 ms'de 6 px ve 0,98'den açılır, 140 ms'de kapanır. **Geri bildirim** 160 ms: düğme 0,98'e basılır, seçilen gün dolar, sayaç yerinde değişir.
+- **Sayfa geçişleri** (`@view-transition`): üst bilgi yerinde kalır, içerik 260 ms'de çapraz geçer; liste kartındaki otel fotoğrafı otel sayfasındaki ilk galeri fotoğrafına dönüşür (`hotelTransition`).
+- Kaydırmaya bağlı efektler `@supports (animation-timeline: view())` içindedir; desteklemeyen tarayıcı son hali statik gösterir. `prefers-reduced-motion` bütün hareketi ve sayfa geçişlerini kapatır; içerik ve paneller aynen çalışır.
 
 ## Çizimler (`components/ui/Art.tsx`)
 

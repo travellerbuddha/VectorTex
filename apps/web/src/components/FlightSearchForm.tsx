@@ -2,10 +2,12 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CalendarDays, ChevronDown, PlaneLanding, PlaneTakeoff, Search, Users } from 'lucide-react';
+import { ChevronDown, PlaneLanding, PlaneTakeoff, Search, Users } from 'lucide-react';
 import { dict, errorMessage, type Locale } from '../i18n/dictionaries';
 import { api, ApiError } from './api';
 import { savedCurrency } from './currency-pref';
+import { DateRangeField } from './DateRangeField';
+import { Stepper } from './Stepper';
 
 export interface Airport {
   iata: string;
@@ -155,7 +157,7 @@ export function FlightSearchForm({ locale, currencies, today, initial }: { local
   };
   const openPax = () => {
     setPaxOpen(true);
-    requestAnimationFrame(() => paxRef.current?.querySelector<HTMLSelectElement>('.guests-panel select')?.focus());
+    requestAnimationFrame(() => paxRef.current?.querySelector<HTMLElement>('.guests-panel button:not([aria-disabled]), .guests-panel select')?.focus());
   };
 
   async function submit(e: React.FormEvent) {
@@ -182,15 +184,8 @@ export function FlightSearchForm({ locale, currencies, today, initial }: { local
 
   if (currencies.length === 0) return <p className="notice">{f.noCurrency}</p>;
 
-  const count = (label: string, id: string, value: number, max: number, min: number, onChange: (n: number) => void) => (
-    <div className="field">
-      <label htmlFor={id}>{label}</label>
-      <select id={id} value={value} onChange={(e) => onChange(Number(e.target.value))}>
-        {Array.from({ length: max - min + 1 }, (_, i) => min + i).map((n) => (
-          <option key={n}>{n}</option>
-        ))}
-      </select>
-    </div>
+  const count = (label: string, _id: string, value: number, max: number, min: number, onChange: (n: number) => void) => (
+    <Stepper label={label} value={value} min={min} max={max} words={t.search} onChange={onChange} />
   );
 
   const summary = f.paxSummary(adults, childAges.length, infantAges.length, cabin ? (f.cabins[cabin] ?? cabin) : null);
@@ -210,22 +205,19 @@ export function FlightSearchForm({ locale, currencies, today, initial }: { local
       <div className={`search-bar${roundTrip ? '' : ' one-way'}`}>
         <AirportField className="seg-from" label={f.from} hint={f.airportHint} placeholder={f.originPlaceholder} value={origin} onChange={setOrigin} icon={<PlaneTakeoff />} />
         <AirportField className="seg-to" label={f.to} hint={f.airportHint} placeholder={f.destinationPlaceholder} value={destination} onChange={setDestination} icon={<PlaneLanding />} />
-        <div className="field seg seg-in">
-          <label htmlFor="depart">
-            <CalendarDays />
-            {f.depart}
-          </label>
-          <input id="depart" type="date" value={departDate} min={today} onChange={(e) => setDepartDate(e.target.value)} required />
-        </div>
-        {roundTrip && (
-          <div className="field seg seg-out">
-            <label htmlFor="return">
-              <CalendarDays />
-              {f.return}
-            </label>
-            <input id="return" type="date" value={returnDate} min={departDate} onChange={(e) => setReturnDate(e.target.value)} required />
-          </div>
-        )}
+        <DateRangeField
+          locale={locale}
+          today={today}
+          start={departDate}
+          end={returnDate}
+          minNights={0}
+          single={!roundTrip}
+          labels={{ start: f.depart, end: f.return }}
+          onChange={(a, b) => {
+            setDepartDate(a);
+            setReturnDate(b < a ? a : b);
+          }}
+        />
         <div className="seg seg-guests" ref={paxRef}>
           <button ref={paxButton} type="button" className="guests-toggle" aria-expanded={paxOpen} aria-controls={ids.panel} onClick={() => (paxOpen ? setPaxOpen(false) : openPax())}>
             <span className="seg-label">

@@ -124,6 +124,10 @@ export default async function LocaleLayout({ children, params }: { children: Rea
                 ))}
               </div>
             )}
+            <div className="footer-mark" aria-hidden="true">
+              {/* eslint-disable-next-line @next/next/no-img-element -- the wordmark again, as the closing graphic */}
+              <img src="/brand/texholiday-wordmark.svg" alt="" width={1436} height={279} loading="lazy" data-reveal="stub" data-reveal-duration="900" />
+            </div>
             <div className="footer-bottom">
               <p>{chrome.footer?.legal ?? t.footer}</p>
               <p className="footer-legal-links">

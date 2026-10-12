@@ -37,10 +37,13 @@ export function RatingBadge({ rating, locale, reviews }: { rating: number | null
   );
 }
 
+/** Shared-element name of a hotel's picture: the list card's photo becomes the hotel page's first gallery photo. */
+export const hotelTransition = (slug: string) => ({ viewTransitionName: `hotel-${slug.toLowerCase().replace(/[^a-z0-9-]/g, '-')}` }) as React.CSSProperties;
+
 /** The hotel's photo, or its postcard when the provider has none. */
-export function HotelMedia({ hotelId, photo, className, eager = false }: { hotelId: string; photo: string | null; className?: string; eager?: boolean }) {
+export function HotelMedia({ hotelId, photo, className, eager = false, style }: { hotelId: string; photo: string | null; className?: string; eager?: boolean; style?: React.CSSProperties }) {
   return (
-    <div className={`hotel-media${className ? ` ${className}` : ''}`}>
+    <div className={`hotel-media${className ? ` ${className}` : ''}`} style={style}>
       {photo ? (
         // eslint-disable-next-line @next/next/no-img-element -- provider images are https-only; no host allow-list
         <img src={photo} alt="" loading={eager ? 'eager' : 'lazy'} className="hotel-photo" />
