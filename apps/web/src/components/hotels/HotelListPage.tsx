@@ -184,18 +184,55 @@ export async function HotelListPage({ locale, slug }: { locale: Locale; slug: st
 }
 
 /** The newest published lists for the home page, with their cover image; empty without the CMS or on a CMS error. */
-export async function featuredLists(locale: Locale, limit: number): Promise<Array<{ title: string; slug: string; intro: string | null; image: { url: string; alt: string | null } | null }>> {
+export async function featuredLists(
+  locale: Locale,
+  limit: number,
+): Promise<Array<{ id: string; updatedAt: string | null; title: string; slug: string; intro: string | null; board: string | null; image: { url: string; alt: string | null } | null }>> {
   if (!cmsEnabled()) return [];
   try {
     const payload = await cms();
-    const res = await payload.find({ collection: 'hotel-lists', locale, fallbackLocale: false, depth: 1, limit, sort: '-updatedAt', overrideAccess: false, select: { title: true, slug: true, intro: true, heroImage: true } });
-    return (res.docs as Array<{ title?: string; slug?: string; intro?: string | null; heroImage?: Media }>).flatMap((d) =>
-      d.title && d.slug
-        ? [{ title: d.title, slug: d.slug, intro: d.intro ?? null, image: d.heroImage && typeof d.heroImage === 'object' && d.heroImage.url ? { url: d.heroImage.url, alt: d.heroImage.alt ?? null } : null }]
+    const res = await payload.find({
+      collection: 'hotel-lists',
+      locale,
+      fallbackLocale: false,
+      depth: 1,
+      limit,
+      sort: '-updatedAt',
+      overrideAccess: false,
+      select: { title: true, slug: true, intro: true, heroImage: true, boardType: true, updatedAt: true },
+    });
+    return (res.docs as Array<{ id?: string | number; updatedAt?: string; title?: string; slug?: string; intro?: string | null; boardType?: string | null; heroImage?: Media }>).flatMap((d) =>
+      d.title && d.slug && d.id !== undefined
+        ? [
+            {
+              id: String(d.id),
+              updatedAt: typeof d.updatedAt === 'string' ? d.updatedAt : null,
+              title: d.title,
+              slug: d.slug,
+              intro: d.intro ?? null,
+              board: typeof d.boardType === 'string' && d.boardType !== 'ANY' ? d.boardType : null,
+              image: d.heroImage && typeof d.heroImage === 'object' && d.heroImage.url ? { url: d.heroImage.url, alt: d.heroImage.alt ?? null } : null,
+            },
+          ]
         : [],
     );
   } catch {
     return [];
+  }
+}
+
+/**
+ * The home page's hotel shelf: the hotels (with their list prices and terms) of a published list, read from the same
+ * core copy as the list page. Null when the list has no hotels to show; never fails the home page.
+ */
+export async function listShelf(locale: Locale, list: { id: string; updatedAt: string | null }, limit: number): Promise<{ hotels: ListedHotel[]; pricesAsOf: string | null } | null> {
+  try {
+    const { app } = await booking();
+    const view = await app.hotelLists.list(list.id, locale, list.updatedAt);
+    if (!view || view.hotels.length === 0) return null;
+    return { hotels: view.hotels.slice(0, limit), pricesAsOf: view.pricesAsOf };
+  } catch {
+    return null;
   }
 }
 

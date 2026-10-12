@@ -1,0 +1,532 @@
+/* ---------- Home and product landings ---------- */
+.home {
+  overflow-x: clip;
+}
+
+/* Hero: the title and the search on the left, the coast on the right. The picture has a fixed aspect ratio (6:5 wide,
+   16:9 stacked), so its size depends only on the column width: never on the title, the font, the viewport height or
+   a running animation. The left column is centred against it. Phones and tablets: title, search, then the picture. */
+.hero {
+  max-width: var(--page);
+  margin: 0 auto;
+  padding: 1.25rem var(--gutter) 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'text' 'search' 'visual';
+  gap: 1.25rem;
+}
+.hero-text {
+  grid-area: text;
+  min-width: 0;
+}
+.hero-title {
+  margin: 0;
+  font-size: clamp(2.5rem, 1.6rem + 3.4vw, 4.5rem);
+  font-weight: 780;
+  letter-spacing: -0.045em;
+  line-height: 1.02;
+  text-wrap: balance;
+}
+/* Each word sits in its own clipped line box, so it can rise into view at full opacity (motion.css). */
+.hero-title .w {
+  display: inline-block;
+  overflow: clip;
+  vertical-align: top;
+  padding-bottom: 0.12em;
+  margin-bottom: -0.12em;
+}
+.hero-title .w > span {
+  display: inline-block;
+}
+.hero-sub {
+  margin: 0.75rem 0 0;
+  max-width: 36ch;
+  color: var(--ink-2);
+  font-size: clamp(1.0625rem, 1rem + 0.35vw, 1.25rem);
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+}
+.hero-search {
+  grid-area: search;
+  min-width: 0;
+}
+.hero-search .search-card {
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-3);
+}
+/* The card is the frame here: the bar inside drops its own border and keeps only the hairlines between segments. */
+.hero-search .search-bar {
+  border-color: transparent;
+}
+.hero-search > .notice {
+  margin: 0;
+}
+.hero-visual {
+  grid-area: visual;
+  position: relative;
+  align-self: center;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  background: #152131;
+  /* Its own compositing layer with the rounded clip: nothing inside can paint past the corners. */
+  isolation: isolate;
+}
+.hero-art {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.hero-compact .hero-title {
+  font-size: clamp(2.25rem, 1.6rem + 2.4vw, 3.5rem);
+}
+@media (min-width: 720px) {
+  .hero {
+    padding-top: 2rem;
+    gap: 1.5rem;
+  }
+  .hero-visual {
+    aspect-ratio: 21 / 9;
+  }
+}
+@media (min-width: 1024px) {
+  .hero {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    grid-template-rows: 1fr auto auto 1fr;
+    grid-template-areas: '. visual' 'text visual' 'search visual' '. visual';
+    column-gap: clamp(2rem, 4vw, 4rem);
+    row-gap: 1.75rem;
+    padding-top: 2.25rem;
+  }
+  .hero-visual {
+    aspect-ratio: 6 / 5;
+  }
+}
+
+/* ---------- Bands: one heading pattern (title, one muted line, a "see all" link) ---------- */
+.band {
+  max-width: var(--page);
+  margin: clamp(3.5rem, 2.5rem + 4vw, 6rem) auto 0;
+  padding: 0 var(--gutter);
+}
+.band-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'title' 'text' 'link';
+  gap: 0.35rem;
+  margin-bottom: 1.25rem;
+}
+.band-head h2 {
+  grid-area: title;
+  margin: 0;
+  font-size: clamp(1.625rem, 1.25rem + 1.4vw, 2.5rem);
+  letter-spacing: -0.036em;
+  line-height: 1.08;
+}
+.band-head p {
+  grid-area: text;
+  margin: 0;
+  color: var(--ink-2);
+  max-width: 60ch;
+}
+.band-head .text-link {
+  grid-area: link;
+  justify-self: start;
+}
+@media (min-width: 720px) {
+  .band-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'title link' 'text link';
+    align-items: end;
+    column-gap: 2rem;
+    margin-bottom: 1.5rem;
+  }
+}
+
+/* ---------- Hotel shelf (discovery cards of the newest list) ---------- */
+.shelf {
+  position: relative;
+}
+.shelf-track {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--gutter);
+  scrollbar-width: none;
+  margin: 0 calc(var(--gutter) * -1);
+  padding: 4px var(--gutter) 8px;
+  border-radius: var(--r-md);
+}
+.shelf-track::-webkit-scrollbar {
+  display: none;
+}
+.shelf-track:focus-visible {
+  outline-offset: -2px;
+}
+.shelf-track > ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(76vw, 280px);
+  gap: 1rem;
+}
+.shelf-track > ul > li {
+  scroll-snap-align: start;
+  min-width: 0;
+}
+@media (min-width: 720px) {
+  .shelf-track > ul {
+    grid-auto-columns: 280px;
+    gap: 1.25rem;
+  }
+}
+@media (min-width: 1200px) {
+  /* Four cards fill the page column; the fifth peeks at the edge. */
+  .shelf-track > ul {
+    grid-auto-columns: calc((min(100vw, var(--page)) - 2 * var(--gutter) - 3 * 1.25rem) / 4.15);
+  }
+}
+/* Arrows sit on the row's edges at the middle of the photos; pointer devices only (touch swipes). */
+.shelf-nav {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) and (min-width: 720px) {
+  .shelf-nav {
+    display: block;
+  }
+  .shelf-btn {
+    position: absolute;
+    top: calc(4px + 280px * 3 / 8);
+    z-index: 2;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-2);
+    translate: 0 -50%;
+    transition:
+      opacity var(--t-fast) ease-out,
+      background-color var(--t-fast) ease-out;
+  }
+  .shelf-btn:first-child {
+    left: -10px;
+  }
+  .shelf-btn:last-child {
+    right: -10px;
+  }
+  .shelf-btn:hover:not(:disabled) {
+    background: var(--canvas);
+  }
+  .shelf-btn:disabled {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .shelf[data-fits] .shelf-btn {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+@media (hover: hover) and (pointer: fine) and (min-width: 1200px) {
+  .shelf-btn {
+    top: calc(4px + (min(100vw, var(--page)) - 2 * var(--gutter) - 3 * 1.25rem) / 4.15 * 3 / 8);
+  }
+}
+
+/* Discovery card: photo, name, stars and town, rating, list price with its terms. One link for the whole card. */
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  height: 100%;
+}
+.tile .tile-media {
+  aspect-ratio: 4 / 3;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--canvas-2);
+  transition: box-shadow var(--t-med) var(--ease-out);
+}
+.tile-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1;
+  min-width: 0;
+}
+.tile-title {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 720;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.tile-title a::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: calc(var(--r-lg) + 4px);
+}
+.tile-title a:focus-visible {
+  outline: none;
+}
+.tile-title a:focus-visible::after {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+}
+.tile-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 0.875rem;
+}
+.tile .list-price {
+  margin-top: auto;
+  padding-top: 0.45rem;
+}
+@media (hover: hover) and (pointer: fine) {
+  .tile:hover .tile-media {
+    box-shadow: var(--shadow-2);
+  }
+  .tile:hover .tile-title a {
+    text-decoration: underline;
+    text-decoration-color: var(--line-2);
+  }
+}
+
+/* ---------- Lists mosaic: the first list large, the others as rows beside it ---------- */
+.mosaic {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+/* Phones: every list is a row (picture left, text right). */
+.mosaic .postcard {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.9rem;
+}
+.mosaic .postcard-media {
+  aspect-ratio: 4 / 3;
+  border-radius: var(--r-md);
+}
+.mosaic .postcard-body h3 {
+  font-size: 1.0625rem;
+}
+.mosaic .postcard-body p {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+@media (min-width: 720px) {
+  .mosaic {
+    gap: 1.25rem 1.5rem;
+  }
+  .mosaic-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mosaic-3,
+  .mosaic-4 {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    grid-auto-rows: auto;
+    align-items: center;
+  }
+  .mosaic-3 > li:first-child {
+    grid-row: span 2;
+  }
+  .mosaic-4 > li:first-child {
+    grid-row: span 3;
+  }
+  .mosaic-1 .postcard {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 1.5rem;
+  }
+  .mosaic-1 .postcard-media {
+    aspect-ratio: 16 / 9;
+    border-radius: var(--r-xl);
+  }
+  /* The large one: picture over text. */
+  .mosaic-2 .postcard,
+  .mosaic-3 > li:first-child .postcard,
+  .mosaic-4 > li:first-child .postcard {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 0.85rem;
+  }
+  .mosaic-2 .postcard-media,
+  .mosaic-3 > li:first-child .postcard-media,
+  .mosaic-4 > li:first-child .postcard-media {
+    aspect-ratio: 16 / 10;
+    border-radius: var(--r-xl);
+  }
+  .mosaic-2 .postcard-body h3,
+  .mosaic-3 > li:first-child .postcard-body h3,
+  .mosaic-4 > li:first-child .postcard-body h3 {
+    font-size: clamp(1.25rem, 1rem + 0.6vw, 1.5rem);
+    letter-spacing: -0.022em;
+  }
+  .mosaic-3 > li:not(:first-child) .postcard,
+  .mosaic-4 > li:not(:first-child) .postcard {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr);
+  }
+}
+
+/* ---------- How we sell ---------- */
+.promise {
+  width: calc(100% - 2 * var(--gutter));
+  max-width: calc(var(--page) - 2 * var(--gutter));
+  margin: clamp(3.5rem, 2.5rem + 4vw, 6rem) auto 0;
+  padding: clamp(1.5rem, 1rem + 3vw, 3.5rem);
+  background: var(--canvas);
+  border-radius: var(--r-xl);
+  display: grid;
+  gap: 1.75rem;
+}
+.promise-head h2 {
+  margin: 0;
+  font-size: clamp(1.75rem, 1.3rem + 1.8vw, 2.875rem);
+  font-weight: 780;
+  letter-spacing: -0.04em;
+  line-height: 1.06;
+  max-width: 16ch;
+}
+.tone-accent {
+  color: var(--coral-700);
+}
+.promise-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.promise-list li {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1.1rem 0;
+  border-top: 1px solid var(--line-2);
+}
+.promise-list li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.promise-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--coral-600);
+  box-shadow: var(--shadow-1);
+}
+.promise-list h3 {
+  margin: 0.15rem 0 0.25rem;
+}
+.promise-list p {
+  margin: 0;
+  color: var(--ink-2);
+  max-width: 54ch;
+}
+@media (min-width: 900px) {
+  .promise {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    align-items: center;
+    gap: clamp(2rem, 5vw, 5rem);
+  }
+}
+
+/* ---------- Flights (when on sale) ---------- */
+.flights-tile {
+  width: calc(100% - 2 * var(--gutter));
+  max-width: calc(var(--page) - 2 * var(--gutter));
+  margin: 1.25rem auto 0;
+  padding: clamp(1.25rem, 1rem + 1.5vw, 2rem) clamp(1.25rem, 1rem + 2vw, 2.5rem);
+  background: var(--coral-50);
+  border-radius: var(--r-xl);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 2rem;
+}
+.flights-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  min-width: 0;
+  flex: 1 1 28rem;
+}
+.flights-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--coral-600);
+  color: #fff;
+}
+.flights-tile h2 {
+  margin: 0 0 0.25rem;
+  font-size: clamp(1.25rem, 1.05rem + 0.8vw, 1.625rem);
+}
+.flights-tile p {
+  margin: 0;
+  color: var(--ink-2);
+  max-width: 56ch;
+}
+
+/* ---------- Guides ---------- */
+.articles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1.5rem;
+}
+.articles .postcard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.articles .postcard-media {
+  aspect-ratio: 3 / 2;
+  border-radius: var(--r-xl);
+}
+.articles .postcard-body h3 {
+  font-size: clamp(1.125rem, 1rem + 0.4vw, 1.3125rem);
+  letter-spacing: -0.02em;
+}
+@media (min-width: 720px) {
+  .articles-2,
+  .articles-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  .articles-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ---------- Home FAQ ---------- */
+.faq-band .faq-short {
+  max-width: 860px;
+}

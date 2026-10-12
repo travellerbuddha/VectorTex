@@ -1,0 +1,703 @@
+/*
+ * TexHoliday guest site: foundation (tokens, base, type, buttons, forms, surfaces, tags). Contract: DESIGN.md.
+ * - Brand: the official wordmark's coral (#ff5757). Filled actions use a deeper shade of the same hue so white text
+ *   passes WCAG AA; coral marks actions, the current place and the visitor's choices, nothing else.
+ * - Neutral, cool greys carry everything else: white cards on a light grey canvas for work pages, white for discovery.
+ * - One family (Plus Jakarta Sans), its geometry close to the wordmark's; strong weights and tight tracking for titles.
+ * Mobile first (320px+), 16px base text, 44px+ targets, motion off under reduced motion (motion.css).
+ */
+
+/* Fallback with the web font's metrics (widths measured on Turkish UI text per weight range), so text keeps its width
+   and lines when the font arrives late. */
+@font-face {
+  font-family: 'PJS Fallback';
+  src: local('Arial'), local('Arimo'), local('Liberation Sans'), local('Helvetica');
+  font-weight: 100 549;
+  size-adjust: 103%;
+  ascent-override: 100.8%;
+  descent-override: 21.6%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'PJS Fallback';
+  src: local('Arial Bold'), local('Arial-BoldMT'), local('Arimo Bold'), local('Liberation Sans Bold'), local('Helvetica Bold');
+  font-weight: 550 699;
+  size-adjust: 99.3%;
+  ascent-override: 104.5%;
+  descent-override: 22.4%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'PJS Fallback';
+  src: local('Arial Bold'), local('Arial-BoldMT'), local('Arimo Bold'), local('Liberation Sans Bold'), local('Helvetica Bold');
+  font-weight: 700 900;
+  size-adjust: 100.5%;
+  ascent-override: 103.3%;
+  descent-override: 22.1%;
+  line-gap-override: 0%;
+}
+
+:root {
+  /* Brand */
+  --coral: #ff5757;
+  --coral-50: #fff4f3;
+  --coral-100: #ffe5e4;
+  --coral-200: #ffc8c6;
+  --coral-600: #d63a3a;
+  --coral-700: #b42f2f;
+  --coral-800: #8e2424;
+  /* Neutrals */
+  --ink: #14161a;
+  --ink-2: #4b5059;
+  --ink-3: #656b75;
+  --paper: #ffffff;
+  --canvas: #f5f5f7;
+  --canvas-2: #ebecef;
+  --line: #e4e6ea;
+  --line-2: #d2d5db;
+  --field: #80868f;
+  /* Status */
+  --ok: #1a6b3c;
+  --ok-50: #e8f5ed;
+  --warn: #8a4b00;
+  --warn-50: #fff3df;
+  --error: #a4161a;
+  --error-50: #fdecec;
+  --focus: var(--ink);
+  /* Type */
+  --font: 'Plus Jakarta Sans Variable', 'PJS Fallback', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Shape: tags 8, fields 12, cards and panels 16, pictures and tiles 24; every action is a pill. */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 24px;
+  --shadow-1: 0 1px 2px rgb(20 22 26 / 0.06);
+  --shadow-2: 0 2px 8px rgb(20 22 26 / 0.06), 0 14px 36px -14px rgb(20 22 26 / 0.22);
+  --shadow-3: 0 4px 16px rgb(20 22 26 / 0.06), 0 26px 60px -22px rgb(20 22 26 / 0.32);
+  /* Frame */
+  --page: 1280px;
+  --gutter: 1rem;
+  --header-h: 108px;
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --t-press: 110ms;
+  --t-fast: 160ms;
+  --t-med: 220ms;
+  --t-slow: 320ms;
+  color-scheme: light;
+  /* Lets disclosures (filters, FAQ) animate to their natural height where supported. */
+  interpolate-size: allow-keywords;
+}
+@media (min-width: 720px) {
+  :root {
+    --gutter: 1.5rem;
+  }
+}
+@media (min-width: 900px) {
+  :root {
+    --header-h: 64px;
+  }
+}
+@media (min-width: 1200px) {
+  :root {
+    --gutter: 2rem;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* Focus and anchor scrolling stop below the sticky header. */
+  scroll-padding-top: calc(var(--header-h) + 16px);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scrollbar-color: var(--line-2) transparent;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 1rem;
+  font-weight: 450;
+  line-height: 1.55;
+  color: var(--ink);
+  background: var(--paper);
+  overflow-x: hidden;
+  overflow-x: clip;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+/* Work pages (results, booking, account) sit on the grey canvas so their white cards read as one set. */
+body:has(main > .results, main > .checkout, main > .payment, main > .order, main > .extras, main > .account) {
+  background: var(--canvas);
+}
+
+/* Marks the top 8px of the document: once it leaves the viewport the page counts as scrolled (SiteMotion). */
+.scroll-sentinel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 8px;
+  pointer-events: none;
+}
+
+::selection {
+  background: var(--coral-100);
+  color: var(--ink);
+}
+
+a {
+  color: var(--ink);
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 0.22em;
+  text-decoration-thickness: 1px;
+  transition:
+    color var(--t-fast) ease-out,
+    text-decoration-color var(--t-fast) ease-out;
+}
+a:hover {
+  color: var(--coral-700);
+  text-decoration-color: currentColor;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+svg.lucide {
+  width: 1.15em;
+  height: 1.15em;
+  stroke-width: 1.75;
+  flex: none;
+}
+
+img {
+  max-width: 100%;
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+}
+.skip:focus {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  left: 1rem;
+  top: 1rem;
+  z-index: 100;
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 650;
+  padding: 0.6rem 1rem;
+  border-radius: 999px;
+  box-shadow: var(--shadow-2);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- Type ---------- */
+h1,
+h2,
+h3 {
+  color: var(--ink);
+  text-wrap: balance;
+}
+h1 {
+  font-size: clamp(1.875rem, 1.4rem + 1.6vw, 2.75rem);
+  font-weight: 760;
+  letter-spacing: -0.032em;
+  line-height: 1.08;
+  margin: 0.25rem 0 1rem;
+}
+h2 {
+  font-size: clamp(1.375rem, 1.15rem + 0.9vw, 1.875rem);
+  font-weight: 740;
+  letter-spacing: -0.026em;
+  line-height: 1.15;
+  margin: 0 0 0.6rem;
+}
+h3 {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  line-height: 1.3;
+  margin: 0 0 0.35rem;
+}
+p {
+  text-wrap: pretty;
+}
+strong {
+  font-weight: 700;
+}
+small,
+.small {
+  font-size: 0.875rem;
+}
+small {
+  color: var(--ink-2);
+}
+.muted {
+  color: var(--ink-2);
+}
+.lead {
+  font-size: clamp(1.0625rem, 1rem + 0.3vw, 1.1875rem);
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 60ch;
+  margin: 0 0 1.5rem;
+}
+/* The one small label above a heading (home: how we sell). */
+.eyebrow {
+  margin: 0 0 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--coral-700);
+  letter-spacing: -0.005em;
+}
+.fine-print {
+  margin: 1rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ink-3);
+  max-width: 80ch;
+}
+code {
+  font-size: 0.9em;
+  background: var(--canvas);
+  padding: 0.05em 0.35em;
+  border-radius: 4px;
+}
+
+/* ---------- Page frame ---------- */
+main {
+  display: block;
+  min-height: 55vh;
+}
+.page {
+  max-width: var(--page);
+  margin: 0 auto;
+  padding: 1.25rem var(--gutter) 2.5rem;
+}
+@media (min-width: 1200px) {
+  .page {
+    padding-top: 2rem;
+  }
+}
+
+/* ---------- Surfaces ---------- */
+.card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 1.125rem;
+  margin-bottom: 1rem;
+}
+@media (min-width: 720px) {
+  .card {
+    padding: 1.5rem 1.75rem;
+  }
+}
+.notice {
+  background: var(--warn-50);
+  border-radius: var(--r-md);
+  padding: 0.85rem 1.1rem;
+  color: var(--ink);
+}
+.error {
+  color: var(--error);
+  font-weight: 600;
+}
+p.error[role='alert'] {
+  background: var(--error-50);
+  border-radius: var(--r-md);
+  padding: 0.65rem 0.9rem;
+}
+.ok-box {
+  background: var(--ok-50);
+  border-radius: var(--r-md);
+  padding: 0.85rem 1.1rem;
+}
+
+/* Tags: one size and type for all; three families told apart by fill, icon and wording as well as colour:
+   - condition (cancellation, payment, booking status): tinted ground in its status colour, a status icon;
+   - feature (board, facilities): white with a hairline, a feature icon;
+   - campaign / list membership: coral tint, a list icon (only real list membership, never invented offers). */
+.tag,
+.tag-campaign,
+.chips li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 26px;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  line-height: 1.25;
+  padding: 0.18rem 0.55rem;
+  border-radius: var(--r-sm);
+  background: var(--canvas);
+  color: var(--ink-2);
+  max-width: 100%;
+  text-decoration: none;
+}
+.tag svg.lucide,
+.tag-campaign svg.lucide {
+  width: 14px;
+  height: 14px;
+}
+.tag.ok {
+  color: var(--ok);
+  background: var(--ok-50);
+}
+.tag.warn {
+  color: var(--warn);
+  background: var(--warn-50);
+}
+.tag-feature,
+.offer-board,
+.chips li {
+  background: var(--paper);
+  color: var(--ink-2);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.tag-campaign {
+  background: var(--coral-50);
+  color: var(--coral-800);
+}
+a.tag-campaign:hover {
+  background: var(--coral-100);
+  color: var(--coral-800);
+}
+
+/* Star category (read out as text) and guest rating. */
+.stars {
+  display: inline-flex;
+  gap: 1px;
+  color: var(--ink);
+  vertical-align: middle;
+}
+.stars svg.lucide {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+.rating-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0;
+}
+.rating-badge .score,
+.score-chip {
+  display: inline-grid;
+  place-items: center;
+  min-width: 2.5rem;
+  height: 2rem;
+  padding: 0 0.45rem;
+  background: var(--ink);
+  color: #fff;
+  font-weight: 750;
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  border-radius: var(--r-sm);
+}
+.rating-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.rating-text strong {
+  font-size: 0.9375rem;
+}
+.rating-text small {
+  font-size: 0.8125rem;
+}
+.rating-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--ink-2);
+}
+.rating-inline .score-chip {
+  min-width: 2.1rem;
+  height: 1.6rem;
+  font-size: 0.8125rem;
+  border-radius: 6px;
+}
+.rating-inline strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* ---------- Buttons and links ---------- */
+button,
+a.button,
+a.secondary {
+  font: inherit;
+  font-weight: 650;
+  min-height: 44px;
+  padding: 0.6rem 1.25rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+  transition:
+    background-color var(--t-fast) ease-out,
+    border-color var(--t-fast) ease-out,
+    color var(--t-fast) ease-out,
+    box-shadow var(--t-fast) ease-out,
+    transform var(--t-press) var(--ease-out);
+}
+button:active:not(:disabled, [aria-disabled]),
+a.button:active,
+a.secondary:active {
+  transform: scale(0.97);
+}
+button.primary,
+a.button.primary {
+  background: var(--coral-600);
+  color: #fff;
+  width: 100%;
+}
+button.primary:hover:not(:disabled),
+a.button.primary:hover {
+  background: var(--coral-700);
+  color: #fff;
+}
+@media (min-width: 640px) {
+  button.primary,
+  a.button.primary {
+    width: auto;
+  }
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+button.secondary,
+a.secondary,
+a.button:not(.primary) {
+  background: var(--paper);
+  color: var(--ink);
+  border-color: var(--line-2);
+}
+button.secondary:hover:not(:disabled),
+a.secondary:hover,
+a.button:not(.primary):hover {
+  background: var(--canvas);
+  border-color: var(--field);
+  color: var(--ink);
+}
+button.danger {
+  background: var(--paper);
+  color: var(--error);
+  border-color: var(--error);
+}
+button.danger:hover:not(:disabled) {
+  background: var(--error-50);
+}
+button.link {
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 0.22em;
+  padding: 0.25rem 0;
+  min-height: 44px;
+  font-weight: 600;
+}
+button.link:hover {
+  color: var(--coral-700);
+  text-decoration-color: currentColor;
+}
+button.small,
+a.button.small {
+  min-height: 40px;
+  padding: 0.4rem 0.95rem;
+  font-size: 0.9rem;
+}
+/* "See all" link: text and an arrow that steps forward on hover. */
+.text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 44px;
+  font-weight: 650;
+  color: var(--ink);
+  text-decoration: none;
+}
+.text-link svg.lucide {
+  width: 1.05em;
+  height: 1.05em;
+  color: var(--coral-600);
+  transition: transform var(--t-fast) var(--ease-out);
+}
+.text-link:hover {
+  color: var(--coral-700);
+}
+.text-link:hover svg.lucide {
+  transform: translateX(3px);
+}
+
+/* ---------- Forms ---------- */
+.row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0 0.875rem;
+}
+@media (min-width: 640px) {
+  .row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .row3 {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+  min-width: 0;
+}
+label {
+  font-weight: 650;
+  font-size: 0.875rem;
+}
+.field > label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--ink);
+}
+input,
+select,
+textarea {
+  font: inherit;
+  font-weight: 500;
+  min-height: 48px;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--field);
+  border-radius: var(--r-md);
+  background-color: var(--paper);
+  color: var(--ink);
+  width: 100%;
+  transition:
+    border-color var(--t-fast) ease-out,
+    box-shadow var(--t-fast) ease-out;
+}
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--ink-2);
+}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: var(--ink);
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+input::placeholder {
+  color: var(--ink-3);
+  opacity: 1;
+}
+select {
+  appearance: none;
+  padding-right: 2.4rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%234b5059' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.8rem center;
+}
+input[type='checkbox'],
+input[type='radio'] {
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  padding: 0;
+  accent-color: var(--coral-600);
+}
+input[aria-invalid='true'] {
+  border-color: var(--error);
+  background-color: #fffafa;
+}
+fieldset {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 0.75rem 1rem 0.25rem;
+  margin: 0 0 1rem;
+  min-width: 0;
+}
+legend {
+  font-weight: 720;
+  font-size: 1.0625rem;
+  letter-spacing: -0.012em;
+  padding: 0 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+/* Form groups inside a card take no second frame: a heading and a hairline between groups. */
+.card:not(.search-card) fieldset {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin: 0 0 1.25rem;
+}
+.card:not(.search-card) fieldset + fieldset {
+  border-top: 1px solid var(--line);
+  padding-top: 1.25rem;
+}
+/* A floated legend sits in the flow like a heading; border-top and padding above then apply to it. */
+.card:not(.search-card) fieldset > legend:not(.visually-hidden) {
+  float: left;
+  width: 100%;
+  padding: 0;
+  margin-bottom: 0.85rem;
+}
+.card:not(.search-card) fieldset > legend:not(.visually-hidden) + * {
+  clear: both;
+}
+.check {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  font-weight: 500;
+  font-size: 0.9375rem;
+  margin: 0.6rem 0;
+  min-height: 24px;
+}
+.check input {
+  margin-top: 0.15rem;
+  flex: none;
+}
+.hint {
+  color: var(--ink-2);
+  font-size: 0.875rem;
+}

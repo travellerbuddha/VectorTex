@@ -1,121 +1,220 @@
-# TexHoliday tasarım dili — "Kıyı"
+# TexHoliday tasarım dili: "Mercan"
 
-Bu dosya misafir sitesinin (`apps/web/src/app/[locale]/globals.css`) görsel sözleşmesidir. Yönetim paneli ayrı dosyadadır (`apps/web/src/app/yonetim/admin.css`) ve bu sözleşmenin dışındadır. Yeni ekran yaparken önce buraya bakın; burada olmayan bir renk, yazı tipi ya da süs eklemeyin.
+Bu dosya misafir sitesinin görsel sözleşmesidir. Stiller `apps/web/src/app/[locale]/styles/` klasöründe, dokuz dosyada durur ve `layout.tsx` bunları şu sırayla yükler:
+
+1. `foundation`: değişkenler, temel stiller, yazı, düğmeler, formlar, etiketler.
+2. `chrome`: üst bilgi, alt bilgi, açılır paneller, çerez bandı.
+3. `search`: arama kartı, takvim, sayaçlar.
+4. `home`: ana sayfa ve ürün girişleri.
+5. `results`: sonuçlar ve karşılaştırma kartı.
+6. `hotels`: kartpostallar, liste ve otel sayfası.
+7. `booking`: rezervasyon adımları, kupon, ödeme, sipariş, hesap.
+8. `content`: rehber, SSS, CMS ve yasal sayfalar, 404.
+9. `motion`: bütün hareket kuralları ve azaltılmış hareket.
+
+Yönetim paneli ayrıdır (`apps/web/src/app/yonetim/admin.css`). Yeni ekran yaparken önce buraya bakın. Burada olmayan bir renk, yazı tipi ya da süs eklemeyin.
 
 ## Fikir
 
 İki ilke birlikte çalışır:
-- **Ara ve karşılaştır:** Arama ilk ekranda kullanıma hazırdır. Otel kartı her zaman aynı sırayla okunur: fotoğraf, ad, yıldız ve konum, puan, koşullar, fiyat ve eylem. Oda teklifleri kartlar arasında hizalanan satırlardır.
-- **Sakin ürün sayfası:** Beyaz zemin, güçlü başlık tipografisi, kontrollü boşluk ve az vurgu. Görsel öne çıkar, süs geri çekilir.
 
-Marka şunlardan oluşur: resmi `texholiday` logosu, derin deniz paleti, sitenin kendi kıyı ve kartpostal çizimleri, rezervasyon özetindeki delikli kupon. Fotoğraf ve başka markaların görselleri eklenmez. Görseller sağlayıcıdan, CMS'ten ya da `components/ui/Art.tsx` içinden gelir.
+- **Ara ve karşılaştır (Hotels.com'dan alınan ders):**
+  - Arama ilk ekranda, ilk kareden kullanılabilir.
+  - Otel kartı hep aynı sırayla okunur: fotoğraf, ad, yıldız ve konum, puan, koşullar, fiyat, eylem.
+  - Oda teklifleri kartlar arasında hizalı satırlardır.
+  - Kararı kolaylaştıran etiketler yalnız verinin söylediğini söyler.
+- **Sakin ürün sayfası (Apple'dan alınan ders):**
+  - Nötr zemin, güçlü başlık, temiz hiza, kontrollü boşluk, tek vurgu rengi.
+  - Görsel ve ana mesaj öne çıkar.
+  - Hareket az, amaçlı ve kesintisizdir.
+
+Marka şunlardan oluşur:
+
+- Resmi `texholiday` logosu ve onun mercan rengi.
+- Sitenin kendi kıyı ve kartpostal çizimleri.
+- Rezervasyon özetindeki delikli kupon.
+
+Başka markaların görselleri eklenmez. Görseller sağlayıcıdan, CMS'ten ya da `components/ui/Art.tsx` içinden gelir.
+
+## Marka rengi: kaynak ve karar
+
+- **Doğrulanmış tek marka varlığı resmi logodur** (`design-assets/logo/texholiday-logo-source.{svg,png}`, `public/brand/texholiday-wordmark.svg`). Logo tek renktir: **#ff5757**, küçük harfli geometrik yazı.
+- Önceki tasarımların derin deniz (#0b4f6c) ve kiremit (#b5482a) renkleri ilk kez müşteri sitesinin ilk sürümünde (commit 485083b) kod varsayılanı olarak geçer; arkalarında bir marka dosyası yoktur. Bu tasarımda kullanılmazlar. Deniz tonları yalnız kıyı çiziminin içinde, denizi resmetmek için kalır.
+- **Çözülemeyen belirsizlik:** Logo dışında bir marka rehberi (ikincil renkler, yazı tipi) projede yok. Rehber gelirse bu bölüm ona göre güncellenir.
 
 ## Renkler
 
 | Rol | Değer | Nerede |
 |---|---|---|
-| Kâğıt | `#ffffff` (`--paper`) | Sayfa zemini, kartlar, paneller |
-| Sis | `#f4f6f7` (`--mist`), üzerine gelince `#e9eef0` | İş sayfalarının zemini (sonuçlar, rezervasyon, ödeme, sipariş, hesap); seçili sekme, alan hover |
-| Derin deniz | `#041f2b` … `#0b4f6c` (`--sea-950`…`--sea-700`) | Alt bilgi, uçak karosu, kupon şeridi, puan rozeti; açık zeminde bağlantı ve ikincil düğme |
-| Kiremit | `#b5482a`, üzerine gelince `#963a21` | **Yalnız** ekranın tek ana eylemi (Ara, Seç, Fiyatları gör, Ödemeye geç, Uygula) |
-| Güneş | `#f4bb4a` | Yalnız koyu zemin üzerinde: uçak karosunun düğmesi, odak halkası, çizimler |
-| Logo mercanı | `#ff5757` | **Yalnız** resmi logonun içinde (`public/brand/texholiday-wordmark.svg`) |
-| Mürekkep | `#0f1f28`, ikincil `#3d5260`, üçüncül `#5a6d78` | Metin; üçüncül yalnız meta ve ikinci ton başlıklar |
-| Çizgi | `#e3e9ec`, güçlü `#d2dce1`, form kenarı `#7a8f9a` | Ayraçlar, kart kenarları, alan kenarları (3:1) |
-| Durum | iyi `#1d6b3a`, uyarı `#8a4b00`, hata `#a4161a` | Etiket ve bildirimler, açık zeminleriyle |
+| Mercan (logo) | `#ff5757` (`--coral`) | Logo, kıyı çizimindeki güneş. Beyaz zeminde metin için kullanılmaz (3,1:1). |
+| Mercan 600 | `#d63a3a` | **Eylemler:** Ara, Seç, Ödemeye geç, Uygula. Seçili takvim günü, filtre kutuları, geçerli adım, menüde bulunulan ürünün alt çizgisi. Beyaz yazıyla 4,6:1. |
+| Mercan 700 | `#b42f2f` | Düğme hover, vurgulu metin ("iptal koşulu her teklifte"), bağlantı hover. Beyazda 6,2:1. |
+| Mercan 50 / 100 / 800 | `#fff4f3` / `#ffe5e4` / `#8e2424` | Seçili sıralama, seçili filtre çipleri, konaklama bandı, kampanya/liste etiketi, rezervasyon numarası kutusu. 800, 100 üstünde 7,2:1. |
+| Mürekkep | `#14161a`, ikincil `#4b5059`, üçüncül `#656b75` | Metin. Odak halkası ve tamamlanan adım da mürekkeptir. |
+| Kâğıt / zemin | `#ffffff` / `#f5f5f7` (`--canvas`), `#ebecef` | Keşif sayfaları beyaz. İş sayfaları (sonuç, rezervasyon, ödeme, sipariş, hesap) gri zemin üstünde beyaz kart. |
+| Çizgi | `#e4e6ea`, güçlü `#d2d5db`, form kenarı `#80868f` | Ayraçlar, kart kenarları, alan kenarları (3:1 ve üstü). |
+| Durum | iyi `#1a6b3c`, uyarı `#8a4b00`, hata `#a4161a`, açık zeminleriyle | Etiket ve bildirimler. Hata her zaman ikon ve metinle gelir, renk tek başına anlam taşımaz. |
 
-Bütün metin/zemin çiftleri WCAG AA geçer. Koyu zeminde odak halkası güneş rengindedir.
+Bütün metin/zemin çiftleri WCAG AA'yı geçer.
 
 ## Yazı
 
-- **Bricolage Grotesque** (değişken): yalnız sayfa ve bölüm başlıkları (h1, h2), alt bilgi vaadi, sipariş durumu. Ölçek:
-  - Ana sayfa başlığı `clamp(3rem, …, 6.25rem)` / 720 / −0,05em.
-  - Bölüm başlıkları `clamp(2rem, …, 3.5rem)` / 700 / −0,045em.
-  - Sayfa başlığı `clamp(2rem, …, 2.875rem)` / 700 / −0,035em.
-  - İş sayfalarının h1'i daha küçüktür (`≤ 2.375rem`).
-- **Inter** (değişken): kart başlıkları, fiyatlar, formlar ve okunan her şey. Kart başlığı 650–680 ağırlık, −0,02em.
-- Fiyatlarda `tabular-nums`, 700–720 ağırlık.
-- İki yazı tipi de `@fontsource-variable` ile sunucudan gelir (dış istek yok, CSP `font-src 'self'`).
+- **Plus Jakarta Sans** (değişken, 200–800). Tek aile, sunucudan gelir (`@fontsource-variable`, CSP `font-src 'self'`). Geometrisi logonun yazısına yakındır; Türkçe karakterleri ve ₺ işareti vardır.
+- Font geç gelirse metin kaymaz: `PJS Fallback` (yerel Arial/Helvetica), yazı tipinin genişlik ve satır ölçülerine üç ağırlık aralığında ayrı ayrı ayarlıdır (%103, %99,3, %100,5; Türkçe arayüz metniyle ölçüldü).
+- Ölçek:
+  - Ana sayfa başlığı `clamp(2.5rem, …, 4.5rem)` / 780 / −0,045em.
+  - Bölüm başlıkları `clamp(1.625rem, …, 2.5rem)` / 740 / −0,036em.
+  - Sayfa başlığı `clamp(1.875rem, …, 2.75rem)` / 760.
+  - Kart başlığı 1,0625–1,3125rem / 700–750.
+  - Gövde 16 px / 450.
+- Fiyatlar 750–780 ağırlıkta. Hizalama gereken tablolarda `tabular-nums`.
 
 ## İkonlar
 
-`lucide-react`, çizgi kalınlığı 1,75, metin boyunda. Her zaman bir metnin yanında ve `aria-hidden`; tek başına anlam taşımaz. Emoji ikon kullanılmaz.
+`lucide-react`, çizgi kalınlığı 1,75, metin boyunda, her zaman bir metnin yanında ve `aria-hidden`. Eylem ve seçim ikonları mercan 600, bilgi ikonları mürekkep 3. Emoji kullanılmaz.
 
 ## Biçimler
 
-- **Köşeler:** 6 px (özellik etiketi), 10–12 px (alan), 16 px (arama çubuğu, panel), 22 px (kart, görsel), 30 px (sahne ve karolar). Eylem düğmeleri hap biçimlidir (`999px`).
-- **Gölgeler:** Kartlar gölgesizdir, yalnız ince çizgi taşır. `--shadow-2` yüzen öğelerde ve kart hover'ında, `--shadow-3` ana sayfa arama kartında ve çerez bandında kullanılır.
-- **Üst bilgi:** Yarı saydam beyaz ve bulanık zemin (yalnız burada). Solda logo, ortada ürün sekmeleri, ince bir ayraç ve CMS sayfaları, sağda Rezervasyonlarım ve TR · EUR.
-  - Bulunulan bölüm hap zeminle işaretlenir.
-  - Yapışkandır; ilk 8 px kaydırmada üst kenarın altına kayar ve alt çizgi belirir, altındaki içerik yer değiştirmez.
-  - Telefonda ikinci satır (ürünler) yana kayar; sekmeler daralmaz (`flex: none`).
-- **Arama:** bölmeli tek çubuk (`.search-bar`, `.seg`). Etiket küçük ve üstte, değer çerçevesizdir.
-  - Odakta bölme 3 px iç odak halkası ve sis zemini alır.
-  - Düzen formun genişliğine bağlıdır (container query): 860 px+ tek satır, 600 px+ iki satır, 300 px+ tarihler yan yana, altında yığın.
-  - Ana sayfada çubuk sahnenin alt kenarına biner, kendi kenarlığını bırakır ve kart çerçevesini kullanır.
-  - Giriş ve çıkış bölmeleri tek bir takvim panelini açar (`DateRangeField`): geniş formda iki ay, dar formda bir ay; konaklama uçlar deniz-700 daire, aradaki günler deniz-50 bant; bugün çerçeveli; ok tuşları gün/hafta, PageUp/PageDown ay, Escape kapatır. İlk seçim girişi, ikinci seçim çıkışı belirler ve panel kapanır.
-  - Oda, yetişkin ve çocuk sayıları "Misafirler" panelinde −/+ sayaçlarıdır (`Stepper`, 44 px hedef, sınırda `aria-disabled`); çocuk yaşları seçim kutusudur. Para birimi üst bilgidedir, uyruk sorulmaz.
-- **Uçuş araması:** aynı çubuk. Üstte sis zeminli segment kontrol (Gidiş-dönüş | Tek yön); gidiş-dönüşte aynı tarih aralığı paneli, tek yönde tek tarih; yolcular −/+ sayaçlarıyla panelde.
-- **Karşılaştırma kartı** (`li.hotel`, sonuçlar):
-  - Üst satırda solda fotoğraf (248 px), sağda ad, yıldız ve konum, puan rozeti ve "başlayan fiyat".
-  - Altta tam genişlikte teklif satırları: solda oda adı ve etiketler, kesik çizginin sağında toplam, "Konaklama toplamı", gecelik ortalama ve **Seç**.
-  - Telefonda fotoğraf üstte; Seç fiyatın sağında, 400 px altında uzun toplam kendi satırında.
-  - Uzun adlar kırılır, puan gerekirse adın altına iner.
-- **Liste kartı** (`.hotel-card`): aynı okuma sırası, liste fiyatı ve "Fiyatları gör" kendi sütununda.
-- **Keşif kartı** (`Postcard`): görsel önce (22 px köşe, çerçevesiz), sonra başlık ve tek satır. Kartın tamamı bağlantıdır. Ana sayfada `.discover` (en yeni liste geniş), rehberler `.guide-rows` (solda görsel, sağda metin, ince çizgiyle ayrılmış satırlar).
-- **Etiket aileleri** renkten başka biçim ve ikonla ayrılır, tek boyuttadır (26 px):
-  - *Koşul* (iptal, ödeme, rezervasyon durumu): hap biçimi, durum zemini, durum ikonu (`.tag`, `.tag.ok`, `.tag.warn`).
-  - *Özellik* (pansiyon, olanaklar): 6 px köşe, açık deniz zemini (`.tag-feature`, `.offer-board`, `.chips li`).
-  - *Kampanya / liste*: 6 px köşe, koyu deniz üstünde güneş-300 yazı (`.tag-campaign`).
-  - Yalnız veride olan bilgi etiketlenir. "Ücretsiz iptal" yalnız teklifin koşulundan gelir.
-- **Kupon:** Rezervasyon özeti (`.summary`) koyu başlık şeridi, konaklama, delikli çizgi ve toplamdan oluşur. Hesaptaki rezervasyonlar ve uçuş teklifleri aynı delik ve çentiği taşır.
-- **Formlar:** Alanlar 48 px yükseklikte ve 12 px köşelidir. Kart içindeki gruplar ikinci çerçeve almaz; başlık ve ince çizgiyle ayrılır.
-- **SSS:** İnce çizgiyle ayrılan satırlar. Sağdaki artı açılınca çarpıya döner, cevap yükseklik geçişiyle açılır.
-- **Dokunma hedefi** en az 44 px. Birincil düğme 48–52 px. Filtre kutuları 20 px görünür ama 44 px hedeftir.
+**Köşeler:** etiket 8 px, alan 12 px, kart ve panel 16 px, görsel ve büyük karo 24 px. Her eylem hap biçimindedir (999 px).
+
+**Gölgeler** mürekkep tonundadır:
+- Kartlar gölgesiz, ince çizgili. Hover'da `--shadow-2`.
+- Arama kartı, rezervasyon kutusu ve açılır paneller `--shadow-3`.
+
+**Üst bilgi:**
+- Beyaz, yarı saydam ve yapışkan, 64 px. Telefonda iki satırdır, ürünler ikinci satırda yana kayar.
+- Kaydırınca yalnız alt çizgi belirir; hiçbir şeyin boyu ya da yeri değişmez. Durumu kaydırma dinleyicisi değil, sayfanın en üstündeki 8 px'lik gözcü işaretler (`IntersectionObserver`).
+- Bulunulan ürün mercan alt çizgiyle işaretlenir. "Yakında" ürünler tek bir rozetle gri durur.
+
+**Arama:**
+- Bölmeli tek kart (`.search-bar`, `.seg`). Etiket küçük ve üstte, değer çerçevesiz. Etiket ikonları mercan.
+- Düzen formun kendi genişliğine bağlıdır (container query):
+  - 860 px ve üstü: tek satır.
+  - 600 px ve üstü: iki satır.
+  - 300 px ve üstü: tarihler yan yana.
+- Açık bölme altta mercan çizgi taşır; odakta 2 px mürekkep halka.
+- Takvim:
+  - Seçili günler mercan 600 daire, aradaki günler mercan 50 bant.
+  - Uçuşta ipucu "Gidiş tarihi / Dönüş tarihi" der ve gece sayısı göstermez.
+- Misafirler panelinde −/+ sayaçları vardır (44 px hedef, sınırda `aria-disabled`).
+
+**Keşif kartı** (`HotelTile`, ana sayfa rafı):
+- Okuma sırası: 4:3 fotoğraf, ad, yıldız ve şehir, puan ("8,7 Çok iyi · 100 değerlendirme"), liste fiyatı ve koşulları ("13 Eki giriş · 1 gece · 2 yetişkin").
+- Kartın tamamı tek bağlantıdır.
+- Fiyatın zamanı rafın altında yazar.
+
+**Karşılaştırma kartı** (`li.hotel`, sonuçlar):
+- Geniş ekranda solda kartın tam boyunda fotoğraf. Sağda ad, yıldız, konum ve puan rozeti; altında "başlayan fiyat"; ardından her oda teklifi bir satır: solda oda adı ve etiketler, ince çizginin sağında toplam, "Konaklama toplamı", gecelik ortalama ve **Seç**.
+- Telefonda fotoğraf üstte, Seç fiyatın sağında.
+- Uzun adlar kırılır; puan gerekirse adın altına iner.
+
+**Liste kartı** (`.hotel-card`): aynı okuma sırası, liste fiyatı ve "Fiyatları gör" kendi sütununda.
+
+**Kartpostal** (`Postcard`, listeler ve rehberler): görsel önce, sonra başlık ve tek satır. Ana sayfadaki liste mozaiğinde en yeni liste büyük, diğerleri yanında satır; telefonda hepsi satır.
+
+**Etiketler:** tek boy (26 px), tek yazı (13 px / 650), tek köşe (8 px). Aileler dolgu, ikon ve sözle ayrılır:
+- *Koşul* (iptal, ödeme, rezervasyon durumu): durum renginde açık zemin ve durum ikonu (`.tag`, `.tag.ok`, `.tag.warn`).
+- *Özellik* (pansiyon, olanaklar): beyaz zemin, ince çizgi, özellik ikonu (`.tag-feature`, `.chips li`).
+- *Kampanya / liste üyeliği*: mercan 50 zemin, liste ikonu (`.tag-campaign`). Yalnız gerçek liste üyeliği gösterilir.
+- Yalnız veride olan etiketlenir. "Ücretsiz iptal" yalnız teklifin koşulundan gelir. İndirim, son oda, en iyi fiyat ya da popülerlik iddiası yazılmaz.
+
+**Kupon:** rezervasyon özeti (`.summary`) sırasıyla şunları taşır: başlık satırı, otel, tarihler, oda, koşul, delikli çizgi ve gri zeminde toplam. Hesaptaki rezervasyonlar ve uçuş teklifleri aynı delik ve çentiği taşır.
+
+**Formlar:** alanlar 48 px yükseklikte ve 12 px köşeli; etiket üstte, hata altta. Kart içindeki gruplar ikinci çerçeve almaz.
+
+**Dokunma hedefi** en az 44 px. Birincil düğme 48–52 px. Filtre kutuları 20 px görünür ama 44 px hedeftir.
 
 ## Ekran kipleri
 
-- **Ana sayfa (ikna):**
-  1. Kıyı sahnesi (yuvarlak köşeli karo), gökyüzünde büyük başlık ve vaat; arama çubuğu sahnenin alt kenarında.
-  2. "Nasıl satıyoruz": ortalı bir cümle ve ince çizgilerle ayrılan üç gerçek (yalnız akışın yaptığı şeyler).
-  3. CMS listeleri (`.discover`).
-  4. Uçak satışı açıksa koyu karo: solda teklif, sağda `public/art/coast-scene.png`.
-  5. Rehberler: solda yapışkan başlık sütunu, sağda satırlar.
-- **Ürün girişi (uçak):** Aynı sahne ve aynı yükseklikte, daha küçük başlık. Sahne yüksekliği genişlikle birlikte artar (`min-height: calc(300px + 14.5vw)`), böylece güneş hiçbir ekranda yazının arkasına çıkmaz.
-- **Sonuçlar, rezervasyon, ödeme, hesap (iş görme):** Sis zemin üstünde beyaz kartlar, okunabilirlik önce.
-  - Sonuç sayısının yanında sıralama her zaman görünür (`SortForm`, seçince gönderilir; JavaScript yoksa düğmeyle).
-  - Filtreler GET formudur: JavaScript'siz çalışır, bağlantıyla paylaşılır, geri/ileri ve yenilemede korunur; sıralama ve filtreler birbirini taşır.
-  - Filtreler masaüstünde yapışkan sütunda, telefonda tam genişlik düğmenin açtığı panelde durur.
-- **Otel sayfası:** Başlık satırında ad, yıldız ve konum, sağda puan. Altında tek çerçeveli mozaik galeri, ardından ince çizgilerle ayrılan bölümler (olanaklar onay işaretli liste). Sağda yapışkan fiyat ve arama kutusu, telefonda açıklamadan önce gelir.
-- **Rehber, SSS, yasal (okuma):** 70–76 karakter satır, büyük başlık, sade.
+### Ana sayfa (keşif ve ikna)
+
+1. **Hero:**
+   - Geniş ekranda solda başlık, alt yazı ve dikey arama kartı; sağda 6:5 kıyı sahnesi. Sol sütun sahneye göre dikeyde ortalanır.
+   - Telefon ve tablette sırasıyla başlık, arama ve sahne (16:9, 720 px'ten itibaren 21:9).
+2. **Otel rafı:**
+   - En yeni yayındaki listenin otelleri, liste fiyatları ve koşullarıyla yatay kayan raf. Fiyatlar liste sayfasıyla aynı çekirdek kopyadan gelir.
+   - Oklar yalnız fare/izleme dörtgeninde, satır taşarken görünür. Telefonda raf kaydırılır.
+3. **Liste mozaiği.**
+4. **"Nasıl satıyoruz":** gri karo; solda vaat cümlesi, sağda üç gerçek.
+5. **Uçak:** satış açıksa mercan 50 karo.
+6. **Rehber kartları.**
+7. **SSS:** CMS'ten ilk beş soru ve "Tüm sorular" bağlantısı.
+
+### Ürün girişi (uçak)
+
+Aynı hero; başlık daha küçük.
+
+### Sonuçlar (karşılaştırma)
+
+- Arama özeti çubuğu; "Değiştir" formu yerinde açar.
+- Masaüstünde solda yapışkan filtre sütunu. Telefonda tam genişlik düğmenin açtığı panel.
+- Başlık satırında sonuç sayısı ve **bağlantı olarak sıralama** (Önerilen, En düşük fiyat, En yüksek puan; seçili olan mercan 100). Ok tuşlarıyla sayfa yenilenmez, bağlantı paylaşılır, JavaScript'siz çalışır.
+- Seçili filtreler kaldırılabilir mercan çiplerdir; her çip yalnız kendini kaldırır.
+- Filtreler GET formudur. Sıralama, filtreler ve arama parametreleri birbirini taşır (`filtersQuery`).
+- Yüklenirken aynı çerçevenin gri iskeleti görünür (`loading.tsx`); sahte otel ya da fiyat yoktur.
+
+### Otel sayfası
+
+- Başlık satırında ad, yıldız ve konum; sağda puan.
+- Tek çerçeveli mozaik galeri (1, 2, 3 ya da 5 fotoğraf, boşluksuz).
+- Sağda yapışkan rezervasyon kutusu; telefonda açıklamadan önce gelir.
+- Olanaklar mercan onay işaretli sütunlardır. Otelin yer aldığı listeler kampanya etiketidir.
+
+### Rezervasyon, ödeme, sipariş, hesap (iş görme)
+
+- Adımlar: tamamlananlar mürekkep onay, geçerli adım mercan.
+- Solda form ya da durum, sağda yapışkan kupon.
+
+### Rehber, SSS, yasal (okuma)
+
+70–76 karakter satır, büyük başlık, sade düzen.
 
 ## Hareket
 
-İki hız vardır: keşif sayfalarında kaydırmayla ilerleyen, kimlik taşıyan bir akşam; arama, sonuç, rezervasyon ve ödemede neredeyse görünmez, hızlı geri bildirim. Metin hiçbir karede yarı saydam olmaz (yalnız `transform` ve renk); fiyat ve düğmeler animasyonu beklemez.
+Kurallar (`styles/motion.css`):
 
-- **Ana sayfa girişi** (yükte): başlık kelimeleri kendi satır kutularından 90 ms arayla yükselir, alt yazı ve arama çubuğu yerine oturur, sahne 1,04'ten oturur, güneş ufka iner. Arama ilk kareden kullanılabilir.
-- **Batan güneş** (imza, kaydırmaya bağlı, `animation-timeline`): ana sayfa ve uçuş girişinde sahne ekrandan çıkarken güneş denize batar (`.coast-sunset`), ışıltı söner, gökyüzü koyulaşır (`.hero-stage::after`), sahne 0,965'e geri çekilir. Geri kaydırınca tersine döner. Güneş her zaman yazının altında kalır.
-- **Mürekkep dolumu**: "Nasıl satıyoruz" cümlesi ekranı geçerken kelime kelime mürekkep-3'ten mürekkebe (vurgu kısmı deniz-700'e) dolar; her ara renk AA geçer.
-- **Çerçeveye oturma**: liste ve rehber görselleri kartları gelirken çerçevelerinin içinde 1,1'den 1'e yerleşir (zaman çizelgesi çerçevede, `--frame`).
-- **Uçak karosu** girerken 0,92'den tam boyuna açılır; içindeki kıyı görseli kaydırmayla hafifçe kayar (`--tile`).
-- **Bir kez görünme** (`reveal.ts`): başlıklar, kartlar ve rehber satırları ekranın altından yalnız `transform` ile yükselir; eşik 0, alt pay 96 px; ekranda ya da 96 px yakınında olan hiç hazırlanmaz; geri kaydırmada tekrar etmez. Alt bilgideki dev logo kendi kutusundan yükselir.
-- **Sonuçlar**: ilk altı kart yükte 8 px'ten 40 ms arayla yerine oturur (yalnız transform).
-- **Paneller** (takvim, misafir, dil) tetikleyicisinden 200 ms'de 6 px ve 0,98'den açılır, 140 ms'de kapanır. **Geri bildirim** 160 ms: düğme 0,98'e basılır, seçilen gün dolar, sayaç yerinde değişir.
-- **Sayfa geçişleri** (`@view-transition`): üst bilgi yerinde kalır, içerik 260 ms'de çapraz geçer; liste kartındaki otel fotoğrafı otel sayfasındaki ilk galeri fotoğrafına dönüşür (`hotelTransition`).
-- Kaydırmaya bağlı efektler `@supports (animation-timeline: view())` içindedir; desteklemeyen tarayıcı son hali statik gösterir. `prefers-reduced-motion` bütün hareketi ve sayfa geçişlerini kapatır; içerik ve paneller aynen çalışır.
+- Yalnız `transform` ve `opacity` hareket eder; metin hiçbir karede yarı saydam olmaz.
+- Arama, fiyat ve düğmeler hiçbir animasyonu beklemez.
+- **Hiçbir şey bütün olarak ölçeklenmez:** hero'da büyüme-küçülme yok.
+- **Görsellerin çerçevesi ve oranı sabittir:** hiçbir animasyon bir görselin boyunu ya da SVG'nin iç parçalarını değiştirmez.
+- **Kaydırmaya bağlı efekt yoktur:** sayfa kaydırırken uzayıp kısalmaz, kaydırma ele geçirilmez.
+
+Hareketler:
+
+- **Hero girişi:** başlık kelimeleri kendi kırpılmış satır kutularından 70 ms arayla yükselir (560 ms). Yalnız transform kullanıldığı için sayfa hidrasyon sırasında meşgulken de akıcıdır. Sahne ve arama ilk kareden yerindedir.
+- **Bir kez görünme** (`reveal.ts`): bölüm başlıkları ve kart grupları ekranın altından yalnız transform ile yükselir. Ekranda ya da 96 px yakınında olan hiç hazırlanmaz; geri kaydırmada tekrar etmez.
+- **Sonuçlar:** ilk altı kart yükte 8 px'ten 35 ms arayla oturur.
+- **Paneller** (takvim, misafir, dil, öneriler) tetikleyicilerinden 200 ms'de 6 px ve 0,98'den açılır, 140 ms'de kapanır. Açılış `@starting-style`, kapanış `display` geçişiyle yapılır; desteklemeyen tarayıcıda anında açılıp kapanır.
+- **Açılır bölümler** (filtre, arama özeti, SSS) `::details-content` ile doğal yüksekliğine açılır.
+- **Geri bildirim:** düğme 0,97'ye basılır; seçilen gün ve sayaç yerinde değişir; kart hover'da gölge alır ama yer değiştirmez.
+- **Sayfa geçişleri** (`@view-transition`): üst bilgi yerinde kalır, içerik 220 ms'de çapraz geçer. Liste ve raf kartındaki otel fotoğrafı otel sayfasındaki ilk fotoğrafa dönüşür. İki görüntü de hareket eden çerçeveye kırpılır (`view-transition-class: hotel-photo`, `object-fit: cover`); geçişte görsel esnemez ya da köşeden taşmaz.
+- **Yükleniyor:** iskelet yavaşça nefes alır, döner simge yalnız sipariş durumunda kullanılır.
+- **Yükte geçiş yok:** renk ve boyut geçişleri sayfa stilleriyle bir kez çizildikten sonra açılır (`SiteMotion`, `data-motion`). Geç gelen bir stil yerine anında oturur, tarayıcının varsayılanından renk süpürmesiyle gelmez.
+- `prefers-reduced-motion: reduce` bütün animasyon, geçiş ve sayfa geçişlerini kapatır. İçerik ve paneller aynen çalışır.
+
+### Eski hero hatalarının nedenleri (Ekim 2026 ölçümü) ve çözümü
+
+1. **Bütün sahne ölçekleniyordu.** Giriş animasyonu sahneyi 1,4 sn'de %104'ten %100'e küçültüyordu; güneş 46 birim yukarıdan iniyordu.
+   *Çözüm:* sahne statik.
+2. **Güneş takılıp sıçrıyordu.** Güneş ve parıltı SVG'nin içindeki öğelerdi; animasyonları ana iş parçacığında çalışıp hidrasyon sırasında 93–357 ms donuyordu. Bu sırada sahne compositor'da ölçeklenmeyi sürdürdüğü için güneş sahneden kopup sıçrıyordu.
+   *Çözüm:* SVG'nin içinde hiçbir şey canlanmıyor.
+3. **Kutu ölçüsü değiştikçe çizim yeniden ölçekleniyordu.** Sahnenin yüksekliği başlık yüksekliği, `vh` ve `vw` hesaplarından çıkıyordu. `slice` ile dolduğu için font geç yüklenince, pencere yüksekliği ya da yönü değişince çizim yeniden ölçekleniyor ve kırpılıyordu.
+   *Çözüm:* sabit `aspect-ratio`; çizimin ölçeği yalnız sütun genişliğine bağlı. Font yedeği ölçülere göre ayarlı.
+4. **Kaydırırken sahne küçülüp büyüyordu.** Beş kaydırma animasyonu sahneyi 0,965'e küçültüyordu.
+   *Çözüm:* kaydırmaya bağlı efekt yok.
 
 ## Çizimler (`components/ui/Art.tsx`)
 
-- Resmi logo: `public/brand/texholiday-wordmark.svg`; misafir sitesinde üst ve alt bilgide kullanılır.
-- `BrandMark` yönetim panelinde kalır.
-- `CoastScene`: Likya kıyısında akşam. Ana sayfa ve uçak girişi sahnesinde canlı SVG, uçak karosunda 4000×1400 PNG çıktısı olarak kullanılır.
-- `HotelArt`: fotoğrafı olmayan otel, liste ve rehber için kartpostal. Aynı tohumdan hep aynı resim çıkar. Sağlayıcı ya da CMS görseli varsa her zaman o gösterilir.
+- **Resmi logo:** `public/brand/texholiday-wordmark.svg`, misafir sitesinin üst ve alt bilgisinde.
+- **`BrandMark`:** yalnız yönetim panelinde.
+- **`CoastScene`:** Likya kıyısında akşam; 6:5 çerçeve için çizilmiş, alta sabitli. Güneş logonun mercanıdır, içinde animasyonlu parça yoktur. Ana sayfa ve uçak girişi hero'sunda kullanılır.
+- **`HotelArt`:** fotoğrafı olmayan otel, liste ve rehber için kartpostal. Aynı tohumdan hep aynı resim çıkar. Sağlayıcı ya da CMS görseli varsa her zaman o gösterilir.
 
 ## Yapılmayacaklar
 
-- Kenarına renkli şerit çekilmiş bilgi kutuları.
-- Gradyan metin; üst bilgi dışında cam efekti.
-- Kart içinde kart, aynı boyda ikon-kart ızgarası, her bölüme başlık üstü etiket (yalnız "Nasıl satıyoruz").
-- Krem zemin, ikinci bir vurgu rengi.
-- Kopyalanmış OTA görselleri.
-- Veride olmayan indirim, popülerlik, kıtlık veya güven iddiası.
+- Hero'yu ya da bir görseli bütün olarak büyütüp küçülten giriş animasyonu. Kaydırmaya bağlı ölçek, paralaks ya da renk değişimi.
+- Sürekli salınan şekiller; yükleme iskeleti ve sipariş durumundaki döner simge dışında sonsuz animasyon.
+- Kenarına renkli şerit çekilmiş bilgi kutuları, gradyan metin, üst bilgi dışında cam efekti.
+- Kart içinde kart, aynı boyda ikon-kart ızgarası, her bölüme başlık üstü etiket ("Nasıl satıyoruz" tek istisna).
+- İkinci bir vurgu rengi. Mercan dışında eylem rengi. Krem zemin.
+- Kopyalanmış OTA görselleri. Veride olmayan indirim, popülerlik, kıtlık veya güven iddiası.
