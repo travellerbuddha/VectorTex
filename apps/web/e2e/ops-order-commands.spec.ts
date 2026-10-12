@@ -12,7 +12,7 @@ test('staff checks, cancels and records the provider refund; the customer sees t
   await customer.getByRole('combobox', { name: 'Nereye?' }).fill('Antalya');
   await customer.getByRole('option', { name: /Antalya \(MOCK\)/ }).click();
   await customer.getByRole('button', { name: 'Ara' }).click();
-  await customer.getByRole('link', { name: 'MOCK Kaleiçi Boutique' }).click();
+  await customer.locator('ul.hotels').getByRole('link', { name: 'MOCK Kaleiçi Boutique' }).click();
   await customer.getByRole('button', { name: /Seç: MOCK Kaleiçi Boutique – MOCK Superior Double/ }).click();
   await customer.getByLabel('Ad', { exact: true }).fill('Kemal');
   await customer.getByLabel('Soyad', { exact: true }).fill('İptaltest');

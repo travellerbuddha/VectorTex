@@ -153,7 +153,7 @@ test('consent: denied by default, tags only after consent, stored choice, Search
   expect(await events(page, 'search')).toEqual([expect.objectContaining({ search_term: 'Antalya (MOCK)' })]);
 
   // The hotel's page in the search: view_item with the price the card showed.
-  await page.getByRole('link', { name: 'MOCK Kaleiçi Boutique' }).click();
+  await page.locator('ul.hotels').getByRole('link', { name: 'MOCK Kaleiçi Boutique' }).click();
   await expect.poll(async () => (await events(page, 'view_item')).length).toBe(1);
   const item = (await events(page, 'view_item'))[0]!.ecommerce as { currency: string; items: Array<{ item_id: string; item_list_id: string }> };
   expect(item).toMatchObject({ currency: 'EUR', items: [{ item_id: 'MOCK-H2', item_list_id: 'search_results' }] });

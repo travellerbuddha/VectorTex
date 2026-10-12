@@ -40,7 +40,7 @@ async function bookAsGuest(page: Page, email: string): Promise<string> {
   await page.getByRole('combobox', { name: 'Nereye?' }).fill('Antalya');
   await page.getByRole('option', { name: /Antalya \(MOCK\)/ }).click();
   await page.getByRole('button', { name: 'Ara' }).click();
-  await page.getByRole('link', { name: 'MOCK Kaleiçi Boutique' }).click();
+  await page.locator('ul.hotels').getByRole('link', { name: 'MOCK Kaleiçi Boutique' }).click();
   await page.getByRole('button', { name: /Seç: MOCK Kaleiçi Boutique – MOCK Superior Double/ }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Rezervasyonu tamamlayın' })).toBeVisible();
   await page.getByLabel('Ad', { exact: true }).fill('Zeynep');

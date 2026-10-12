@@ -10,7 +10,7 @@ async function bookMock(page: Page, hotel: string, choice: RegExp, surname: stri
   await page.getByRole('combobox', { name: 'Nereye?' }).fill('Antalya');
   await page.getByRole('option', { name: /Antalya \(MOCK\)/ }).click();
   await page.getByRole('button', { name: 'Ara' }).click();
-  await page.getByRole('link', { name: hotel }).click();
+  await page.locator('ul.hotels').getByRole('link', { name: hotel }).click();
   await page.getByRole('button', { name: choice }).click();
   await page.getByLabel('Ad', { exact: true }).fill('Deniz');
   await page.getByLabel('Soyad', { exact: true }).fill(surname);

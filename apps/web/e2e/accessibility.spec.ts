@@ -32,7 +32,7 @@ test('customer pages of the hotel flow have no automatically detectable WCAG A/A
   await expect(page.getByRole('heading', { level: 1, name: 'Sonuçlar' })).toBeVisible();
   found.push(...(await audit(page, 'search results')));
 
-  await page.getByRole('link', { name: 'MOCK Kaleiçi Boutique' }).click();
+  await page.locator('ul.hotels').getByRole('link', { name: 'MOCK Kaleiçi Boutique' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'MOCK Kaleiçi Boutique' })).toBeVisible();
   found.push(...(await audit(page, 'hotel page in the search')));
   await page.getByRole('button', { name: /Seç: MOCK Kaleiçi Boutique – MOCK Superior Double/ }).click();
