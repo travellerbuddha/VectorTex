@@ -127,7 +127,7 @@ Bütün metin/zemin çiftleri WCAG AA'yı geçer.
 ### Ana sayfa (keşif ve ikna)
 
 1. **Hero:**
-   - Geniş ekranda solda başlık, alt yazı ve dikey arama kartı; sağda 6:5 kıyı sahnesi. Sol sütun sahneye göre dikeyde ortalanır.
+   - Geniş ekranda solda başlık, alt yazı ve dikey arama kartı; sağda 6:5 kıyı sahnesi. Sol sütun sahnenin üst kenarından başlar (ortalanmaz): formun yüksekliği değişse de başlık ve kartın üst kenarı yerinden oynamaz.
    - Telefon ve tablette sırasıyla başlık, arama ve sahne (16:9, 720 px'ten itibaren 21:9).
 2. **Otel rafı:**
    - En yeni yayındaki listenin otelleri, liste fiyatları ve koşullarıyla yatay kayan raf. Fiyatlar liste sayfasıyla aynı çekirdek kopyadan gelir.
@@ -140,7 +140,7 @@ Bütün metin/zemin çiftleri WCAG AA'yı geçer.
 
 ### Ürün girişi (uçak)
 
-Aynı hero; başlık daha küçük.
+Otelle **birebir aynı hero çerçevesi**: aynı başlık boyu, uçuş sonuçlarındaki gerçeklerden bir alt satır ("Toplam fiyat tüm yolcular için; bagaj ve iade koşulları her uçuşta yazar."), aynı yerde arama kartı ve sahne. Otel ↔ Uçak arasında geçerken yalnız sözcükler ve formun alanları değişir; hiçbir öğenin boyu ya da yeri değişmez.
 
 ### Sonuçlar (karşılaştırma)
 
@@ -187,13 +187,13 @@ Kurallar (`styles/motion.css`):
 
 Hareketler:
 
-- **Hero girişi:** başlık kelimeleri kendi kırpılmış satır kutularından 70 ms arayla yükselir (560 ms). Yalnız transform kullanıldığı için sayfa hidrasyon sırasında meşgulken de akıcıdır. Sahne ve arama ilk kareden yerindedir.
+- **Hero girişi yok:** başlık, alt yazı, arama ve sahne ilk kareden son hâlindedir. (Kelimelerin yükselmesi her sayfa açılışında, ürün sekmesi değiştirirken de tekrar oynuyor ve başlığı büyüyüp küçülüyor gösteriyordu; kaldırıldı.)
 - **Bir kez görünme** (`reveal.ts`): bölüm başlıkları ve kart grupları ekranın altından yalnız transform ile yükselir. Ekranda ya da 96 px yakınında olan hiç hazırlanmaz; geri kaydırmada tekrar etmez.
 - **Sonuçlar:** ilk altı kart yükte 8 px'ten 35 ms arayla oturur.
 - **Paneller** (takvim, misafir, dil, öneriler) tetikleyicilerinden 200 ms'de 6 px ve 0,98'den açılır, 140 ms'de kapanır. Açılış `@starting-style`, kapanış `display` geçişiyle yapılır; desteklemeyen tarayıcıda anında açılıp kapanır.
 - **Açılır bölümler** (filtre, arama özeti, SSS) `::details-content` ile doğal yüksekliğine açılır.
 - **Geri bildirim:** düğme 0,97'ye basılır; seçilen gün ve sayaç yerinde değişir; kart hover'da gölge alır ama yer değiştirmez.
-- **Sayfa geçişleri** (`@view-transition`): üst bilgi yerinde kalır, içerik 220 ms'de çapraz geçer. Raf, liste ve sonuç kartındaki otel fotoğrafı açılan otel sayfasının ilk fotoğrafına dönüşür. İki görüntü de hareket eden çerçeveye kırpılır (`view-transition-class: hotel-photo`, `object-fit: cover`); geçişte görsel esnemez ya da köşeden taşmaz.
+- **Sayfa geçişleri** (`@view-transition`): sayfalar arası çapraz geçiş yok; eski sayfa yenisi çizilene kadar durur, yenisi tek karede gelir. (220 ms boyunca iki sayfa üst üste görünüyor, farklı boydaki iki başlık ve iki form tek bir öğe büyüyüp küçülüyormuş gibi okunuyordu.) Yalnız raf, liste ve sonuç kartındaki otel fotoğrafı açılan otel sayfasının ilk fotoğrafına dönüşür. İki görüntü de hareket eden çerçeveye kırpılır (`view-transition-class: hotel-photo`, `object-fit: cover`); geçişte görsel esnemez ya da köşeden taşmaz.
 - **Yükleniyor:** iskelet yavaşça nefes alır, döner simge yalnız sipariş durumunda kullanılır.
 - **Yükte geçiş yok:** renk ve boyut geçişleri sayfa stilleriyle bir kez çizildikten sonra açılır (`SiteMotion`, `data-motion`). Geç gelen bir stil yerine anında oturur, tarayıcının varsayılanından renk süpürmesiyle gelmez.
 - `prefers-reduced-motion: reduce` bütün animasyon, geçiş ve sayfa geçişlerini kapatır. İçerik ve paneller aynen çalışır.
@@ -208,6 +208,8 @@ Hareketler:
    *Çözüm:* sabit `aspect-ratio`; çizimin ölçeği yalnız sütun genişliğine bağlı. Font yedeği ölçülere göre ayarlı.
 4. **Kaydırırken sahne küçülüp büyüyordu.** Beş kaydırma animasyonu sahneyi 0,965'e küçültüyordu.
    *Çözüm:* kaydırmaya bağlı efekt yok.
+5. **Otel ↔ Uçak geçişinde başlık büyüyüp küçülüyor, sayfa kayıyordu** (13 Ekim 2026, kare kare kayıt). DOM'da hiçbir ölçü değişmiyordu; sebep iki sayfanın farklı çerçevesiydi: otel başlığı 72 px, uçak başlığı 56 px (`hero-compact`), uçakta alt satır yoktu ve sol sütun dikeyde ortalandığı için arama kartı otelde 300 px'te, uçakta 219 px'te başlıyordu. 220 ms'lik sayfa çapraz geçişi ikisini üst üste gösteriyor, başlık kelimeleri de her açılışta yeniden yükseliyordu.
+   *Çözüm:* iki ürün için tek çerçeve (aynı başlık boyu, iki tarafta da alt satır, sol sütun üstten hizalı), hero girişi yok, sayfa çapraz geçişi yok.
 
 ## Çizimler (`components/ui/Art.tsx`)
 

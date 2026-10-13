@@ -1,6 +1,5 @@
 import { ArrowRight, BadgeCheck, CalendarX2, Plane, ShieldCheck } from 'lucide-react';
 import { notFound } from 'next/navigation';
-import { Fragment, type CSSProperties } from 'react';
 import { RichText } from '../../components/cms/RichText';
 import { faqPath, guidePath, guideHubPath } from '../../components/content/GuidePages';
 import { featuredLists, hubPath, listPath, listShelf, ListHotelCard } from '../../components/hotels/HotelListPage';
@@ -52,14 +51,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
       <section className="hero" aria-labelledby="home-title">
         <div className="hero-text">
           <h1 id="home-title" className="hero-title">
-            {t.search.title.split(' ').map((w, i) => (
-              <Fragment key={i}>
-                {i > 0 && ' '}
-                <span className="w">
-                  <span style={{ '--i': i } as CSSProperties}>{w}</span>
-                </span>
-              </Fragment>
-            ))}
+            {t.search.title}
           </h1>
           <p className="hero-sub">{t.home.sub}</p>
         </div>
