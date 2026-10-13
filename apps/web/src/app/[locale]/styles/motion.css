@@ -24,7 +24,7 @@
   }
 
   /* Results: the first cards settle in order on load (8px, transform only); prices and Seç are usable at once. */
-  .hotels > .hotel:not(.skeleton-hotel) {
+  .hotels > li:not(.skeleton-hotel) {
     animation: card-in 360ms var(--ease-out) both;
     animation-delay: calc(var(--i, 6) * 35ms);
   }
@@ -44,7 +44,7 @@
     animation: spin 0.9s linear infinite;
   }
   .sk,
-  .skeleton-hotel .hotel-media,
+  .skeleton-hotel .hc-media,
   .skeleton-bar,
   .skeleton-filters {
     animation: breathe 1.6s ease-in-out infinite;

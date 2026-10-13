@@ -22,7 +22,8 @@ test('hotel booking on our site with the Nuitee payment component (sandbox)', as
   await page.getByRole('button', { name: 'Ara' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Sonuçlar' })).toBeVisible({ timeout: 60_000 });
 
-  // A refundable offer, so the test booking can be cancelled without a penalty.
+  // A hotel with a refundable room, and that room, so the test booking can be cancelled without a penalty.
+  await page.locator('ul.hotels .hotel-card').filter({ hasText: 'Ücretsiz iptalli oda var' }).first().getByRole('link').click();
   const offer = page.locator('li.offer').filter({ hasText: 'ücretsiz iptal' }).first();
   await expect(offer).toBeVisible({ timeout: 30_000 });
   await offer.getByRole('button', { name: /^Seç:/ }).click();

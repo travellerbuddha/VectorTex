@@ -34,6 +34,15 @@ test('hotel booking with the provider-managed payment (MOCK): search → select 
 
   await expect(page.getByRole('heading', { level: 1, name: 'Sonuçlar' })).toBeVisible();
   await expect(page.getByRole('heading', { level: 2, name: 'MOCK Kaleiçi Boutique' })).toBeVisible();
+  await noHorizontalOverflow(page);
+  // The card opens the hotel's page in this search: its rooms with this search's prices, then Seç. Cards are looked up
+  // in the results list only: the home page's shelf can show the same hotels while the search is still loading.
+  const cardPrice = (await page.locator('ul.hotels .hotel-card').filter({ hasText: 'MOCK Kaleiçi Boutique' }).getByTestId('search-price').innerText()).trim();
+  await page.locator('ul.hotels').getByRole('link', { name: 'MOCK Kaleiçi Boutique' }).click();
+  await expect(page).toHaveURL(/\/tr\/search\/hotels\/[0-9a-f-]{36}\/MOCK-H2\?place=/);
+  await expect(page.getByRole('heading', { level: 1, name: 'MOCK Kaleiçi Boutique' })).toBeVisible();
+  await expect(page.getByTestId('search-price')).toHaveText(cardPrice);
+  await expect(page.getByText('MOCK açıklama')).toBeVisible();
   // The suite priced below the hotel's suggested public price is not shown (rate parity).
   await expect(page.getByText('MOCK Suite')).toHaveCount(0);
   await noHorizontalOverflow(page);
@@ -65,6 +74,7 @@ test('the order page and APIs are closed to anyone without the order cookie', as
   await page.getByRole('combobox', { name: 'Nereye?' }).fill('Antalya');
   await page.getByRole('option', { name: /Antalya \(MOCK\)/ }).click();
   await page.getByRole('button', { name: 'Ara' }).click();
+  await page.locator('ul.hotels').getByRole('link', { name: 'MOCK Lara Beach Resort' }).click();
   await page.getByRole('button', { name: /Seç: MOCK Lara Beach Resort/ }).first().click();
   await page.getByLabel('Ad', { exact: true }).fill('Can');
   await page.getByLabel('Soyad', { exact: true }).fill('Demir');

@@ -12,6 +12,7 @@ async function bookHotel(page: Page, lastName: string): Promise<{ orderId: strin
   await page.getByRole('combobox', { name: 'Nereye?' }).fill('Antalya');
   await page.getByRole('option', { name: /Antalya \(MOCK\)/ }).click();
   await page.getByRole('button', { name: 'Ara' }).click();
+  await page.locator('ul.hotels').getByRole('link', { name: 'MOCK Kaleiçi Boutique' }).click();
   await page.getByRole('button', { name: /Seç: MOCK Kaleiçi Boutique – MOCK Superior Double/ }).click();
   await page.getByLabel('Ad', { exact: true }).fill('Komisyon');
   await page.getByLabel('Soyad', { exact: true }).fill(lastName);

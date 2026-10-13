@@ -9,10 +9,10 @@ import { TrackEvent } from '../tracking/TrackEvent';
 import { booking } from '../../server/booking';
 import { breadcrumbList, hotelPage as hotelMarkup, jsonLd } from '../../server/structured-data';
 import { SearchForm } from '../SearchForm';
-import { HotelArt } from '../ui/Art';
-import { hotelTransition, RatingBadge, Stars } from '../ui/HotelBits';
-import { Check, Clock, ListChecks, MapPin } from 'lucide-react';
+import { hotelTransition } from '../ui/HotelBits';
+import { ListChecks } from 'lucide-react';
 import { hotelPath, hubPath, listPath, PriceBlock } from './HotelListPage';
+import { HotelDetails, HotelGallery, HotelTitle } from './HotelSections';
 
 /**
  * Hotel page (ADR-0014): static content cached from the provider, the list price (when current) and the search form
@@ -59,9 +59,6 @@ export async function hotelMetadata(locale: Locale, slug: string, searchParams: 
   };
 }
 
-/** Photos shown in the mosaic: 1, 2, 3 or 5 (a layout without holes). */
-const galleryCount = (n: number) => (n >= 5 ? 5 : n >= 3 ? 3 : n);
-
 export async function HotelPage({ locale, slug, searchParams }: { locale: Locale; slug: string; searchParams: Record<string, string | undefined> }) {
   if (slug !== slug.toLowerCase()) permanentRedirect(hotelPath(locale, slug.toLowerCase()));
   const view = await load(locale, slug, searchParams);
@@ -99,7 +96,6 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
     },
     origin(),
   );
-  const nf = (n: number) => n.toLocaleString(locale === 'tr' ? 'tr-TR' : 'en-GB');
   const viewItem = {
     ...(view.price ? { currency: view.price.amount.currency, value: analyticsValue(view.price.amount) } : {}),
     items: [{ item_id: view.hotelId, item_name: c.name, item_category: 'Hotel', ...(view.price ? { price: analyticsValue(view.price.amount) } : {}) }],
@@ -114,40 +110,8 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
           ))}
         </ol>
       </nav>
-      <header className="hotel-title">
-        <div>
-          <h1>{c.name}</h1>
-          <p className="hotel-meta">
-            <Stars stars={c.stars} locale={locale} />
-            {c.address && (
-              <span className="hotel-where">
-                <MapPin />
-                {c.address}
-              </span>
-            )}
-          </p>
-        </div>
-        {c.rating !== null && c.reviewCount !== null && c.reviewCount > 0 && (
-          <div className="hotel-rating">
-            <RatingBadge rating={c.rating} reviews={c.reviewCount} locale={locale} />
-            <p className="muted small">{t.lists.rating(nf(c.rating), nf(c.reviewCount))}</p>
-          </div>
-        )}
-      </header>
-      {c.images.length > 0 ? (
-        <ul className={`gallery gallery-${galleryCount(c.images.length)}`} aria-label={c.name}>
-          {c.images.slice(0, galleryCount(c.images.length)).map((img, i) => (
-            <li key={img.url} style={i === 0 ? hotelTransition(view.slug) : undefined}>
-              {/* eslint-disable-next-line @next/next/no-img-element -- provider images are https-only; no host allow-list */}
-              <img src={img.url} alt={img.caption ?? c.name} loading={i === 0 ? 'eager' : 'lazy'} />
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <div className="hotel-art-hero" style={hotelTransition(view.slug)}>
-          <HotelArt seed={view.hotelId} />
-        </div>
-      )}
+      <HotelTitle name={c.name} stars={c.stars} address={c.address} rating={c.rating} reviews={c.reviewCount} locale={locale} />
+      <HotelGallery images={c.images} name={c.name} seed={view.hotelId} transition={hotelTransition(view.slug)} />
       <div className="hotel-page-layout">
         <section className="card book-box" aria-labelledby="book-title">
           <h2 id="book-title">{t.lists.bookTitle}</h2>
@@ -175,65 +139,7 @@ export async function HotelPage({ locale, slug, searchParams }: { locale: Locale
           {board && <p className="muted small">{boardLabel(board, null, locale)}</p>}
         </section>
         <div className="hotel-main">
-          {c.description && (
-            <section className="hotel-text hotel-section">
-              {c.description.split('\n\n').map((p, i) => (
-                <p key={i}>
-                  {p.split('\n').map((line, j) => (
-                    <span key={j}>
-                      {j > 0 && <br />}
-                      {line}
-                    </span>
-                  ))}
-                </p>
-              ))}
-            </section>
-          )}
-          {c.facilities.length > 0 && (
-            <section className="hotel-section">
-              <h2>{t.lists.facilities}</h2>
-              <ul className="amenities">
-                {c.facilities.map((f) => (
-                  <li key={f}>
-                    <Check aria-hidden="true" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-          {(c.checkinTime || c.checkoutTime) && (
-            <section className="hotel-section">
-              <h2>{t.lists.times}</h2>
-              <p className="voucher-line">
-                <Clock />
-                {c.checkinTime && `${t.lists.checkin}: ${c.checkinTime}`}
-                {c.checkinTime && c.checkoutTime && ' · '}
-                {c.checkoutTime && `${t.lists.checkout}: ${c.checkoutTime}`}
-              </p>
-            </section>
-          )}
-          {c.importantInformation && (
-            <section className="hotel-section">
-              <h2>{t.lists.important}</h2>
-              {c.importantInformation.split('\n\n').map((p, i) => (
-                <p key={i}>{p}</p>
-              ))}
-            </section>
-          )}
-          {c.nearby.length > 0 && (
-            <section className="hotel-section">
-              <h2>{t.lists.nearby}</h2>
-              <ul className="nearby">
-                {c.nearby.map((n) => (
-                  <li key={n.name}>
-                    {n.name}
-                    {n.distanceKm !== null ? ` · ${t.lists.km(nf(n.distanceKm))}` : ''}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
+          <HotelDetails content={c} locale={locale} />
           {view.lists.length > 0 && (
             <section className="hotel-section">
               <h2>{t.lists.inLists}</h2>

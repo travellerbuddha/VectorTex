@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { HotelResultView } from '@texholiday/booking';
-import { activeFilters, applyFilters, boardCounts, filtersQuery, readFilters } from '../src/server/result-filters';
+import { activeFilters, applyFilters, boardCounts, filtersQuery, freeCancelNow, keptSearch, readFilters } from '../src/server/result-filters';
 
 const eur = (minor: string) => ({ currency: 'EUR', minor });
 const offer = (key: string, total: string, boardType: string | null, freeUntil: string | null, refundable = true) => ({
@@ -89,5 +89,16 @@ describe('filtersQuery', () => {
     const f = readFilters({ free: '1', boards: ['AI', 'BB'], sort: 'rating' });
     expect(filtersQuery(kept, { ...f, boards: f.boards.filter((b) => b !== 'AI') })).toBe('place=p-1&placeName=Antalya&free=1&boards=BB&sort=rating');
     expect(filtersQuery(kept, { ...f, free: false })).toBe('place=p-1&placeName=Antalya&boards=AI&boards=BB&sort=rating');
+  });
+});
+
+describe('the search a hotel page keeps', () => {
+  it('keeps only the search parameters, as single non-empty values', () => {
+    expect(keptSearch({ place: 'p-1', placeName: 'Antalya', free: '1', sort: 'price', hotel: '', board: ['AI', 'BB'], x: 'y' })).toEqual({ place: 'p-1', placeName: 'Antalya' });
+    expect(keptSearch({ hotel: 'MOCK-H2', hotelName: 'MOCK Kaleiçi Boutique' })).toEqual({ hotel: 'MOCK-H2', hotelName: 'MOCK Kaleiçi Boutique' });
+  });
+  it('marks free cancellation only while an offer can still be cancelled free (the filter’s own test)', () => {
+    expect(hotels.map((h) => freeCancelNow(h, now))).toEqual([true, true, false]);
+    expect(applyFilters(hotels, readFilters({ free: '1' }), now).map((h) => h.hotelId)).toEqual(hotels.filter((h) => freeCancelNow(h, now)).map((h) => h.hotelId));
   });
 });

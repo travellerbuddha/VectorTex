@@ -122,7 +122,8 @@ export function SearchForm({
       });
       const q = new URLSearchParams(place.hotelId ? { hotel: place.hotelId, hotelName: place.name } : { place: place.placeId, placeName: place.name });
       if (boardType) q.set('board', boardType);
-      router.push(`/${locale}/search/hotels/${r.sessionId}?${q.toString()}`);
+      // A search for one hotel opens that hotel's rooms; a place opens the results.
+      router.push(`/${locale}/search/hotels/${r.sessionId}${place.hotelId ? `/${encodeURIComponent(place.hotelId)}` : ''}?${q.toString()}`);
     } catch (err) {
       setError(errorMessage(locale, err instanceof ApiError ? err.code : undefined));
       setBusy(false);

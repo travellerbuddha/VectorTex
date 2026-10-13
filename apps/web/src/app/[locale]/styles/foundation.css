@@ -77,7 +77,8 @@
   /* Frame */
   --page: 1280px;
   --gutter: 1rem;
-  --header-h: 108px;
+  /* Height of the sticky header: none below 1100px, where the header scrolls away with the page. */
+  --header-h: 0px;
   /* Motion */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
@@ -94,7 +95,7 @@
     --gutter: 1.5rem;
   }
 }
-@media (min-width: 900px) {
+@media (min-width: 1100px) {
   :root {
     --header-h: 64px;
   }
@@ -112,7 +113,7 @@
 }
 
 html {
-  /* Focus and anchor scrolling stop below the sticky header. */
+  /* Focus and anchor scrolling stop below the sticky header (wide screens). */
   scroll-padding-top: calc(var(--header-h) + 16px);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
@@ -340,8 +341,7 @@ p.error[role='alert'] {
    - feature (board, facilities): white with a hairline, a feature icon;
    - campaign / list membership: coral tint, a list icon (only real list membership, never invented offers). */
 .tag,
-.tag-campaign,
-.chips li {
+.tag-campaign {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -370,8 +370,7 @@ p.error[role='alert'] {
   background: var(--warn-50);
 }
 .tag-feature,
-.offer-board,
-.chips li {
+.offer-board {
   background: var(--paper);
   color: var(--ink-2);
   box-shadow: inset 0 0 0 1px var(--line-2);

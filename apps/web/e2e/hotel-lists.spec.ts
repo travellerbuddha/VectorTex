@@ -84,15 +84,18 @@ test('hotel lists: publish a list, prices from the scan, ItemList markup, hotel 
   await expect(visitor.locator('link[rel="canonical"]')).toHaveAttribute('href', new RegExp(`/tr/oteller/${slug}$`));
 
   // Hotel page from "see prices": the date of the list price, the hotel preset in the search form.
-  await cards.first().getByRole('link', { name: 'Fiyatları gör' }).click();
+  await expect(cards.first()).toContainText('Fiyatları gör');
+  await cards.first().getByRole('link').click();
   await expect(visitor).toHaveURL(/\/tr\/otel\/mock-[a-z0-9-]+\?checkin=\d{4}-\d{2}-\d{2}$/);
   await expect(visitor.getByRole('heading', { level: 1 })).toContainText('MOCK');
   await expect(visitor.getByText('MOCK açıklama')).toBeVisible();
   const hotelLd = (await visitor.locator('script[type="application/ld+json"]').allTextContents()).map((t) => JSON.parse(t) as Record<string, unknown>).find((b) => b['@type'] === 'Hotel')!;
   expect(hotelLd).toMatchObject({ geo: { '@type': 'GeoCoordinates' }, checkinTime: '14:00:00' });
   await visitor.getByRole('button', { name: 'Ara', exact: true }).click();
-  await expect(visitor).toHaveURL(/\/tr\/search\/hotels\/[0-9a-f-]{36}\?hotel=MOCK-H/);
-  await expect(visitor.locator('.hotel .from strong').first()).toHaveText(firstPrice);
+  // A search for this one hotel opens its rooms right away, at the list price.
+  await expect(visitor).toHaveURL(/\/tr\/search\/hotels\/[0-9a-f-]{36}\/MOCK-H\d\?hotel=MOCK-H/);
+  await expect(visitor.getByTestId('search-price')).toHaveText(firstPrice);
+  await expect(visitor.getByRole('button', { name: /^Seç:/ }).first()).toBeVisible();
 
   // That search (list reference: 1 room, 2 adults, 1 night) was compared with the list price: the panel report shows it.
   await page.goto('/yonetim/raporlar');
@@ -114,7 +117,7 @@ test('hotel lists: publish a list, prices from the scan, ItemList markup, hotel 
   expect((await visitor.request.get('/api/v1/staff/ads-page-feed')).status()).toBe(403);
 
   // Old search addresses move to the new place; list addresses do not.
-  const sessionPath = new URL(visitor.url()).pathname.replace('/search/hotels/', '/hotels/');
+  const sessionPath = new URL(visitor.url()).pathname.replace('/search/hotels/', '/hotels/').replace(/\/MOCK-H\d$/, '');
   const moved = await visitor.request.get(sessionPath, { maxRedirects: 0 });
   expect(moved.status()).toBe(308);
   expect(moved.headers().location).toContain('/tr/search/hotels/');

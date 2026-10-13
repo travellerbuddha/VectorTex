@@ -17,6 +17,17 @@ export interface ResultFilters {
 
 const BOARD = /^[A-Z]{2,4}$/;
 
+/** Query parameters that describe the search itself (kept by the filter form, its "clear" link and the hotel pages). */
+const SEARCH_KEYS = ['place', 'placeName', 'hotel', 'hotelName', 'board'] as const;
+
+export function keptSearch(sp: Record<string, string | string[] | undefined>): Record<string, string> {
+  return Object.fromEntries(SEARCH_KEYS.flatMap((k) => (typeof sp[k] === 'string' && sp[k] ? [[k, sp[k]]] : [])));
+}
+
+/** True when the hotel has an offer still cancellable free of charge (the same test as the free-cancellation filter). */
+export const freeCancelNow = (h: HotelResultView, now: Date) =>
+  h.offers.some((o) => o.cancellation.refundable && o.cancellation.freeUntil !== null && new Date(o.cancellation.freeUntil).getTime() > now.getTime());
+
 export function readFilters(sp: Record<string, string | string[] | undefined>): ResultFilters {
   const all = (v: string | string[] | undefined) => (v === undefined ? [] : Array.isArray(v) ? v : [v]);
   const stars = Number(all(sp.stars)[0]);

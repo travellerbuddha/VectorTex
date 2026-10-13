@@ -5,11 +5,12 @@ import { signIn } from './admin-support';
  * Online cancellation by the customer (T27, ADR-0021) on MOCK bookings: the expected fee is shown, a confirmation is
  * required, the booking is cancelled at the provider and the status follows; a non-refundable booking is not offered.
  */
-async function bookMock(page: Page, choice: RegExp, surname: string): Promise<string> {
+async function bookMock(page: Page, hotel: string, choice: RegExp, surname: string): Promise<string> {
   await page.goto('/tr');
   await page.getByRole('combobox', { name: 'Nereye?' }).fill('Antalya');
   await page.getByRole('option', { name: /Antalya \(MOCK\)/ }).click();
   await page.getByRole('button', { name: 'Ara' }).click();
+  await page.locator('ul.hotels').getByRole('link', { name: hotel }).click();
   await page.getByRole('button', { name: choice }).click();
   await page.getByLabel('Ad', { exact: true }).fill('Deniz');
   await page.getByLabel('Soyad', { exact: true }).fill(surname);
@@ -24,7 +25,7 @@ async function bookMock(page: Page, choice: RegExp, surname: string): Promise<st
 
 test('the customer cancels a free-cancellation booking from the order page', async ({ page, browser }, info) => {
   test.setTimeout(90_000);
-  const orderId = await bookMock(page, /Seç: MOCK Kaleiçi Boutique – MOCK Superior Double/, 'Iptalci');
+  const orderId = await bookMock(page, 'MOCK Kaleiçi Boutique', /Seç: MOCK Kaleiçi Boutique – MOCK Superior Double/, 'Iptalci');
   await page.goto(`/tr/orders/${orderId}`);
   const box = page.getByTestId('cancel-booking');
   await expect(box.getByRole('heading', { name: 'Rezervasyonu iptal et' })).toBeVisible();
@@ -60,7 +61,7 @@ test('the customer cancels a free-cancellation booking from the order page', asy
 
 test('a non-refundable booking is not offered online cancellation', async ({ page, browser }) => {
   test.setTimeout(90_000);
-  const orderId = await bookMock(page, /Seç: MOCK Lara Beach Resort – MOCK Standard Room/, 'Iadesiz');
+  const orderId = await bookMock(page, 'MOCK Lara Beach Resort', /Seç: MOCK Lara Beach Resort – MOCK Standard Room/, 'Iadesiz');
   await page.goto(`/tr/orders/${orderId}`);
   await expect(page.getByTestId('cancel-not-available')).toHaveText(/iade yapılmıyor; bu nedenle çevrimiçi iptal edilemez/);
   await expect(page.getByRole('button', { name: 'Rezervasyonu iptal et' })).toHaveCount(0);

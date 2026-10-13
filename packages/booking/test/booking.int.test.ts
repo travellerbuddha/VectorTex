@@ -101,6 +101,53 @@ describe('hotel booking application flow (provider-managed payment, ADR-0008)', 
     expect(JSON.stringify(r)).not.toMatch(/MOCK-OFFER/);
   });
 
+  it('the hotel page of a search: the same offers and prices, the hotel content, nothing outside the search', async () => {
+    const r = await app.searchHotels(searchInput());
+    const before = hotels.calls.hotelContent ?? 0;
+    const page = await app.searchHotel(r.sessionId, 'MOCK-H2', 'tr');
+    expect(page.hotel).toEqual(r.hotels.find((h) => h.hotelId === 'MOCK-H2'));
+    expect(page).toMatchObject({ sessionId: r.sessionId, nights: 3, currency: 'EUR' });
+    expect(page.content).toMatchObject({ name: 'MOCK Kaleiçi Boutique', checkinTime: '14:00' });
+    expect(page.content?.description).toMatch(/^MOCK açıklama/);
+    // The provider's content is read once and then served from memory.
+    await app.searchHotel(r.sessionId, 'MOCK-H2', 'tr');
+    expect(hotels.calls.hotelContent).toBe(before + 1);
+    expect(JSON.stringify(page.hotel)).not.toMatch(/MOCK-OFFER/);
+    // A hotel outside this search, a malformed id or an unknown session: not found (no content read for them).
+    await expect(app.searchHotel(r.sessionId, 'MOCK-H3', 'tr')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(app.searchHotel(r.sessionId, '../MOCK-H2', 'tr')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(app.searchHotel('00000000-0000-4000-8000-000000000000', 'MOCK-H2', 'tr')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(hotels.calls.hotelContent).toBe(before + 1);
+    // A search for one hotel opens that hotel's page.
+    const one = await app.searchHotels(searchInput({ target: { hotelIds: ['MOCK-H3'] } }));
+    const h3 = await app.searchHotel(one.sessionId, 'MOCK-H3', 'en');
+    expect(h3.content?.description).toMatch(/^MOCK description/);
+  });
+
+  it('a slow or failing content provider never holds up or fails the hotel page of a search', async () => {
+    const r = await app.searchHotels(searchInput());
+    const slow = new MockHotelConnector();
+    let calls = 0;
+    slow.hotelContent = () => {
+      calls += 1;
+      return new Promise(() => undefined);
+    };
+    const slowApp = new BookingApp({ db: core.db, hotels: slow, matrix, sourceLock, settings, clock: () => new Date('2027-05-01T10:00:00Z') });
+    const started = Date.now();
+    const page = await slowApp.searchHotel(r.sessionId, 'MOCK-H1', 'tr', { contentWaitMs: 50 });
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(page.content).toBeNull();
+    expect(page.hotel?.offers.length).toBeGreaterThan(0);
+    // The read still running is shared, not repeated.
+    await slowApp.searchHotel(r.sessionId, 'MOCK-H1', 'tr', { contentWaitMs: 10 });
+    expect(calls).toBe(1);
+
+    const failing = new MockHotelConnector();
+    failing.hotelContent = () => Promise.reject(new Error('socket hang up'));
+    const failingApp = new BookingApp({ db: core.db, hotels: failing, matrix, sourceLock, settings, clock: () => new Date('2027-05-01T10:00:00Z') });
+    expect((await failingApp.searchHotel(r.sessionId, 'MOCK-H1', 'tr')).content).toBeNull();
+  });
+
   it('TRY needs our own gateway, which is not integrated yet: the route stays closed (K13)', async () => {
     await expect(app.searchHotels(searchInput({ currency: 'TRY' }))).rejects.toMatchObject({ code: 'CAPABILITY_NOT_AVAILABLE' });
   });
