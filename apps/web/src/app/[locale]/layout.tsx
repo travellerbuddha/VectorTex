@@ -12,7 +12,6 @@ import { SiteMotion } from '../../components/ui/SiteMotion';
 import { ProductNav } from '../../components/ui/ProductNav';
 import { LocaleCurrency } from '../../components/ui/LocaleCurrency';
 import { UserRound } from 'lucide-react';
-import '@fontsource-variable/plus-jakarta-sans';
 import './styles/foundation.css';
 import './styles/chrome.css';
 import './styles/search.css';
@@ -22,6 +21,14 @@ import './styles/hotels.css';
 import './styles/booking.css';
 import './styles/content.css';
 import './styles/motion.css';
+
+/**
+ * Plus Jakarta Sans (variable, SIL OFL 1.1; public/fonts, the Latin and Latin Extended cuts of @fontsource-variable
+ * 5.3.0, declared in foundation.css). Both files are preloaded from the head of every page: found only once the
+ * stylesheet was applied, the font arrived after the first frame, so Chrome painted the fallback and swapped a moment
+ * later, which moved the menu entries by up to 10px and re-wrapped text on each page.
+ */
+const FONT_FILES = ['/fonts/plus-jakarta-sans-latin-wght-5.3.0.woff2', '/fonts/plus-jakarta-sans-latin-ext-wght-5.3.0.woff2'];
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -61,6 +68,11 @@ export default async function LocaleLayout({ children, params }: { children: Rea
   const tags = tracking && (tracking.gtm || tracking.ga4) ? tracking : null;
   return (
     <html lang={locale}>
+      <head>
+        {FONT_FILES.map((href) => (
+          <link key={href} rel="preload" href={href} as="font" type="font/woff2" crossOrigin="anonymous" />
+        ))}
+      </head>
       <body>
         {/* Consent Mode v2 defaults before any tag (ADR-0018). */}
         {tags && <script dangerouslySetInnerHTML={{ __html: CONSENT_BOOTSTRAP }} />}

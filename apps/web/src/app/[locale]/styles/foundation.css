@@ -7,8 +7,28 @@
  * Mobile first (320px+), 16px base text, 44px+ targets, motion off under reduced motion (motion.css).
  */
 
+/* Plus Jakarta Sans (variable 200-800, SIL OFL 1.1, public/fonts): Latin and Latin Extended (Turkish). The layout
+   preloads both files; `optional` lets Chrome hold the first frame for a preloaded font instead of painting the fallback
+   and swapping (which moved and re-wrapped text on every page). If a first visit is too slow, that page keeps the
+   metric-matched fallback below and never shifts; the next page has the font from the cache. */
+@font-face {
+  font-family: 'Plus Jakarta Sans Variable';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: optional;
+  src: url('/fonts/plus-jakarta-sans-latin-wght-5.3.0.woff2') format('woff2-variations'), url('/fonts/plus-jakarta-sans-latin-wght-5.3.0.woff2') format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans Variable';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: optional;
+  src: url('/fonts/plus-jakarta-sans-latin-ext-wght-5.3.0.woff2') format('woff2-variations'), url('/fonts/plus-jakarta-sans-latin-ext-wght-5.3.0.woff2') format('woff2');
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
 /* Fallback with the web font's metrics (widths measured on Turkish UI text per weight range), so text keeps its width
-   and lines when the font arrives late. */
+   and lines on a page that has to do without the font. */
 @font-face {
   font-family: 'PJS Fallback';
   src: local('Arial'), local('Arimo'), local('Liberation Sans'), local('Helvetica');
@@ -113,11 +133,20 @@
 }
 
 html {
+  /* The scrollbar's place is kept on every page, long or short: where scrollbars take room (a mouse on macOS, Windows,
+     Linux), a page without one would otherwise be 15px wider and the centred header would move by half of it. */
+  scrollbar-gutter: stable;
   /* Focus and anchor scrolling stop below the sticky header (wide screens). */
   scroll-padding-top: calc(var(--header-h) + 16px);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   scrollbar-color: var(--line-2) transparent;
+}
+/* Browsers without scrollbar-gutter keep the same width by always showing the scrollbar's track. */
+@supports not (scrollbar-gutter: stable) {
+  html {
+    overflow-y: scroll;
+  }
 }
 
 body {

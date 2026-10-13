@@ -59,8 +59,9 @@ Bütün metin/zemin çiftleri WCAG AA'yı geçer.
 
 ## Yazı
 
-- **Plus Jakarta Sans** (değişken, 200–800). Tek aile, sunucudan gelir (`@fontsource-variable`, CSP `font-src 'self'`). Geometrisi logonun yazısına yakındır; Türkçe karakterleri ve ₺ işareti vardır.
-- Font geç gelirse metin kaymaz: `PJS Fallback` (yerel Arial/Helvetica), yazı tipinin genişlik ve satır ölçülerine üç ağırlık aralığında ayrı ayrı ayarlıdır (%103, %99,3, %100,5; Türkçe arayüz metniyle ölçüldü).
+- **Plus Jakarta Sans** (değişken, 200–800, SIL OFL 1.1). Tek aile, sitenin kendi sunucusundan gelir: `public/fonts/` altında Latin ve Latin Genişletilmiş (Türkçe) dosyaları, `@fontsource-variable` 5.3.0'dan, sürüm adı dosya adında, bir yıl önbellekli (CSP `font-src 'self'`). Geometrisi logonun yazısına yakındır; Türkçe karakterleri ve ₺ işareti vardır.
+- **Sayfa açılırken yazı tipi değişmez:** iki dosya her sayfanın `<head>`'inde önceden istenir (`preload`) ve `font-display: optional` ile tanımlıdır. Chrome önceden istenen yazı tipini ilk kare için kısa süre bekler; sayfa doğrudan Plus Jakarta ile çizilir. (Önceden yazı tipi ancak stil uygulanınca isteniyordu; Chrome sayfayı yeni bir işlemde açtığında ilk kareler yedek yazı tipiyle çiziliyor, 50–90 ms sonra değişince menü öğeleri 10 px'e kadar kayıyor ve metinler yeniden kırılıyordu.)
+- Çok yavaş bir ilk ziyarette yazı tipi zamanında gelmezse o sayfa baştan sona `PJS Fallback` ile kalır, kaymaz; sonraki sayfa yazı tipini önbellekten alır. `PJS Fallback` (yerel Arial/Helvetica), yazı tipinin genişlik ve satır ölçülerine üç ağırlık aralığında ayrı ayrı ayarlıdır (%103, %99,3, %100,5; Türkçe arayüz metniyle ölçüldü).
 - Ölçek:
   - Ana sayfa başlığı `clamp(2.5rem, …, 4.5rem)` / 780 / −0,045em.
   - Bölüm başlıkları `clamp(1.625rem, …, 2.5rem)` / 740 / −0,036em.
@@ -85,7 +86,8 @@ Bütün metin/zemin çiftleri WCAG AA'yı geçer.
 - 1100 px ve üstü: beyaz, yarı saydam ve yapışkan tek satır (64 px): logo, ürünler ve editör sayfaları, hesap ve TR · EUR.
 - 1100 px altı: üst bilgi sayfayla birlikte kayar (satırları telefon ekranının beşte birini kaplardı). Ürünler eşit sütunlardır (telefonda ikon üstte, tablette yanda); satışta olmayanların altında tek bir "Yakında" çizgisi; editör sayfaları (Oteller, Seyahat rehberi, SSS) ayrı satırda. **Hiçbir öğe yana kaydırılarak bulunmaz**; 320 px'te de hepsi görünür.
 - Kaydırınca yalnız alt çizgi belirir; hiçbir şeyin boyu ya da yeri değişmez. Durumu kaydırma dinleyicisi değil, sayfanın en üstündeki 8 px'lik gözcü işaretler (`IntersectionObserver`).
-- Bulunulan ürün mercan alt çizgiyle işaretlenir. "Yakında" ürünler tek bir rozetle (dar ekranda tek bir başlıkla) gri durur; ekran okuyucu her birinde "Yakında" duyar.
+- Bulunulan ürün ya da sayfa koyu renk ve mercan alt çizgiyle işaretlenir; **kalınlaşmaz** (kalın yazı genişler, yanındaki öğeleri sayfadan sayfaya kaydırırdı). "Yakında" ürünler tek bir rozetle (dar ekranda tek bir başlıkla) gri durur; ekran okuyucu her birinde "Yakında" duyar.
+- Kaydırma çubuğunun yeri her sayfada ayrılır (`scrollbar-gutter: stable`): kaydırma çubuğunun yer kapladığı yerde (macOS'ta fare, Windows) kısa ve uzun sayfalarda logo ve menü aynı pikselde durur.
 
 **Arama:**
 - Bölmeli tek kart (`.search-bar`, `.seg`). Etiket küçük ve üstte, değer çerçevesiz. Etiket ikonları mercan.

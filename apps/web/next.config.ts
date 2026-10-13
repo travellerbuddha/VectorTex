@@ -37,6 +37,8 @@ const config: NextConfig = {
   },
   async headers() {
     return [
+      // Font files carry their version in the name: kept for a year, never revalidated on a page change.
+      { source: '/fonts/:file*', headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }] },
       {
         source: '/:path*',
         headers: [
