@@ -1,7 +1,8 @@
 /* ---------- Motion ----------
-   Two speeds. Discovery pages: a short load entrance of the title and one-time reveals of later sections (reveal.ts).
-   Search, results, booking and payment: quick feedback only. Rules that keep it steady:
-   - only transform and opacity move, and text never fades (titles rise inside their own clipped line box);
+   Two speeds. Discovery pages: one-time reveals of later sections (reveal.ts). Search, results, booking and payment:
+   quick feedback only. A page arrives in its final state: no entrance of the hero title and no cross-fade between
+   pages (two pages at once read as text growing and shrinking). Rules that keep it steady:
+   - only transform and opacity move, and text never fades;
    - the search, prices and buttons never wait for an animation, and nothing is scaled as a whole (no hero zoom);
    - pictures keep their frame and proportions: no animation touches an image's size or an SVG's inner parts;
    - nothing is tied to the scroll position, so the page never stretches or shrinks while scrolling;
@@ -16,13 +17,6 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  /* Home and product landings: the title's words rise in turn; transform only, so the compositor runs it even while
-     the page is still hydrating. */
-  .hero-title .w > span {
-    animation: word-up 560ms var(--ease-out) both;
-    animation-delay: calc(40ms + var(--i, 0) * 70ms);
-  }
-
   /* Results: the first cards settle in order on load (8px, transform only); prices and Seç are usable at once. */
   .hotels > li:not(.skeleton-hotel) {
     animation: card-in 360ms var(--ease-out) both;
@@ -48,11 +42,6 @@
   .skeleton-bar,
   .skeleton-filters {
     animation: breathe 1.6s ease-in-out infinite;
-  }
-}
-@keyframes word-up {
-  from {
-    transform: translateY(105%);
   }
 }
 @keyframes card-in {
@@ -110,17 +99,25 @@
   }
 }
 
-/* ---------- Page transitions: the header stays, the page cross-fades, a hotel's picture carries over ---------- */
+/* ---------- Page transitions: the new page replaces the old one at once; only a hotel's picture carries over ----------
+   No cross-fade of the page: for its length two pages showed at once, and two titles or forms of different sizes in
+   the same place read as one growing and shrinking. The old page simply stays until the new one has rendered. */
 @view-transition {
   navigation: auto;
 }
-.site-header {
-  view-transition-name: site-header;
-}
+::view-transition-group(root),
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation-duration: 220ms;
-  animation-timing-function: var(--ease-in-out);
+  animation: none;
+}
+/* A picture on only one of the two pages (the other cards of a list, the shelf when leaving the home page) does not
+   fade over the new page: it leaves, or arrives, at once with its own page. Only the hotel that was opened moves. */
+::view-transition-old(*.hotel-photo):only-child {
+  animation: none;
+  opacity: 0;
+}
+::view-transition-new(*.hotel-photo):only-child {
+  animation: none;
 }
 /* A hotel's picture moves from its card to the hotel page. Both snapshots are cropped to the moving frame (cover),
    so the picture never stretches or spills past its corners while the frame changes shape. */

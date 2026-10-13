@@ -192,6 +192,7 @@ const tr = {
   },
   flight: {
     title: 'Uçuş arayın',
+    sub: 'Toplam fiyat tüm yolcular için; bagaj ve iade koşulları her uçuşta yazar.',
     from: 'Nereden',
     to: 'Nereye',
     airportHint: 'Havalimanı, şehir veya IATA kodu yazın ve listeden seçin',
@@ -563,6 +564,7 @@ const en: Dict = {
   },
   flight: {
     title: 'Search flights',
+    sub: 'The total covers every passenger; baggage and refund terms are on every flight.',
     from: 'From',
     to: 'To',
     airportHint: 'Type an airport, city or IATA code and pick from the list',

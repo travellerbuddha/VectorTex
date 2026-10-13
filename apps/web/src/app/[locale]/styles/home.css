@@ -3,9 +3,12 @@
   overflow-x: clip;
 }
 
-/* Hero: the title and the search on the left, the coast on the right. The picture has a fixed aspect ratio (6:5 wide,
-   16:9 stacked), so its size depends only on the column width: never on the title, the font, the viewport height or
-   a running animation. The left column is centred against it. Phones and tablets: title, search, then the picture. */
+/* Hero: the title and the search on the left, the coast on the right. One frame for every product landing (hotels,
+   flights): the same title size and a sub line on each, the left column starting at the picture's top edge rather
+   than centred against it, so switching products changes the words and the form, never the size or the place of
+   anything. The picture has a fixed aspect ratio (6:5 wide, 21:9 or 16:9 stacked): its size depends only on the
+   column width, never on the title, the font, the form or the viewport height. Phones and tablets: title, search,
+   then the picture. */
 .hero {
   max-width: var(--page);
   margin: 0 auto;
@@ -26,17 +29,6 @@
   letter-spacing: -0.045em;
   line-height: 1.02;
   text-wrap: balance;
-}
-/* Each word sits in its own clipped line box, so it can rise into view at full opacity (motion.css). */
-.hero-title .w {
-  display: inline-block;
-  overflow: clip;
-  vertical-align: top;
-  padding-bottom: 0.12em;
-  margin-bottom: -0.12em;
-}
-.hero-title .w > span {
-  display: inline-block;
 }
 .hero-sub {
   margin: 0.75rem 0 0;
@@ -64,7 +56,7 @@
 .hero-visual {
   grid-area: visual;
   position: relative;
-  align-self: center;
+  align-self: start;
   aspect-ratio: 16 / 9;
   border-radius: var(--r-xl);
   overflow: hidden;
@@ -79,9 +71,6 @@
   width: 100%;
   height: 100%;
 }
-.hero-compact .hero-title {
-  font-size: clamp(2.25rem, 1.6rem + 2.4vw, 3.5rem);
-}
 @media (min-width: 720px) {
   .hero {
     padding-top: 2rem;
@@ -94,8 +83,8 @@
 @media (min-width: 1024px) {
   .hero {
     grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-    grid-template-rows: 1fr auto auto 1fr;
-    grid-template-areas: '. visual' 'text visual' 'search visual' '. visual';
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas: 'text visual' 'search visual' '. visual';
     column-gap: clamp(2rem, 4vw, 4rem);
     row-gap: 1.75rem;
     padding-top: 2.25rem;

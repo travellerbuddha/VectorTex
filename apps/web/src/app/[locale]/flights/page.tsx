@@ -12,13 +12,15 @@ export default async function Flights({ params }: { params: Promise<{ locale: st
   const { app } = await booking();
   // Open only with an approved FLIGHT pricing rule and a route the capability matrix allows (ADR-0012).
   const currencies = await app.availableFlightCurrencies();
+  const t = dict(locale).flight;
   return (
     <div className="home">
-      <section className="hero hero-compact" aria-labelledby="flights-title">
+      <section className="hero" aria-labelledby="flights-title">
         <div className="hero-text">
           <h1 id="flights-title" className="hero-title">
-            {dict(locale).flight.title}
+            {t.title}
           </h1>
+          <p className="hero-sub">{t.sub}</p>
         </div>
         <div className="hero-search">
           <FlightSearchForm locale={locale} currencies={currencies} today={new Date().toISOString().slice(0, 10)} />
