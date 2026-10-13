@@ -121,10 +121,11 @@
   transform: scaleX(0);
   transition: transform var(--t-med) var(--ease-out);
 }
+/* The current entry is marked by colour and its coral line, never by a bolder weight: a bolder word is wider and
+   would move the entries around it from page to page. */
 .nav-product[aria-current],
 .nav-page[aria-current] {
   color: var(--ink);
-  font-weight: 750;
 }
 .nav-product[aria-current] svg.lucide {
   color: var(--coral-600);
@@ -337,10 +338,6 @@
     padding: 0 0.6rem;
     font-size: 0.9rem;
     font-weight: 600;
-  }
-  .nav-product[aria-current],
-  .nav-page[aria-current] {
-    font-weight: 700;
   }
   .nav-product::after,
   .nav-page::after {
